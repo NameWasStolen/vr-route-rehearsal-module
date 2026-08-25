@@ -390,6 +390,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6fa7b4195685c3846be746c74f0ab2f8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.XR.Interaction.Toolkit::UnityEngine.XR.Interaction.Toolkit.Locomotion.LocomotionMediator
+--- !u!4 &1205476992 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 5080413276867534474, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
+  m_PrefabInstance: {fileID: 1734149299}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1734149299
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -446,6 +451,10 @@ PrefabInstance:
       propertyPath: m_Mediator
       value: 
       objectReference: {fileID: 753221188}
+    - target: {fileID: 8037651474275244261, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
+      propertyPath: m_ForwardSource
+      value: 
+      objectReference: {fileID: 1205476992}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
