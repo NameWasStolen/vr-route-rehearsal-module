@@ -393,7 +393,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 478551867801170501, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 478551867801170501, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
       propertyPath: m_LocalPosition.z
@@ -430,6 +430,10 @@ PrefabInstance:
     - target: {fileID: 2929931167316164458, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
       propertyPath: m_Name
       value: XRPlayerRig
+      objectReference: {fileID: 0}
+    - target: {fileID: 5002810436517361211, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
+      propertyPath: m_Radius
+      value: 0.2
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
