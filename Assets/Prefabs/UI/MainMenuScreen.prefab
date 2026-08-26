@@ -400,7 +400,7 @@ RectTransform:
   m_Father: {fileID: 4803943506552447821}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 20, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -458,7 +458,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &8489526822845922618
 RectTransform:
   m_ObjectHideFlags: 0
@@ -498,6 +498,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 38bbf20d6a1272b4d9e4c5223a97e56a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
+  brightnessSlider: {fileID: 4929178348026246696}
+  volumeSlider: {fileID: 5834374848992151033}
+  fontSizeSlider: {fileID: 5747110591423086858}
   usageModeToggles:
   - {fileID: 5160467479301098225}
   - {fileID: 2464009303648590040}
@@ -1147,7 +1150,7 @@ RectTransform:
   m_Father: {fileID: 356848364828800984}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 10, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -2773,7 +2776,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &5037665658052469425
 RectTransform:
   m_ObjectHideFlags: 0
@@ -3451,7 +3454,7 @@ GameObject:
   - component: {fileID: 2293118004079509970}
   - component: {fileID: 4929178348026246696}
   m_Layer: 5
-  m_Name: Slider
+  m_Name: BrightnessSlider
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3777,7 +3780,7 @@ RectTransform:
   m_Father: {fileID: 704517050767810199}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 10, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -3830,7 +3833,7 @@ GameObject:
   - component: {fileID: 8498430712127445503}
   - component: {fileID: 5834374848992151033}
   m_Layer: 5
-  m_Name: Slider
+  m_Name: VolumeSlider
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4199,7 +4202,7 @@ RectTransform:
   m_Father: {fileID: 798492669022955970}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 20, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -5159,7 +5162,7 @@ GameObject:
   - component: {fileID: 6327092184274821104}
   - component: {fileID: 5747110591423086858}
   m_Layer: 5
-  m_Name: Slider
+  m_Name: FontSizeSlider
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -5388,7 +5391,7 @@ RectTransform:
   m_Father: {fileID: 3334215607522821541}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 10, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -5463,7 +5466,7 @@ RectTransform:
   m_Father: {fileID: 6851297255713302196}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 20, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}

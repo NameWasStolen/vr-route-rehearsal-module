@@ -4,12 +4,33 @@ using UnityEngine.UI;
 
 public class SettingsController : MonoBehaviour
 {
+    public Slider brightnessSlider;
+    public Slider volumeSlider;
+    public Slider fontSizeSlider;
     public List<Toggle> usageModeToggles = new();
     public List<Toggle> handToggles = new();
     public List<Toggle> rotationToggles = new();
 
     void Start()
     {
+        // Brightness Slider Setup
+        brightnessSlider.onValueChanged.AddListener(value =>
+        {
+            Debug.Log(brightnessSlider.name + " changed value to: " + value);
+        });
+
+        // Volume Slider Setup
+        volumeSlider.onValueChanged.AddListener(value =>
+        {
+            Debug.Log(volumeSlider.name + " changed value to: " + value);
+        });
+
+        // Font Size Slider Setup
+        fontSizeSlider.onValueChanged.AddListener(value =>
+        {
+            Debug.Log(fontSizeSlider.name + " changed value to: " + value);
+        });
+
         // Usage Mode Toggle Setup
         foreach (var toggle in usageModeToggles)
         {
@@ -31,7 +52,7 @@ public class SettingsController : MonoBehaviour
         }
 
         // Hand Toggle Setup
-        foreach (var toggle in usageModeToggles)
+        foreach (var toggle in handToggles)
         {
             toggle.onValueChanged.AddListener(state =>
             {
@@ -51,8 +72,8 @@ public class SettingsController : MonoBehaviour
             });
         }
 
-        // Roation Toggle Setup
-        foreach (var toggle in usageModeToggles)
+        // Rotation Toggle Setup
+        foreach (var toggle in rotationToggles)
         {
             toggle.onValueChanged.AddListener(state =>
             {
