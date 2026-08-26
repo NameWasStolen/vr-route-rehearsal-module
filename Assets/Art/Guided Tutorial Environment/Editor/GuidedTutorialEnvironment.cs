@@ -62,7 +62,7 @@ namespace VRTutorial.EditorTools
         {
             new Vector4( -4f, -10f,   4f,  35f),  // main corridor + start + north arm
             new Vector4(-15f,  16f,  -4f,  24f),  // west arm
-            new Vector4(  4f,  16f,  21f,  24f),  // east arm
+            new Vector4(  4f,  13f,  21f,  27f),  // east arm (widened for the zigzag)
             new Vector4( 21f,  12f,  34f,  28f),  // end zone
         };
 
@@ -72,7 +72,15 @@ namespace VRTutorial.EditorTools
             new Vector4(-2.5f, -6f,  2.5f, -1f),  // start pad, 5 x 5
             new Vector4(-1f,   -1f,  1f,   31f),  // main path + intersection + north arm
             new Vector4(-11f,  19f, -1f,   21f),  // west arm, 10 m
-            new Vector4( 1f,   19f, 21f,   21f),  // east arm, 20 m
+            // east arm, zigzag: intersection (1,20) -> (6,20) -> (6,23) -> (11,23)
+            //                   -> (11,17) -> (16,17) -> (16,20) -> end zone (21,20)
+            new Vector4( 1f,   19f,  7f,   21f),  // ez1: leaving the intersection
+            new Vector4( 5f,   19f,  7f,   24f),  // ez2: bend north
+            new Vector4( 5f,   22f, 12f,   24f),  // ez3: east along the top
+            new Vector4(10f,   16f, 12f,   24f),  // ez4: bend south, crossing back down
+            new Vector4(10f,   16f, 17f,   18f),  // ez5: east along the bottom
+            new Vector4(15f,   16f, 17f,   21f),  // ez6: bend back to centre
+            new Vector4(15f,   19f, 21f,   21f),  // ez7: into the end zone
             new Vector4(21f,   15f, 31f,   25f),  // end zone paving, 10 x 10
         };
 
@@ -80,10 +88,10 @@ namespace VRTutorial.EditorTools
         private static readonly Vector2[] FencePerimeter =
         {
             new Vector2( -4f, -10f), new Vector2(  4f, -10f),
-            new Vector2(  4f,  16f), new Vector2( 21f,  16f),
+            new Vector2(  4f,  13f), new Vector2( 21f,  13f),
             new Vector2( 21f,  12f), new Vector2( 34f,  12f),
             new Vector2( 34f,  28f), new Vector2( 21f,  28f),
-            new Vector2( 21f,  24f), new Vector2(  4f,  24f),
+            new Vector2( 21f,  27f), new Vector2(  4f,  27f),
             new Vector2(  4f,  35f), new Vector2( -4f,  35f),
             new Vector2( -4f,  24f), new Vector2(-15f,  24f),
             new Vector2(-15f,  16f), new Vector2( -4f,  16f),
@@ -109,9 +117,15 @@ namespace VRTutorial.EditorTools
             new Vector4(-11.00f, 18.92f, -1.08f, 18.92f),
             new Vector4(-11.00f, 21.08f, -1.08f, 21.08f),
             new Vector4(-11.08f, 18.92f, -11.08f, 21.08f), // west dead end cap
-            // east arm
-            new Vector4( 1.08f, 18.92f, 21.00f, 18.92f),
-            new Vector4( 1.08f, 21.08f, 21.00f, 21.08f),
+            // east arm (zigzag) - kerb along each segment's outer long edges.
+            // Corners get a little double coverage where segments overlap; harmless.
+            new Vector4( 1.00f, 18.92f,  7.00f, 18.92f), new Vector4( 1.00f, 21.08f,  7.00f, 21.08f),
+            new Vector4( 4.92f, 19.00f,  4.92f, 24.00f), new Vector4( 7.08f, 19.00f,  7.08f, 24.00f),
+            new Vector4( 5.00f, 21.92f, 12.00f, 21.92f), new Vector4( 5.00f, 24.08f, 12.00f, 24.08f),
+            new Vector4( 9.92f, 16.00f,  9.92f, 24.00f), new Vector4(12.08f, 16.00f, 12.08f, 24.00f),
+            new Vector4(10.00f, 15.92f, 17.00f, 15.92f), new Vector4(10.00f, 18.08f, 17.00f, 18.08f),
+            new Vector4(14.92f, 16.00f, 14.92f, 21.00f), new Vector4(17.08f, 16.00f, 17.08f, 21.00f),
+            new Vector4(15.00f, 18.92f, 21.00f, 18.92f), new Vector4(15.00f, 21.08f, 21.00f, 21.08f),
             // end zone, broken where the east arm enters
             new Vector4(20.92f, 15.00f, 20.92f, 19.00f),
             new Vector4(20.92f, 21.00f, 20.92f, 25.00f),
@@ -121,21 +135,18 @@ namespace VRTutorial.EditorTools
         };
 
         // Lamp posts: (x, z, armDirX, armDirZ) - the arm points toward the path.
+        // Kept well clear of every PathRects entry (>=0.8 m, most 1.5 m) so none sit in the walkway.
         private static readonly Vector4[] LampPosts =
         {
-            new Vector4( 1.6f,  5.0f, -1f,  0f),
-            new Vector4(-1.6f, 13.0f,  1f,  0f),
-            new Vector4( 1.6f, 27.0f, -1f,  0f),
-            new Vector4( 1.6f, 21.6f, -1f, -1f),   // intersection corners
-            new Vector4(-1.6f, 21.6f,  1f, -1f),
-            new Vector4( 1.6f, 18.4f, -1f,  1f),
-            new Vector4(-1.6f, 18.4f,  1f,  1f),
-            new Vector4(-6.0f, 21.6f,  0f, -1f),   // west arm
-            new Vector4( 7.0f, 21.6f,  0f, -1f),   // east arm
-            new Vector4(13.0f, 18.4f,  0f,  1f),
-            new Vector4(19.0f, 21.6f,  0f, -1f),
+            new Vector4( 1.6f,  5.0f, -1f,  0f),   // main path, near the start
+            new Vector4( 1.6f, 27.0f, -1f,  0f),   // main path, near the north arm
+            new Vector4( 1.8f, 21.8f, -1f, -1f),   // intersection, opposite corners
+            new Vector4(-1.8f, 18.2f,  1f,  1f),
+            new Vector4(-6.0f, 21.8f,  0f, -1f),   // west arm
+            new Vector4( 6.0f, 25.5f,  0f, -1f),   // east arm zigzag: north apex
+            new Vector4(13.5f, 14.5f,  0f,  1f),   // east arm zigzag: south apex
+            new Vector4(18.0f, 22.5f,  0f, -1f),   // east arm zigzag: approach to end zone
             new Vector4(22.5f, 26.5f,  0f, -1f),   // end zone
-            new Vector4(29.5f, 26.5f,  0f, -1f),
             new Vector4(26.0f, 13.5f,  0f,  1f),
         };
 
@@ -214,7 +225,8 @@ namespace VRTutorial.EditorTools
             if (SceneView.lastActiveSceneView != null) SceneView.lastActiveSceneView.FrameSelected();
 
             Debug.Log("[VRTutorial] Environment built. Start pad -> 20 m main path -> intersection at (0, 20); " +
-                      "north and west arms 10 m, east arm 20 m into a 10 x 10 m end zone centred on (26, 20).");
+                      "north and west arms 10 m straight, east arm zigzags (three ~3 m bends) before " +
+                      "opening into a 10 x 10 m end zone centred on (26, 20).");
         }
 
         // ---------------------------------------------------------------- ground
@@ -231,7 +243,13 @@ namespace VRTutorial.EditorTools
         private static void BuildPaths(Transform root, Material stone, Material endZone)
         {
             var group = NewGroup("Paths", root);
-            string[] names = { "StartPad", "MainPath", "WestArm", "EastArm", "EndZonePaving" };
+            string[] names =
+            {
+                "StartPad", "MainPath", "WestArm",
+                "EastArm_1", "EastArm_2", "EastArm_3", "EastArm_4",
+                "EastArm_5", "EastArm_6", "EastArm_7",
+                "EndZonePaving"
+            };
 
             for (int i = 0; i < PathRects.Length; i++)
             {
