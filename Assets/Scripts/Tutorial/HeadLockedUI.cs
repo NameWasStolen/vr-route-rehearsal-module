@@ -31,6 +31,11 @@ namespace VRTutorial
                  "instead of tilting when the player looks up or down.")]
         [SerializeField] private bool lockUpright = true;
 
+        [Tooltip("Extra rotation applied on top of the billboard, in degrees. Y yaws the panel " +
+                 "left/right, X pitches it (negative tilts the top toward you - useful when the " +
+                 "panel sits above eye level), Z rolls it. Leave at zero to face the player squarely.")]
+        [SerializeField] private Vector3 rotationOffset = Vector3.zero;
+
         [Header("Comfort")]
         [Tooltip("0 = instantly welded to the head (can feel nauseating). Higher values lag " +
                  "behind head movement, which reads as more comfortable and less 'stuck to your face'. " +
@@ -117,8 +122,11 @@ namespace VRTutorial
 
             if (toPlayer.sqrMagnitude < 0.0001f) return transform.rotation;
 
-            // Face the player: the canvas's forward (+Z, front face) points at the head.
-            return Quaternion.LookRotation(toPlayer.normalized, Vector3.up);
+            // Face the player: the canvas's +Z (front face) must point away from the head,
+            // so that the readable side is what the head is looking at. The offset is applied
+            // afterwards, in the panel's own space, so it reads as "tilt relative to facing".
+            Quaternion facing = Quaternion.LookRotation(toPlayer.normalized, Vector3.up);
+            return facing * Quaternion.Euler(rotationOffset);
         }
 
         /// <summary>Call after teleporting the player to avoid a visible slide as the panel catches up.</summary>
