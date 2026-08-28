@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 public class SettingsController : MonoBehaviour
 {
@@ -10,12 +12,17 @@ public class SettingsController : MonoBehaviour
     public List<Toggle> usageModeToggles = new();
     public List<Toggle> handToggles = new();
     public List<Toggle> rotationToggles = new();
+    public VolumeProfile brightnessProfile;
+    private ColorAdjustments colorAdjustments;
 
     void Start()
     {
         // Brightness Slider Setup
         brightnessSlider.onValueChanged.AddListener(value =>
         {
+            brightnessProfile.TryGet(out colorAdjustments);
+            brightnessSlider.onValueChanged.AddListener(SetBrightness);
+            SetBrightness(brightnessSlider.value);
             Debug.Log(brightnessSlider.name + " changed value to: " + value);
         });
 
@@ -96,5 +103,11 @@ public class SettingsController : MonoBehaviour
                 }
             });
         }
+    }
+
+    void SetBrightness(float sliderValue)
+    {
+        float exposure = Mathf.Lerp(-2f, 2f, sliderValue);
+        colorAdjustments.postExposure.value = exposure;
     }
 }
