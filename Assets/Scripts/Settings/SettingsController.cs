@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.Audio;
 
 public class SettingsController : MonoBehaviour
 {
@@ -14,6 +15,7 @@ public class SettingsController : MonoBehaviour
     public List<Toggle> rotationToggles = new();
     public VolumeProfile brightnessProfile;
     private ColorAdjustments colorAdjustments;
+    public AudioMixer audioMixer;
 
     void Start()
     {
@@ -27,10 +29,15 @@ public class SettingsController : MonoBehaviour
         });
 
         // Volume Slider Setup
-        volumeSlider.onValueChanged.AddListener(value =>
+        if (audioMixer == null)
         {
-            Debug.Log(volumeSlider.name + " changed value to: " + value);
-        });
+            Debug.LogError("Audio Mixer is not assigned.");
+        }
+        else
+        {
+            volumeSlider.onValueChanged.AddListener(SetVolume);
+            SetVolume(volumeSlider.value);
+        }
 
         // Font Size Slider Setup
         fontSizeSlider.onValueChanged.AddListener(value =>
@@ -109,5 +116,11 @@ public class SettingsController : MonoBehaviour
     {
         float exposure = Mathf.Lerp(-2f, 2f, sliderValue);
         colorAdjustments.postExposure.value = exposure;
+    }
+
+    void SetVolume(float sliderValue)
+    {
+        float decibels = Mathf.Lerp(-20f, 0f, sliderValue);
+        audioMixer.SetFloat("MasterVolume", decibels);
     }
 }
