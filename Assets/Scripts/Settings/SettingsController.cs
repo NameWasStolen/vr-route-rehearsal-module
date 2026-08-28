@@ -4,6 +4,7 @@ using UnityEngine.UI;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.Audio;
+using TMPro;
 
 public class SettingsController : MonoBehaviour
 {
@@ -16,6 +17,8 @@ public class SettingsController : MonoBehaviour
     public VolumeProfile brightnessProfile;
     private ColorAdjustments colorAdjustments;
     public AudioMixer audioMixer;
+    public List<TMP_Text> textElements = new();
+    private List<float> originalFontSizes = new();
 
     void Start()
     {
@@ -40,10 +43,15 @@ public class SettingsController : MonoBehaviour
         }
 
         // Font Size Slider Setup
-        fontSizeSlider.onValueChanged.AddListener(value =>
+        originalFontSizes.Clear();
+
+        foreach (TMP_Text textElement in textElements)
         {
-            Debug.Log(fontSizeSlider.name + " changed value to: " + value);
-        });
+            originalFontSizes.Add(textElement.fontSize);
+        }
+
+        fontSizeSlider.onValueChanged.AddListener(SetFontSize);
+        SetFontSize(fontSizeSlider.value);
 
         // Usage Mode Toggle Setup
         foreach (var toggle in usageModeToggles)
@@ -122,5 +130,19 @@ public class SettingsController : MonoBehaviour
     {
         float decibels = Mathf.Lerp(-20f, 0f, sliderValue);
         audioMixer.SetFloat("MasterVolume", decibels);
+    }
+
+    void SetFontSize(float sliderValue)
+    {
+        float sizeMultiplier = Mathf.Lerp(0.8f, 1.4f, sliderValue);
+
+        for (int index = 0; index < textElements.Count; index++)
+        {
+            if (textElements[index] != null)
+            {
+                textElements[index].fontSize =
+                    originalFontSizes[index] * sizeMultiplier;
+            }
+        }
     }
 }
