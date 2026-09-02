@@ -25,6 +25,11 @@ namespace VRTutorial
                  "is already overlapping at startup; Unity is inconsistent about that.")]
         [SerializeField] private bool showOnStart = false;
 
+        [Tooltip("If true, entering the volume shows the popup. Untick when something else " +
+                 "owns showing it (e.g. a DelayedHandoff from a previous popup) and this " +
+                 "trigger should only be responsible for hiding it on exit.")]
+        [SerializeField] private bool showOnEnter = true;
+
         [Tooltip("If true, hides the popup again when the player leaves the trigger volume.")]
         [SerializeField] private bool hideOnExit = false;
 
@@ -33,6 +38,9 @@ namespace VRTutorial
 
         [Tooltip("Extra hook for anything else you want to happen on entry (sound, scene event, etc).")]
         public UnityEvent onPlayerEntered;
+
+        [Tooltip("Fires when the player leaves the volume, whether or not hideOnExit is set.")]
+        public UnityEvent onPlayerExited;
 
         private bool _hasFired;
 
@@ -59,7 +67,7 @@ namespace VRTutorial
 
             _hasFired = true;
 
-            if (popup != null) popup.SetActive(true);
+            if (popup != null && showOnEnter) popup.SetActive(true);
             onPlayerEntered?.Invoke();
 
             Debug.Log($"[EndZoneTrigger] Player entered '{name}'", this);
@@ -67,10 +75,11 @@ namespace VRTutorial
 
         private void OnTriggerExit(Collider other)
         {
-            if (!hideOnExit) return;
             if (!other.CompareTag(playerTag)) return;
 
-            if (popup != null) popup.SetActive(false);
+            onPlayerExited?.Invoke();
+
+            if (hideOnExit && popup != null) popup.SetActive(false);
         }
     }
 }
