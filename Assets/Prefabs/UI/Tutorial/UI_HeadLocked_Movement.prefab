@@ -74,7 +74,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3706551118018504174, guid: 43ff4fecf38b8524f9af8bebae1afbe0, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 1.6
+      value: 1.6000061
       objectReference: {fileID: 0}
     - target: {fileID: 3706551118018504174, guid: 43ff4fecf38b8524f9af8bebae1afbe0, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -88,9 +88,13 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4115738262375822972, guid: 43ff4fecf38b8524f9af8bebae1afbe0, type: 3}
+      propertyPath: m_PresetInfoIsWorld
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 7875907656543634160, guid: 43ff4fecf38b8524f9af8bebae1afbe0, type: 3}
       propertyPath: m_Name
-      value: Canvas
+      value: UI_HeadLocked_Movement
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

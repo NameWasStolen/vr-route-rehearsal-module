@@ -47,7 +47,17 @@ namespace VRTutorial
                  "fast head-snap from spinning the panel instantly.")]
         [SerializeField] private float maxRotationSpeed = 180f;
 
+        [Tooltip("Snap instantly instead of easing when the head yaws by a large amount in a " +
+                 "single frame - i.e. a snap turn or a teleport. Without this the panel swings " +
+                 "through an arc to catch up and faces the wrong way while it does.")]
+        [SerializeField] private bool autoSnapOnLargeTurn = true;
+
+        [Tooltip("Single-frame yaw change that counts as a snap rather than natural head " +
+                 "movement. 20 is safely above anything a human neck produces in one frame.")]
+        [SerializeField] private float snapYawThreshold = 20f;
+
         private Vector3 _velocity; // used by SmoothDamp
+        private float _lastHeadYaw;
 
         private void Reset()
         {
@@ -87,6 +97,19 @@ namespace VRTutorial
         {
             if (headTransform == null) TryResolveHead();
             if (headTransform == null) return;
+
+            // A snap turn or teleport moves the head far enough in one frame that easing
+            // toward the new target looks like the panel swinging around the player. Jump
+            // instead, so the panel is simply already in the right place afterwards.
+            float yaw = headTransform.eulerAngles.y;
+            float yawDelta = Mathf.DeltaAngle(_lastHeadYaw, yaw);
+            _lastHeadYaw = yaw;
+
+            if (autoSnapOnLargeTurn && Mathf.Abs(yawDelta) >= snapYawThreshold)
+            {
+                SnapToTarget();
+                return;
+            }
 
             Vector3 targetPos = TargetPosition();
             Quaternion targetRot = TargetRotation();
@@ -136,6 +159,7 @@ namespace VRTutorial
             transform.position = TargetPosition();
             transform.rotation = TargetRotation();
             _velocity = Vector3.zero;
+            _lastHeadYaw = headTransform.eulerAngles.y;
         }
 
 #if UNITY_EDITOR
