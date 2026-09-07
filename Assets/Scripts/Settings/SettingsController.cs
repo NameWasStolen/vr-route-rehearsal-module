@@ -59,16 +59,28 @@ public class SettingsController : MonoBehaviour
                 Debug.Log(toggle.name + " changed to: " + state);
 
                 if (state)
-                {
-                    if (toggle.name == "LeftToggle")
                     {
-                        // TODO
+                        ControllerHandednessManager handednessManager =
+                            ControllerHandednessManager.Instance;
+
+                        if (handednessManager == null)
+                        {
+                            Debug.LogWarning(
+                                "ControllerHandednessManager was not found."
+                            );
+
+                            return;
+                        }
+
+                        if (toggle.name == "LeftToggle")
+                        {
+                            handednessManager.SelectHand(ControllerHand.Left);
+                        }
+                        else if (toggle.name == "RightToggle")
+                        {
+                            handednessManager.SelectHand(ControllerHand.Right);
+                        }
                     }
-                    else if (toggle.name == "RightToggle")
-                    {
-                        // TODO
-                    }
-                }
             });
         }
 
