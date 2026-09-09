@@ -59,6 +59,14 @@ namespace VRTutorial
         private Vector3 _velocity; // used by SmoothDamp
         private float _lastHeadYaw;
 
+        /// <summary>
+        /// Time.unscaledTime of the last snap/teleport reposition. TutorialFlow waits for this
+        /// to go quiet before starting a transition - a cross-fade beginning on the same frame
+        /// as a teleport reads as two glitches at once.
+        /// Initialised far in the past so nothing is gated during the first frames of the scene.
+        /// </summary>
+        public float LastSnapTimeUnscaled { get; private set; } = -999f;
+
         private void Reset()
         {
             if (Camera.main != null) headTransform = Camera.main.transform;
@@ -160,6 +168,7 @@ namespace VRTutorial
             transform.rotation = TargetRotation();
             _velocity = Vector3.zero;
             _lastHeadYaw = headTransform.eulerAngles.y;
+            LastSnapTimeUnscaled = Time.unscaledTime;
         }
 
 #if UNITY_EDITOR

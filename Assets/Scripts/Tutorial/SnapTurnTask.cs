@@ -49,6 +49,35 @@ namespace VRTutorial
                  "Leave empty to say nothing and simply wait.")]
         [SerializeField] private string promptWrongDirection = "Other way - try again.";
 
+        [System.Serializable]
+        public class PromptSet
+        {
+            [Tooltip("Leave any line empty to fall back to the right-handed wording above.")]
+            public string first;
+            public string second;
+            public string complete;
+            public string wrongDirection;
+        }
+
+        [Header("Left-hand wording")]
+        [Tooltip("Used when the player has selected their left controller. The fields above are " +
+                 "the right-handed wording. Keep the two structurally identical - same length, " +
+                 "same shape - so a player re-reading after a settings change is not re-parsing " +
+                 "a different sentence. Any line left empty falls back to the right-handed one.")]
+        [SerializeField] private PromptSet leftHandPrompts = new PromptSet
+        {
+            first = "Flick the left thumbstick right to turn.",
+            second = "Good. Now flick it left.",
+            complete = "That's snap turning.",
+            wrongDirection = "Other way - try again."
+        };
+
+        [Tooltip("Hand assumed when no ControllerHandednessManager is present, i.e. when this " +
+                 "scene is opened standalone for testing.")]
+        [SerializeField] private ControllerHand editorFallbackHand = ControllerHand.Right;
+
+        private ControllerHand _hand = ControllerHand.Right;
+
         [Header("Events")]
         [Tooltip("Fires on every accepted turn, in any mode.")]
         public UnityEvent onTurnRegistered;
@@ -74,7 +103,24 @@ namespace VRTutorial
         private void OnEnable()
         {
             ResolveOrigin();
+
+            // Pull the current hand first - the manager lives in Bootstrap and has usually
+            // already fired its initial event before this additively-loaded scene enables.
+            _hand = ControllerHandednessManager.CurrentOrDefault(editorFallbackHand);
+            ControllerHandednessManager.HandChanged += OnHandChanged;
+
             ResetTask();
+        }
+
+        private void OnDisable()
+        {
+            ControllerHandednessManager.HandChanged -= OnHandChanged;
+        }
+
+        private void OnHandChanged(ControllerHand hand)
+        {
+            _hand = hand;
+            RefreshPrompt();   // re-render whatever prompt is on screen, in the new wording
         }
 
         private void ResolveOrigin()
@@ -96,7 +142,7 @@ namespace VRTutorial
             TurnCount = 0;
             _step = 0;
             if (xrOrigin != null) _lastYaw = xrOrigin.eulerAngles.y;
-            SetPrompt(promptFirst);
+            SetPrompt(PromptSlot.First);
         }
 
         private void Update()
@@ -123,7 +169,7 @@ namespace VRTutorial
                 if (isRight != expectRight)
                 {
                     onWrongDirection?.Invoke();
-                    if (!string.IsNullOrEmpty(promptWrongDirection)) SetPrompt(promptWrongDirection);
+                    if (!string.IsNullOrEmpty(promptWrongDirection)) SetPrompt(PromptSlot.WrongDirection);
                     return;
                 }
                 _step++;
@@ -143,12 +189,12 @@ namespace VRTutorial
             if (IsDone())
             {
                 IsComplete = true;
-                SetPrompt(promptComplete);
+                SetPrompt(PromptSlot.Complete);
                 onCompleted?.Invoke();
             }
             else
             {
-                SetPrompt(promptSecond);
+                SetPrompt(PromptSlot.Second);
             }
         }
 
@@ -166,9 +212,40 @@ namespace VRTutorial
             }
         }
 
-        private void SetPrompt(string text)
+        private enum PromptSlot { First, Second, Complete, WrongDirection }
+        private PromptSlot _currentSlot = PromptSlot.First;
+
+        private string Resolve(PromptSlot slot)
         {
-            if (promptLabel != null) promptLabel.text = text;
+            bool left = _hand == ControllerHand.Left;
+
+            switch (slot)
+            {
+                case PromptSlot.Second:
+                    return left && !string.IsNullOrEmpty(leftHandPrompts.second)
+                        ? leftHandPrompts.second : promptSecond;
+                case PromptSlot.Complete:
+                    return left && !string.IsNullOrEmpty(leftHandPrompts.complete)
+                        ? leftHandPrompts.complete : promptComplete;
+                case PromptSlot.WrongDirection:
+                    return left && !string.IsNullOrEmpty(leftHandPrompts.wrongDirection)
+                        ? leftHandPrompts.wrongDirection : promptWrongDirection;
+                default:
+                    return left && !string.IsNullOrEmpty(leftHandPrompts.first)
+                        ? leftHandPrompts.first : promptFirst;
+            }
+        }
+
+        /// <summary>Re-renders the current prompt, e.g. after the player changes hand mid-task.</summary>
+        private void RefreshPrompt()
+        {
+            if (promptLabel != null) promptLabel.text = Resolve(_currentSlot);
+        }
+
+        private void SetPrompt(PromptSlot slot)
+        {
+            _currentSlot = slot;
+            RefreshPrompt();
         }
     }
 }
