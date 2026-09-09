@@ -9,8 +9,9 @@ public class TriggerController : MonoBehaviour
         WRONG_TURN
     }
 
-    [Header("Trigger Type")]
-    [SerializeField] private TriggerType triggerType;
+    [SerializeField]
+    [Tooltip("The type of trigger this is\n- START and END triggers require a set Timer Controller\n- WRONG_TURN triggers require a set Wrong Turn Controller")]
+    private TriggerType triggerType;
 
     public TimerController timerController;
     public WrongTurnController wrongTurnController;
