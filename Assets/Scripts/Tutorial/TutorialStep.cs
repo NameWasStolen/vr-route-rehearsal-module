@@ -22,6 +22,40 @@ namespace VRTutorial
         [Tooltip("Optional label, purely to make the flow readable in the Inspector and in logs.")]
         [SerializeField] private string stepName = "";
 
+        [Header("Panel placement (optional)")]
+        [Tooltip("Move/resize the shared panel while this step is showing. Leave unticked to " +
+                 "keep whatever the panel was authored with. Both steps live on one panel now, " +
+                 "so placement has to belong to the step rather than the panel.")]
+        [SerializeField] private bool overridePlacement = false;
+
+        [Tooltip("Offset from the head in head-local space. Z is forward, Y up, X right. " +
+                 "Lower the Y to drop the panel below eye line.")]
+        [SerializeField] private Vector3 localOffset = new Vector3(0f, -0.35f, 1.4f);
+
+        [Tooltip("Extra rotation on top of the billboard, degrees. Positive X leans the top " +
+                 "away from you, which is what makes a low panel face upward into your view.")]
+        [SerializeField] private Vector3 rotationOffset = new Vector3(30f, 0f, 0f);
+
+        [Tooltip("Multiplier on the panel's authored scale. Below 1 makes it smaller.")]
+        [Range(0.2f, 2f)]
+        [SerializeField] private float panelScale = 1f;
+
+        [Tooltip("Resize the panel FRAME for this step - the Background stretches to the canvas, " +
+                 "so this changes the border without shrinking the text inside it. Use this " +
+                 "rather than Panel Scale when you want a tighter frame but the same legible " +
+                 "type; Panel Scale shrinks the wording too.")]
+        [SerializeField] private bool overrideSize = false;
+
+        [Tooltip("Canvas width and height in UI units. The panel is authored at 1200 x 1200.")]
+        [SerializeField] private Vector2 panelSize = new Vector2(1000f, 700f);
+
+        public bool OverridePlacement => overridePlacement;
+        public bool OverrideSize => overrideSize;
+        public Vector2 PanelSize => panelSize;
+        public Vector3 LocalOffset => localOffset;
+        public Vector3 RotationOffset => rotationOffset;
+        public float PanelScale => panelScale;
+
         [Tooltip("Fires as this step starts fading in.")]
         public UnityEvent onStepEnter;
 

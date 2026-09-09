@@ -160,6 +160,27 @@ namespace VRTutorial
             return facing * Quaternion.Euler(rotationOffset);
         }
 
+        /// <summary>
+        /// Where the panel sits relative to the head, in head-local space (X right, Y up,
+        /// Z forward). Assigning EASES rather than jumps: the SmoothDamp follow below simply
+        /// treats it as a new target, so a step change slides the panel into place.
+        /// </summary>
+        public Vector3 LocalOffset
+        {
+            get => localOffset;
+            set => localOffset = value;
+        }
+
+        /// <summary>
+        /// Extra rotation applied on top of the billboard, in degrees. X pitches (positive
+        /// leans the top away from you, for a panel below eye level), Y yaws, Z rolls.
+        /// </summary>
+        public Vector3 RotationOffset
+        {
+            get => rotationOffset;
+            set => rotationOffset = value;
+        }
+
         /// <summary>Call after teleporting the player to avoid a visible slide as the panel catches up.</summary>
         public void SnapToTarget()
         {

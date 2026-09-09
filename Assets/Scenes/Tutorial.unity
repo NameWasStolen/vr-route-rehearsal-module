@@ -3279,6 +3279,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.TutorialStep
   stepName: 
+  overridePlacement: 1
+  localOffset: {x: 0, y: -0.2, z: 1.7}
+  rotationOffset: {x: 30, y: 0, z: 0}
+  panelScale: 1
+  overrideSize: 1
+  panelSize: {x: 800, y: 800}
   onStepEnter:
     m_PersistentCalls:
       m_Calls: []
@@ -4448,6 +4454,7 @@ MonoBehaviour:
   headLockedUI: {fileID: 1244802962}
   snapSettleDelay: 0.3
   maxSettleWait: 2
+  placementMoveDuration: -1
   onStepChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -5509,6 +5516,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.TutorialStep
   stepName: 
+  overridePlacement: 0
+  localOffset: {x: 0, y: -0.35, z: 1.4}
+  rotationOffset: {x: 30, y: 0, z: 0}
+  panelScale: 1
+  overrideSize: 0
+  panelSize: {x: 1000, y: 700}
   onStepEnter:
     m_PersistentCalls:
       m_Calls: []

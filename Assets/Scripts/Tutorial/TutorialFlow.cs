@@ -67,6 +67,12 @@ namespace VRTutorial
                  "can never wedge the tutorial.")]
         [SerializeField] private float maxSettleWait = 2f;
 
+        [Header("Panel placement")]
+        [Tooltip("Seconds to move the panel between two steps' placements. -1 uses the fade-out " +
+                 "plus gap, so the panel has finished moving by the time the new content appears. " +
+                 "The panel background stays visible throughout, so this must never be a jump.")]
+        [SerializeField] private float placementMoveDuration = -1f;
+
         [Header("Events")]
         [Tooltip("Fires as each step begins, with its index.")]
         public UnityEvent<int> onStepChanged;
@@ -80,13 +86,113 @@ namespace VRTutorial
             CurrentIndex >= 0 && CurrentIndex < steps.Count ? steps[CurrentIndex] : null;
 
         private Coroutine _running;
+        private Coroutine _placementRoutine;
+
+        // The panel as authored, used by any step that does not override placement.
+        private Vector3 _basePanelOffset;
+        private Vector3 _basePanelRotation;
+        private Vector3 _basePanelScale;
+        private Vector2 _basePanelSize;
+        private RectTransform _panelRect;
+        private bool _placementCaptured;
 
         private void OnEnable()
         {
+            CapturePlacement();
+
             for (int i = 0; i < steps.Count; i++)
                 if (steps[i] != null) steps[i].SetVisible(false);
 
             if (showFirstStepOnEnable && steps.Count > 0) ShowImmediate(0);
+        }
+
+        private void CapturePlacement()
+        {
+            if (_placementCaptured || headLockedUI == null) return;
+            _basePanelOffset = headLockedUI.LocalOffset;
+            _basePanelRotation = headLockedUI.RotationOffset;
+            _basePanelScale = headLockedUI.transform.localScale;
+            _panelRect = headLockedUI.transform as RectTransform;
+            if (_panelRect != null) _basePanelSize = _panelRect.sizeDelta;
+            _placementCaptured = true;
+        }
+
+        private void PlacementFor(TutorialStep step, out Vector3 offset, out Vector3 rot,
+                                  out Vector3 scale, out Vector2 size)
+        {
+            if (step != null && step.OverridePlacement)
+            {
+                offset = step.LocalOffset;
+                rot = step.RotationOffset;
+                scale = _basePanelScale * step.PanelScale;
+            }
+            else
+            {
+                offset = _basePanelOffset;
+                rot = _basePanelRotation;
+                scale = _basePanelScale;
+            }
+
+            // Frame size is independent of placement - a step can resize the border without
+            // moving, or move without resizing.
+            size = (step != null && step.OverrideSize) ? step.PanelSize : _basePanelSize;
+        }
+
+        private void ApplyPlacementImmediate(TutorialStep step)
+        {
+            if (headLockedUI == null || !_placementCaptured) return;
+
+            PlacementFor(step, out Vector3 o, out Vector3 r, out Vector3 s, out Vector2 sz);
+            headLockedUI.LocalOffset = o;
+            headLockedUI.RotationOffset = r;
+            headLockedUI.transform.localScale = s;
+            if (_panelRect != null) _panelRect.sizeDelta = sz;
+            headLockedUI.SnapToTarget();
+        }
+
+        /// <summary>
+        /// Eases the panel to a step's placement. Runs alongside the cross-fade rather than
+        /// inside it: the panel background never fades, so any placement change is visible and
+        /// has to be a movement, not a cut.
+        /// </summary>
+        private IEnumerator MovePanel(TutorialStep step, float duration)
+        {
+            if (headLockedUI == null || !_placementCaptured) yield break;
+
+            PlacementFor(step, out Vector3 toOffset, out Vector3 toRot, out Vector3 toScale, out Vector2 toSize);
+
+            Vector3 fromOffset = headLockedUI.LocalOffset;
+            Vector3 fromRot = headLockedUI.RotationOffset;
+            Vector3 fromScale = headLockedUI.transform.localScale;
+            Vector2 fromSize = _panelRect != null ? _panelRect.sizeDelta : Vector2.zero;
+
+            if (duration <= 0f)
+            {
+                headLockedUI.LocalOffset = toOffset;
+                headLockedUI.RotationOffset = toRot;
+                headLockedUI.transform.localScale = toScale;
+                if (_panelRect != null) _panelRect.sizeDelta = toSize;
+                yield break;
+            }
+
+            float t = 0f;
+            while (t < duration)
+            {
+                t += Time.unscaledDeltaTime;
+                float k = Mathf.Clamp01(t / duration);
+                k = k * k * (3f - 2f * k);   // smoothstep, no velocity jump at either end
+
+                headLockedUI.LocalOffset = Vector3.Lerp(fromOffset, toOffset, k);
+                headLockedUI.RotationOffset = Vector3.Lerp(fromRot, toRot, k);
+                headLockedUI.transform.localScale = Vector3.Lerp(fromScale, toScale, k);
+                if (_panelRect != null) _panelRect.sizeDelta = Vector2.Lerp(fromSize, toSize, k);
+                yield return null;
+            }
+
+            headLockedUI.LocalOffset = toOffset;
+            headLockedUI.RotationOffset = toRot;
+            headLockedUI.transform.localScale = toScale;
+            if (_panelRect != null) _panelRect.sizeDelta = toSize;
         }
 
         // ------------------------------------------------------------------ public API
@@ -133,6 +239,7 @@ namespace VRTutorial
                 if (steps[i] != null) steps[i].SetVisible(i == index);
 
             CurrentIndex = index;
+            ApplyPlacementImmediate(steps[index]);
             if (steps[index] != null) steps[index].RaiseEnter();
             onStepChanged?.Invoke(index);
         }
@@ -149,6 +256,13 @@ namespace VRTutorial
 
             TutorialStep outgoing = CurrentStep;
             TutorialStep incoming = steps[targetIndex];
+
+            // Start the panel moving now, so it has settled by the time the new content appears.
+            float moveTime = placementMoveDuration >= 0f
+                ? placementMoveDuration
+                : fadeOutDuration + gapDuration;
+            if (_placementRoutine != null) StopCoroutine(_placementRoutine);
+            _placementRoutine = StartCoroutine(MovePanel(incoming, moveTime));
 
             // Fade out
             if (outgoing != null && fadeOutDuration > 0f)
