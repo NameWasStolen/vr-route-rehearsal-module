@@ -423,7 +423,7 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
---- !u!1001 &1734149299
+--- !u!1001 &827430640
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -433,7 +433,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 478551867801170501, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0
+      value: -3.7244
       objectReference: {fileID: 0}
     - target: {fileID: 478551867801170501, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
       propertyPath: m_LocalPosition.y
@@ -441,7 +441,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 478551867801170501, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0
+      value: 11.028
       objectReference: {fileID: 0}
     - target: {fileID: 478551867801170501, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
       propertyPath: m_LocalRotation.w
@@ -475,11 +475,12 @@ PrefabInstance:
       propertyPath: m_Name
       value: XRPlayerRig
       objectReference: {fileID: 0}
-    - target: {fileID: 5002810436517361211, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
-      propertyPath: m_Radius
-      value: 0.2
+    - target: {fileID: 3462832448133411344, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
+      propertyPath: m_Enabled
+      value: 1
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 7627906116951647233, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -489,7 +490,7 @@ SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 735411778}
-  - {fileID: 1734149299}
+  - {fileID: 827430640}
   - {fileID: 209430543}
   - {fileID: 385855700}
   - {fileID: 688452636}
