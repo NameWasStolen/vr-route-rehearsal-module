@@ -11,8 +11,7 @@ public class MenuController : MonoBehaviour
     [Tooltip("This menu's own scene. Unloaded once the content scene is up.")]
     [SerializeField] private string mainMenuSceneName = "MainMenu";
 
-    // Guards against a second button press while a load is still in flight - without it an
-    // impatient double-press loads the scene twice.
+    // Only used by the fallback path below; the transition controller has its own guard.
     private bool _isSwitching;
 
     public void onRunSystemButtonClick()
@@ -28,19 +27,35 @@ public class MenuController : MonoBehaviour
     }
 
     /// <summary>
-    /// Swaps the menu out for a content scene, leaving Bootstrap loaded.
+    /// Hands the swap to SceneTransitionController in Bootstrap, which fades the view out,
+    /// preloads, places the player at the scene's spawn point and fades back in.
     ///
-    /// Deliberately ADDITIVE. A plain SceneManager.LoadScene would unload Bootstrap along with
-    /// the menu, destroying XRPlayerRig, the XR Interaction Manager, the EventSystem and the
-    /// ControllerHandednessManager - the player would lose their rig and their hand preference
-    /// mid-transition, and the tutorial scene has no rig of its own to fall back on.
-    ///
-    /// Load first, unload second, so there is never a frame with no content scene present.
+    /// Falls back to an unfaded additive swap if that controller is missing, so a misconfigured
+    /// Bootstrap degrades to "works but looks abrupt" rather than "button does nothing".
     /// </summary>
-    private async void SwitchToContentScene(string sceneName)
+    private void SwitchToContentScene(string sceneName)
     {
-        if (_isSwitching || string.IsNullOrEmpty(sceneName)) return;
+        if (string.IsNullOrEmpty(sceneName)) return;
 
+        if (SceneTransitionController.Instance != null)
+        {
+            SceneTransitionController.Instance.SwitchTo(sceneName, mainMenuSceneName);
+            return;
+        }
+
+        Debug.LogWarning("[MenuController] No SceneTransitionController found in Bootstrap - " +
+                         "switching without a fade.", this);
+        SwitchUnfaded(sceneName);
+    }
+
+    /// <summary>
+    /// Fallback. Still ADDITIVE: a plain SceneManager.LoadScene would unload Bootstrap along
+    /// with the menu, destroying XRPlayerRig, the XR Interaction Manager, the EventSystem and
+    /// the ControllerHandednessManager - and the tutorial scene has no rig of its own.
+    /// </summary>
+    private async void SwitchUnfaded(string sceneName)
+    {
+        if (_isSwitching) return;
         _isSwitching = true;
 
         try
@@ -50,9 +65,6 @@ public class MenuController : MonoBehaviour
                 await SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Additive);
             }
 
-            // The active scene supplies lighting and skybox settings, and receives anything
-            // instantiated without an explicit scene. Leaving MainMenu active and then
-            // unloading it drops that role to Bootstrap, which has no environment of its own.
             Scene loaded = SceneManager.GetSceneByName(sceneName);
             if (loaded.IsValid() && loaded.isLoaded)
             {

@@ -165,6 +165,28 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &251585164 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 2929931167316164458, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
+  m_PrefabInstance: {fileID: 1734149299}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &251585169
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 251585164}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 13c2c61a96e5c904685d130ac8645cb7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ScreenFader
+  fadeColour: {r: 0.02, g: 0.02, b: 0.03, a: 1}
+  head: {fileID: 0}
+  distance: 0.2
+  size: 4
+  overrideShader: {fileID: 0}
 --- !u!1 &385855697
 GameObject:
   m_ObjectHideFlags: 0
@@ -293,7 +315,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1506189788}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &735411776
@@ -423,6 +446,72 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
+--- !u!1 &1506189787
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1506189788}
+  - component: {fileID: 1506189789}
+  m_Layer: 0
+  m_Name: SceneTransitionController
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1506189788
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1506189787}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -1.11462, y: 1.298, z: 1.77361}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 688452636}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1506189789
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1506189787}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 381929dfed307b647886ea54c25ae4c3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTransitionController
+  fader: {fileID: 0}
+  rigRoot: {fileID: 0}
+  head: {fileID: 0}
+  characterController: {fileID: 0}
+  locomotionToSuspend:
+  - {fileID: 1548921200}
+  fadeOutDuration: 0.45
+  holdDarkDuration: 0.25
+  fadeInDuration: 0.7
+  settleFrames: 3
+  fadeAudio: 1
+--- !u!114 &1548921200 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 8037651474275244261, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
+  m_PrefabInstance: {fileID: 1734149299}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 626a4d6723d6ad24b9aebb811ad5a3dd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.XR.Interaction.Toolkit::UnityEngine.XR.Interaction.Toolkit.Locomotion.Movement.ContinuousMoveProvider
 --- !u!1001 &1734149299
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -486,7 +575,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 2929931167316164458, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 251585169}
   m_SourcePrefab: {fileID: 100100000, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
