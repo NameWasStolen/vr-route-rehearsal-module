@@ -73,6 +73,19 @@ namespace VRTutorial
                  "The panel background stays visible throughout, so this must never be a jump.")]
         [SerializeField] private float placementMoveDuration = -1f;
 
+        [Header("Dismissing")]
+        [Tooltip("Seconds to fade the whole panel out when the player is trusted to carry on " +
+                 "unaided. Slower than a step change - this is the guide withdrawing, not " +
+                 "swapping pages, and it should not read as the UI breaking.")]
+        [SerializeField] private float dismissFadeDuration = 0.5f;
+
+        [Tooltip("Disable the Canvas once fully faded. Stops it rendering and raycasting at all; " +
+                 "re-enabled automatically if the panel is ever restored.")]
+        [SerializeField] private bool disableCanvasWhenDismissed = true;
+
+        [Tooltip("Fires when the panel is dismissed.")]
+        public UnityEvent onDismissed;
+
         [Header("Events")]
         [Tooltip("Fires as each step begins, with its index.")]
         public UnityEvent<int> onStepChanged;
@@ -93,6 +106,9 @@ namespace VRTutorial
         private Vector3 _basePanelRotation;
         private Vector3 _basePanelScale;
         private Vector2 _basePanelSize;
+        private CanvasGroup _panelGroup;
+        private Canvas _panelCanvas;
+        private Coroutine _panelFadeRoutine;
         private RectTransform _panelRect;
         private bool _placementCaptured;
 
@@ -218,6 +234,9 @@ namespace VRTutorial
             if (index < 0 || index >= steps.Count) return;
             if (index == CurrentIndex) return;
 
+            // A step change implies the guide is speaking again - bring the panel back if a
+            // trigger had dismissed it.
+            Restore();
             _running = StartCoroutine(Transition(index, delay));
         }
 
@@ -242,6 +261,104 @@ namespace VRTutorial
             ApplyPlacementImmediate(steps[index]);
             if (steps[index] != null) steps[index].RaiseEnter();
             onStepChanged?.Invoke(index);
+        }
+
+        // ------------------------------------------------------------------ dismissing
+
+        /// <summary>True once the panel has been faded away and the player left to it.</summary>
+        public bool IsDismissed { get; private set; }
+
+        /// <summary>
+        /// The panel root has no CanvasGroup of its own, so one is added on demand. Fading the
+        /// step alone is not enough: the Background sits on the panel root, outside every step,
+        /// and would be left hanging in front of the player as an empty frame.
+        /// </summary>
+        private CanvasGroup PanelGroup
+        {
+            get
+            {
+                if (_panelGroup == null && headLockedUI != null)
+                {
+                    _panelGroup = headLockedUI.GetComponent<CanvasGroup>();
+                    if (_panelGroup == null)
+                        _panelGroup = headLockedUI.gameObject.AddComponent<CanvasGroup>();
+                }
+                return _panelGroup;
+            }
+        }
+
+        private Canvas PanelCanvas
+        {
+            get
+            {
+                if (_panelCanvas == null && headLockedUI != null)
+                    _panelCanvas = headLockedUI.GetComponent<Canvas>();
+                return _panelCanvas;
+            }
+        }
+
+        /// <summary>Fades the whole panel away. Wire a zone trigger's onPlayerEntered here.</summary>
+        public void Dismiss()
+        {
+            if (IsDismissed) return;
+            IsDismissed = true;
+
+            if (_panelFadeRoutine != null) StopCoroutine(_panelFadeRoutine);
+            _panelFadeRoutine = StartCoroutine(FadePanel(0f, dismissFadeDuration));
+
+            onDismissed?.Invoke();
+        }
+
+        /// <summary>
+        /// Dismisses only while a particular step is showing. Use this when the player could
+        /// cross the trigger during an earlier step - walking forward during the camera lesson,
+        /// say - and you do not want the guide to vanish early.
+        /// </summary>
+        public void DismissIfCurrentStepIs(int index)
+        {
+            if (CurrentIndex == index) Dismiss();
+        }
+
+        /// <summary>Brings the panel back after a dismissal.</summary>
+        public void Restore()
+        {
+            if (!IsDismissed) return;
+            IsDismissed = false;
+
+            if (_panelFadeRoutine != null) StopCoroutine(_panelFadeRoutine);
+            _panelFadeRoutine = StartCoroutine(FadePanel(1f, dismissFadeDuration));
+        }
+
+        private IEnumerator FadePanel(float target, float duration)
+        {
+            CanvasGroup group = PanelGroup;
+            if (group == null) yield break;
+
+            // Must be rendering before it can be seen to fade back in.
+            if (target > 0f && PanelCanvas != null) PanelCanvas.enabled = true;
+
+            float start = group.alpha;
+
+            if (duration > 0f)
+            {
+                float t = 0f;
+                while (t < duration)
+                {
+                    t += Time.unscaledDeltaTime;
+                    float k = Mathf.Clamp01(t / duration);
+                    group.alpha = Mathf.Lerp(start, target, k * k * (3f - 2f * k));
+                    yield return null;
+                }
+            }
+
+            group.alpha = target;
+            group.blocksRaycasts = target > 0.5f;
+            group.interactable = target > 0.5f;
+
+            if (target <= 0f && disableCanvasWhenDismissed && PanelCanvas != null)
+                PanelCanvas.enabled = false;
+
+            _panelFadeRoutine = null;
         }
 
         // ------------------------------------------------------------------ internals
