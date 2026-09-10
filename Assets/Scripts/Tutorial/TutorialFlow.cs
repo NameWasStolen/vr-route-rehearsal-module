@@ -240,6 +240,34 @@ namespace VRTutorial
             _running = StartCoroutine(Transition(index, delay));
         }
 
+        /// <summary>
+        /// Shows a step as the panel ARRIVING rather than as a page turn.
+        ///
+        /// Wire this to a zone trigger that fires after the guide has already withdrawn - the
+        /// end zone being the obvious one. GoTo() would cross-fade out of whatever step was
+        /// last showing, and a step the player cannot currently see has no business ghosting
+        /// over the panel on its way back; it reads as the old instruction flickering up again
+        /// for no reason. Swapping the content while the panel is still at zero alpha and then
+        /// fading the whole thing in gives a clean "here is the last thing to do" instead.
+        ///
+        /// Falls through to the normal cross-fade when the panel is still on screen, so a
+        /// player who reaches the trigger without ever leaving the previous zone gets a proper
+        /// transition rather than a hard cut.
+        /// </summary>
+        public void RevealStep(int index)
+        {
+            if (index < 0 || index >= steps.Count) return;
+
+            if (IsDismissed)
+            {
+                ShowImmediate(index);
+                Restore();
+                return;
+            }
+
+            GoTo(index);
+        }
+
         /// <summary>Cancels a pending or running transition and settles on the current step.</summary>
         public void Cancel()
         {
