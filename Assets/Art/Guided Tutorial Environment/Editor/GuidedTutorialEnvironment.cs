@@ -36,6 +36,7 @@ namespace VRTutorial.EditorTools
         private const string MaterialFolder  = BaseFolder + "/Materials";
         private const string GeneratedFolder = BaseFolder + "/Generated";
         private const string SceneFolder     = BaseFolder + "/Scenes";
+        private const string TextureFolder   = BaseFolder + "/Textures";
         private const string LandmarkPrefKey = "VRTutorial.IncludeLandmarks";
 
         // --------------------------------------------------------------- LAYOUT
@@ -61,7 +62,10 @@ namespace VRTutorial.EditorTools
         // Dressing
         private const int   PropSeed      = 20260826; // change for a different scatter
         private const float KerbWidth     = 0.16f;
-        private const float KerbHeight    = 0.10f;
+        // Kerb height above the GRASS. The paving top sits at PathTopY, so the lip the player
+        // actually sees is (KerbHeight + chamfer) - PathTopY. At 0.10 that lip was over 10 cm,
+        // which read as a raised divider rather than a path edge.
+        private const float KerbHeight    = 0.05f;
         private const float SlabSize      = 1.10f;    // paving slab pitch
         private const float SlabGap       = 0.045f;   // joint width between slabs
         private const float LampHeight    = 3.20f;
@@ -169,10 +173,16 @@ namespace VRTutorial.EditorTools
         // kind: 0 bus shelter, 1 noticeboard / park map, 2 bench + bin, 3 postbox
         private static readonly Vector4[] Landmarks =
         {
-            new Vector4( 32.5f, 20.0f,  90f, 0f),   // end zone, facing the road
-            new Vector4( -2.3f, 17.4f,  40f, 1f),   // approaching the intersection
-            new Vector4( -6.0f, 22.4f, 180f, 2f),   // west arm
-            new Vector4(  2.1f, 28.5f, 180f, 3f),   // north arm
+            // Opens WEST, toward the end zone the player walks in from. A real shelter faces
+            // the road, but then its blank back is the first thing a participant sees, which
+            // is useless as a landmark.
+            new Vector4( 32.5f, 20.0f, 270f, 0f),   // end zone
+            // Both of these were moved off a lamp post: the bench sat 0.6 m from the west-arm
+            // lamp and the noticeboard 0.9 m from the intersection lamp, so the post stood
+            // between the player and the landmark.
+            new Vector4( -2.6f, 16.4f,  40f, 1f),   // approaching the intersection
+            new Vector4( -8.6f, 22.5f, 180f, 2f),   // west arm
+            new Vector4(  2.4f, 29.5f, 180f, 3f),   // north arm
         };
 
         // Kerb runs laid just outside the paving: (x0, z0, x1, z1).   [UNCHANGED]
@@ -236,6 +246,9 @@ namespace VRTutorial.EditorTools
             new Vector4( 14f, -13.2f, 0f, -1f),
             new Vector4( 30f, -13.2f, 0f, -1f),
         };
+
+        // Rough centre of the fenced area. Used to decide which way things face.
+        private static readonly Vector3 ParkCentre = new Vector3(9.5f, 0f, 12.5f);
 
         private const float CheckpointHeight = 3f;
 
@@ -314,25 +327,31 @@ namespace VRTutorial.EditorTools
             // Flat-colour materials. No textures exist in the project, so variation has to
             // come from geometry and from several near-identical materials per surface -
             // three slightly different greens read as a lawn, one reads as a billiard table.
-            Material[] grassMats = Variants("M_Grass",  new Color(0.30f, 0.47f, 0.22f), 0.05f, 3, 0.045f);
-            Material[] stoneMats = Variants("M_Stone",  new Color(0.66f, 0.65f, 0.62f), 0.10f, 3, 0.05f);
-            Material   outerMat   = GetOrCreateMaterial("M_OuterGround", new Color(0.27f, 0.41f, 0.21f), 0.04f);
-            Material   endZoneMat = GetOrCreateMaterial("M_EndZone",    new Color(0.45f, 0.58f, 0.72f), 0.15f);
+            Texture2D grassA, grassN, concA, concN, asphA, asphN, timbA, timbN,
+                      roofA, roofN, rendA, rendN, foliA;
+            BuildTextures(out grassA, out grassN, out concA, out concN, out asphA, out asphN,
+                          out timbA, out timbN, out roofA, out roofN, out rendA, out rendN,
+                          out foliA);
+
+            Material[] grassMats = Variants("M_Grass",  new Color(0.30f, 0.47f, 0.22f), 0.05f, 3, 0.045f, grassA, grassN);
+            Material[] stoneMats = Variants("M_Stone",  new Color(0.66f, 0.65f, 0.62f), 0.10f, 3, 0.05f, concA, concN);
+            Material   outerMat   = GetOrCreateMaterial("M_OuterGround", new Color(0.27f, 0.41f, 0.21f), 0.04f, grassA, grassN);
+            Material   endZoneMat = GetOrCreateMaterial("M_EndZone",    new Color(0.45f, 0.58f, 0.72f), 0.15f, concA, concN);
             Material   metalMat   = GetOrCreateMaterial("M_FenceMetal", new Color(0.42f, 0.44f, 0.47f), 0.65f);
-            Material   kerbMat    = GetOrCreateMaterial("M_PathEdge",   new Color(0.55f, 0.54f, 0.51f), 0.12f);
-            Material[] foliageMats = Variants("M_Foliage", new Color(0.20f, 0.38f, 0.18f), 0.05f, 3, 0.055f);
+            Material   kerbMat    = GetOrCreateMaterial("M_PathEdge",   new Color(0.55f, 0.54f, 0.51f), 0.12f, concA, concN);
+            Material[] foliageMats = Variants("M_Foliage", new Color(0.20f, 0.38f, 0.18f), 0.05f, 3, 0.055f, foliA, null);
             Material   flowerMat  = GetOrCreateMaterial("M_Flower",     new Color(0.86f, 0.80f, 0.42f), 0.08f);
-            Material   stripeMat  = GetOrCreateMaterial("M_GrassStripe",new Color(0.35f, 0.53f, 0.25f), 0.05f);
-            Material   tuftMat    = GetOrCreateMaterial("M_GrassTuft",  new Color(0.26f, 0.46f, 0.20f), 0.05f);
-            Material   barkMat    = GetOrCreateMaterial("M_Bark",       new Color(0.34f, 0.26f, 0.19f), 0.05f);
-            Material   rockMat    = GetOrCreateMaterial("M_Rock",       new Color(0.52f, 0.51f, 0.50f), 0.15f);
+            Material   stripeMat  = GetOrCreateMaterial("M_GrassStripe",new Color(0.35f, 0.53f, 0.25f), 0.05f, grassA, grassN);
+            Material   tuftMat    = GetOrCreateMaterial("M_GrassTuft",  new Color(0.26f, 0.46f, 0.20f), 0.05f, foliA, null);
+            Material   barkMat    = GetOrCreateMaterial("M_Bark",       new Color(0.34f, 0.26f, 0.19f), 0.05f, timbA, null);
+            Material   rockMat    = GetOrCreateMaterial("M_Rock",       new Color(0.52f, 0.51f, 0.50f), 0.15f, concA, concN);
             Material   lampMat    = GetOrCreateMaterial("M_LampHead",   new Color(0.95f, 0.90f, 0.72f), 0.35f);
-            Material   timberMat  = GetOrCreateMaterial("M_Timber",     new Color(0.52f, 0.42f, 0.31f), 0.08f);
-            Material   asphaltMat = GetOrCreateMaterial("M_Asphalt",    new Color(0.17f, 0.17f, 0.18f), 0.18f);
+            Material   timberMat  = GetOrCreateMaterial("M_Timber",     new Color(0.52f, 0.42f, 0.31f), 0.08f, timbA, timbN);
+            Material   asphaltMat = GetOrCreateMaterial("M_Asphalt",    new Color(0.17f, 0.17f, 0.18f), 0.18f, asphA, asphN);
             Material   lineMat    = GetOrCreateMaterial("M_RoadLine",   new Color(0.88f, 0.86f, 0.76f), 0.10f);
-            Material   hedgeMat   = GetOrCreateMaterial("M_Hedge",      new Color(0.16f, 0.31f, 0.15f), 0.04f);
-            Material   renderMat  = GetOrCreateMaterial("M_HouseWall",  new Color(0.78f, 0.74f, 0.67f), 0.08f);
-            Material   roofMat    = GetOrCreateMaterial("M_HouseRoof",  new Color(0.36f, 0.31f, 0.30f), 0.10f);
+            Material   hedgeMat   = GetOrCreateMaterial("M_Hedge",      new Color(0.16f, 0.31f, 0.15f), 0.04f, foliA, null);
+            Material   renderMat  = GetOrCreateMaterial("M_HouseWall",  new Color(0.78f, 0.74f, 0.67f), 0.08f, rendA, rendN);
+            Material   roofMat    = GetOrCreateMaterial("M_HouseRoof",  new Color(0.36f, 0.31f, 0.30f), 0.10f, roofA, roofN);
             Material   glassMat   = GetOrCreateMaterial("M_Glass",      new Color(0.28f, 0.36f, 0.40f), 0.85f);
             Material   postboxMat = GetOrCreateMaterial("M_Postbox",    new Color(0.62f, 0.13f, 0.12f), 0.25f);
             Material[] carMats   = Variants("M_Car", new Color(0.60f, 0.62f, 0.65f), 0.55f, 3, 0.18f);
@@ -358,6 +377,7 @@ namespace VRTutorial.EditorTools
             if (IncludeLandmarks)
                 BuildLandmarks(root.transform, metalMat, timberMat, glassMat, postboxMat, lineMat);
 
+            WarnOnLandmarkClashes();
             BuildCheckpoints(root.transform);
             BuildSpawnAndLight(root.transform);
 
@@ -419,7 +439,7 @@ namespace VRTutorial.EditorTools
         {
             var group = NewGroup("Ground_Outer", root);
             CreateSlab("OuterGround", group, OuterGround.x, OuterGround.y, OuterGround.z, OuterGround.w,
-                       OuterGroundTopY, 0.4f, mat, true);
+                       OuterGroundTopY, 0.4f, mat, true, 4f);
         }
 
         private static void BuildGround(Transform root, Material[] grass)
@@ -429,7 +449,7 @@ namespace VRTutorial.EditorTools
             {
                 var r = GrassRects[i];
                 CreateSlab("Grass_" + i.ToString("00"), group, r.x, r.y, r.z, r.w,
-                           0f, GroundThickness, grass[i % grass.Length], true);
+                           0f, GroundThickness, grass[i % grass.Length], true, 3f);
             }
         }
 
@@ -442,7 +462,7 @@ namespace VRTutorial.EditorTools
             {
                 var r = RoadRects[i];
                 CreateSlab("Road_" + i.ToString("00"), group, r.x, r.y, r.z, r.w,
-                           RoadTopY, RoadThickness, asphalt, true);
+                           RoadTopY, RoadThickness, asphalt, true, 3f);
             }
 
             // Broken centre line. Dashes rather than a solid strip - a solid line reads as
@@ -533,7 +553,7 @@ namespace VRTutorial.EditorTools
                 // footstep sounds, surface logging, anything that asks "where am I standing".
                 // The 2 cm lip is well inside the CharacterController's 0.3 m step offset.
                 CreateSlab(names[i], group, r.x, r.y, r.z, r.w, PathTopY - 0.012f,
-                           PathThickness, m, true);
+                           PathThickness, m, true, 1.2f);
             }
         }
 
@@ -582,8 +602,8 @@ namespace VRTutorial.EditorTools
             Random.state = previous;
 
             for (int i = 0; i < batches.Length; i++)
-                EndBatch(batches[i], group, "Paving_" + i, "PavingMesh_" + i, stones[i]);
-            EndBatch(endBatch, group, "Paving_EndZone", "PavingMeshEndZone", endZone);
+                EndBatch(batches[i], group, "Paving_" + i, "PavingMesh_" + i, stones[i], 1.2f);
+            EndBatch(endBatch, group, "Paving_EndZone", "PavingMeshEndZone", endZone, 1.2f);
         }
 
         // ----------------------------------------------------------- path detail
@@ -609,13 +629,14 @@ namespace VRTutorial.EditorTools
                 AddPrimitive(batch, PrimitiveType.Cube, mid,
                              new Vector3(KerbWidth, KerbHeight, length + KerbWidth), rot);
 
-                // chamfer: a narrower cap sitting proud of the kerb top
+                // Chamfer: a narrower cap catching the light along the top edge. Kept thin so
+                // the whole edge reads as a trim, not a step.
                 AddPrimitive(batch, PrimitiveType.Cube,
-                             mid + Vector3.up * (KerbHeight * 0.5f + 0.012f),
-                             new Vector3(KerbWidth * 0.72f, 0.025f, length + KerbWidth), rot);
+                             mid + Vector3.up * (KerbHeight * 0.5f + 0.006f),
+                             new Vector3(KerbWidth * 0.72f, 0.014f, length + KerbWidth), rot);
             }
 
-            EndBatch(batch, group, "PathDetail", "PathDetailMesh", kerbMat);
+            EndBatch(batch, group, "PathDetail", "PathDetailMesh", kerbMat, 1f);
         }
 
         // ----------------------------------------------------------------- fence
@@ -640,7 +661,7 @@ namespace VRTutorial.EditorTools
                 CreateFenceCollider(colliderGroup, "FenceCollider_" + i.ToString("00"), a, b);
             }
 
-            EndBatch(palingBatch, group, "Fence_Palings", "FenceMesh", timber);
+            EndBatch(palingBatch, group, "Fence_Palings", "FenceMesh", timber, 1f);
             EndBatch(railBatch, group, "Fence_Frame", "FenceFrameMesh", metal);
         }
 
@@ -773,7 +794,7 @@ namespace VRTutorial.EditorTools
             }
 
             Random.state = previous;
-            EndBatch(batch, group, "Hedge_Visual", "HedgeMesh", hedgeMat);
+            EndBatch(batch, group, "Hedge_Visual", "HedgeMesh", hedgeMat, 1.5f);
         }
 
         // ----------------------------------------------------------------- lamps
@@ -893,8 +914,16 @@ namespace VRTutorial.EditorTools
                 if (length < 6f) continue;
 
                 Vector3 dir = new Vector3(delta.x, 0f, delta.y).normalized;
-                Vector3 facing = new Vector3(-dir.z, 0f, dir.x);   // toward the park
+                Vector3 facing = new Vector3(-dir.z, 0f, dir.x);
                 Vector3 start = new Vector3(a.x, 0f, a.y);
+
+                // The perpendicular could point either way depending on how the frontage line
+                // was wound, and two of the four rows were wound the other way - so the north
+                // and west houses turned their backs on the park, which is exactly the view
+                // straight ahead from the spawn. Resolve it from the geometry instead of
+                // trusting the winding.
+                Vector3 mid = start + dir * (length * 0.5f);
+                if (Vector3.Dot(facing, ParkCentre - mid) < 0f) facing = facing * -1f;
 
                 int count = Mathf.Max(1, Mathf.FloorToInt(length / 13f));
                 float step = length / count;
@@ -909,11 +938,50 @@ namespace VRTutorial.EditorTools
 
             Random.state = previous;
 
-            EndBatch(wallBatch, group, "House_Walls", "HouseWallMesh", wall);
-            EndBatch(roofBatch, group, "House_Roofs", "HouseRoofMesh", roof);
+            EndBatch(wallBatch, group, "House_Walls", "HouseWallMesh", wall, 2f);
+            EndBatch(roofBatch, group, "House_Roofs", "HouseRoofMesh", roof, 1.2f);
             EndBatch(glassBatch, group, "House_Windows", "HouseWindowMesh", glass);
             EndBatch(trimBatch, group, "House_Trim", "HouseTrimMesh",
                      GetOrCreateMaterial("M_HouseTrim", new Color(0.90f, 0.89f, 0.86f), 0.10f));
+        }
+
+        /// <summary>
+        /// Fills the triangle between the wall top and the two roof planes at a gable end.
+        /// Hips close themselves, so they never call this.
+        ///
+        /// Sized from the ROOF rather than from the wall: it spans the full eave-to-eave width
+        /// and rises to the exact ridge height, so its sloping edges lie flush against the roof
+        /// planes and no sliver of sky can open up between them. It therefore overhangs the
+        /// wall a little at each corner, where it has already tapered to nothing, tucked in
+        /// under the verge.
+        /// </summary>
+        private static void AddGableInfill(Transform wallBatch, Vector3 centre, float baseY,
+                                           float w, float d, float overhang, float slopeDeg,
+                                           Quaternion rot, Vector3 facing, Vector3 side)
+        {
+            float W = w * 0.5f + overhang;
+            float D = d * 0.5f + overhang;
+
+            bool ridgeAlongZ = D >= W;
+            float across = ridgeAlongZ ? W : D;
+            float rise = across * Mathf.Tan(slopeDeg * Mathf.Deg2Rad);
+
+            // The gable ends sit at the ends of the ridge, so which pair of walls they are
+            // depends on which way the ridge runs.
+            Vector3 endDir = ridgeAlongZ ? facing : side;
+            float standoff = (ridgeAlongZ ? d * 0.5f : w * 0.5f) - 0.05f;
+            Quaternion faceRot = ridgeAlongZ ? rot : rot * Quaternion.Euler(0f, 90f, 0f);
+
+            // Dropped 10 cm so it bites into the wall below, and raised by the same 10 cm so
+            // the apex lands exactly on the ridge. Any more and a wall-coloured nick appears
+            // above the ridge line; any less and the peak opens up.
+            for (int s = -1; s <= 1; s += 2)
+            {
+                AddMesh(wallBatch, GableMesh,
+                        centre + endDir * (s * standoff) + Vector3.up * (baseY - 0.10f),
+                        new Vector3(across * 2f, rise + 0.10f, 0.12f),
+                        faceRot);
+            }
         }
 
         private static void AddHouse(Transform wallBatch, Transform roofBatch, Transform glassBatch,
@@ -925,85 +993,66 @@ namespace VRTutorial.EditorTools
             float slope = Random.Range(22f, 30f);
             bool hipRoof = Random.Range(0f, 1f) < 0.45f;
 
-            const float eaveX = 0.55f;                // overhang across the gable
-            const float eaveZ = 0.45f;                // overhang front and back
+            const float eaveX = 0.55f;                // roof overhang, all round
 
             Quaternion rot = Quaternion.LookRotation(facing, Vector3.up);
             Vector3 side = Vector3.Cross(Vector3.up, facing).normalized;
             Vector3 centre = frontage - facing * (d * 0.5f);
 
-            float tan = Mathf.Sin(slope * Mathf.Deg2Rad) / Mathf.Cos(slope * Mathf.Deg2Rad);
-            float ridgeH = h + (w * 0.5f) * tan;
 
             // ---- walls
             AddPrimitive(wallBatch, PrimitiveType.Cube,
                          centre + Vector3.up * (h * 0.5f), new Vector3(w, h, d), rot);
 
-            // ---- the two long roof planes
-            float runX = w * 0.5f + eaveX;
-            float slabX = runX / Mathf.Cos(slope * Mathf.Deg2Rad);
-            for (int s = -1; s <= 1; s += 2)
-            {
-                float u = runX * 0.5f;                       // centre of the plane, from the ridge
-                Vector3 pos = centre
-                            + side * (s * u)
-                            + Vector3.up * (ridgeH - u * tan);
-
-                AddPrimitive(roofBatch, PrimitiveType.Cube, pos,
-                             new Vector3(slabX, 0.16f, d + eaveZ * 2f),
-                             rot * Quaternion.Euler(0f, 0f, -s * slope));
-            }
-
-            // ---- hipped ends, if this one has them
-            if (hipRoof)
-            {
-                float runZ = d * 0.5f + eaveZ;
-                float slabZ = runZ / Mathf.Cos(slope * Mathf.Deg2Rad);
-                for (int s = -1; s <= 1; s += 2)
-                {
-                    float u = runZ * 0.5f;
-                    Vector3 pos = centre
-                                + facing * (s * u)
-                                + Vector3.up * (ridgeH - u * tan);
-
-                    AddPrimitive(roofBatch, PrimitiveType.Cube, pos,
-                                 new Vector3(w + eaveX * 2f, 0.15f, slabZ),
-                                 rot * Quaternion.Euler(s * slope, 0f, 0f));
-                }
-            }
+            // ---- roof, as one mesh
+            AddMesh(roofBatch, MakeRoofMesh(w, d, eaveX, slope, 0.16f, hipRoof),
+                    centre + Vector3.up * h, Vector3.one, rot);
 
             // ---- gable end infill
-            // Without this the wall stops at the eaves and you see straight through the
-            // triangle between the two roof planes - the open gap. Hip roofs close
-            // themselves with their end planes, so they do not need it.
+            // Only gables need it - a hip closes itself with its end faces.
             if (!hipRoof)
             {
-                for (int s = -1; s <= 1; s += 2)
-                {
-                    AddMesh(wallBatch, GableMesh,
-                            centre + facing * (s * (d * 0.5f - 0.05f)) + Vector3.up * h,
-                            new Vector3(w, ridgeH - h, 0.10f), rot);
-                }
+                AddGableInfill(wallBatch, centre, h, w, d, eaveX, slope, rot, facing, side);
             }
 
-            // ---- ridge cap
-            AddPrimitive(roofBatch, PrimitiveType.Cube,
-                         centre + Vector3.up * (ridgeH + 0.06f),
-                         new Vector3(0.34f, 0.16f, hipRoof ? d * 0.55f : d + eaveZ * 2f + 0.1f), rot);
-
-            // ---- fascia along both eaves: the shadow line that makes a roof read as a roof
-            for (int s = -1; s <= 1; s += 2)
+            // ---- fascia along the eaves
+            // The eave is simply the roof mesh's outer edge, which sits at y = h by
+            // construction, so there is no separate height calculation to get wrong.
             {
-                AddPrimitive(trimBatch, PrimitiveType.Cube,
-                             centre + side * (s * (runX - 0.02f)) + Vector3.up * (h - runX * tan + 0.06f),
-                             new Vector3(0.10f, 0.22f, d + eaveZ * 2f), rot);
+                float W = w * 0.5f + eaveX;
+                float D = d * 0.5f + eaveX;
+
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    AddPrimitive(trimBatch, PrimitiveType.Cube,
+                                 centre + side * (s * W) + Vector3.up * (h - 0.04f),
+                                 new Vector3(0.09f, 0.20f, D * 2f), rot);
+                }
+
+                if (hipRoof)
+                {
+                    for (int s = -1; s <= 1; s += 2)
+                    {
+                        AddPrimitive(trimBatch, PrimitiveType.Cube,
+                                     centre + facing * (s * D) + Vector3.up * (h - 0.04f),
+                                     new Vector3(W * 2f, 0.20f, 0.09f), rot);
+                    }
+                }
             }
 
             // ---- chimney, on about half of them
             if (Random.Range(0f, 1f) < 0.5f)
             {
+                // Chimney height is taken from the same roof maths, so it always lands on the
+                // slope rather than floating above it or sinking into it.
+                float W = w * 0.5f + eaveX;
+                float D = d * 0.5f + eaveX;
+                bool ridgeAlongZ = D >= W;
+                float across = ridgeAlongZ ? W : D;
+                float rise = across * Mathf.Tan(slope * Mathf.Deg2Rad);
+
                 float cx = Random.Range(0.18f, 0.32f) * w * (Random.Range(0, 2) == 0 ? 1f : -1f);
-                float roofYAtC = ridgeH - Mathf.Abs(cx) * tan;
+                float roofYAtC = h + rise * (1f - Mathf.Abs(cx) / across);
                 float ch = Random.Range(0.9f, 1.4f);
                 AddPrimitive(wallBatch, PrimitiveType.Cube,
                              centre + side * cx + facing * Random.Range(-1.5f, 1.5f)
@@ -1063,17 +1112,12 @@ namespace VRTutorial.EditorTools
                 AddPrimitive(wallBatch, PrimitiveType.Cube,
                              gCentre + Vector3.up * (gh * 0.5f), new Vector3(gw, gh, gd), rot);
 
-                float gRidge = gh + (gw * 0.5f) * tan;
-                float gRun = gw * 0.5f + 0.3f;
-                float gSlab = gRun / Mathf.Cos(slope * Mathf.Deg2Rad);
-                for (int s = -1; s <= 1; s += 2)
-                {
-                    float u = gRun * 0.5f;
-                    AddPrimitive(roofBatch, PrimitiveType.Cube,
-                                 gCentre + side * (s * u) + Vector3.up * (gRidge - u * tan),
-                                 new Vector3(gSlab, 0.14f, gd + 0.5f),
-                                 rot * Quaternion.Euler(0f, 0f, -s * slope));
-                }
+                AddMesh(roofBatch, MakeRoofMesh(gw, gd, 0.30f, slope, 0.14f, false),
+                        gCentre + Vector3.up * gh, Vector3.one, rot);
+
+                // The garage is always gabled, so its ends always need filling. Leaving this
+                // out is why you could see sky straight through the small roofs.
+                AddGableInfill(wallBatch, gCentre, gh, gw, gd, 0.30f, slope, rot, facing, side);
 
                 AddPrimitive(trimBatch, PrimitiveType.Cube,
                              gCentre + facing * (gd * 0.5f + 0.04f) + Vector3.up * (gh * 0.42f),
@@ -1134,44 +1178,51 @@ namespace VRTutorial.EditorTools
         /// The original single cylinder plus single sphere reads as a lollipop; the whole
         /// gain here is in the silhouette, which is all you get without textures.
         /// </summary>
+        /// <summary>
+        /// One trunk mesh and one canopy mesh. No stacked cylinders, no ring of overlapping
+        /// spheres - both of those produce visible joins, which is exactly what reads as
+        /// "assembled from parts". Variation comes from picking a different blob, rotating it
+        /// and scaling it unevenly, so no two trees repeat while each stays a single volume.
+        /// </summary>
         private static void AddTree(Transform barkBatch, Transform foliageBatch,
                                     Vector3 basePos, float height, float canopy)
         {
-            float lean = Random.Range(0f, 5f);
-            Quaternion leanRot = Quaternion.Euler(lean, Random.Range(0f, 360f), 0f);
+            int variant = Random.Range(0, BlobVariants);
+            float leanX = Random.Range(-3.5f, 3.5f);
+            float leanZ = Random.Range(-3.5f, 3.5f);
+            Quaternion leanRot = Quaternion.Euler(leanX, Random.Range(0f, 360f), leanZ);
 
-            // Trunk in two tapering sections.
-            AddPrimitive(barkBatch, PrimitiveType.Cylinder,
-                         basePos + leanRot * new Vector3(0f, height * 0.26f, 0f),
-                         new Vector3(0.30f, height * 0.26f, 0.30f), leanRot);
-            AddPrimitive(barkBatch, PrimitiveType.Cylinder,
-                         basePos + leanRot * new Vector3(0f, height * 0.68f, 0f),
-                         new Vector3(0.20f, height * 0.30f, 0.20f), leanRot);
+            // Trunk. The mesh is built 1 unit tall with a unit-ish radius, so scaling gives
+            // any proportion; it is sunk slightly so the flared foot beds into the ground.
+            AddMesh(barkBatch, TrunkVariant(variant),
+                    basePos + Vector3.down * 0.05f,
+                    new Vector3(height * 0.24f, height + 0.05f, height * 0.24f),
+                    leanRot);
 
-            // Two branches, which is what stops it reading as a post.
-            for (int b = 0; b < 2; b++)
+            // Canopy: a single closed surface, squashed and rotated per tree.
+            Vector3 crown = basePos + leanRot * new Vector3(0f, height * 0.97f + canopy * 0.22f, 0f);
+
+            // NOTE the blob mesh already spans 2 units, so these are DIAMETER multipliers.
+            // Treating them as radii made every canopy twice the intended size.
+            AddMesh(foliageBatch, BlobVariant(variant),
+                    crown,
+                    new Vector3(canopy * Random.Range(0.85f, 1.05f),
+                                canopy * Random.Range(0.68f, 0.88f),
+                                canopy * Random.Range(0.85f, 1.05f)),
+                    Quaternion.Euler(Random.Range(-14f, 14f), Random.Range(0f, 360f),
+                                     Random.Range(-14f, 14f)));
+
+            // A second, smaller mass low on one side gives an irregular silhouette without
+            // reintroducing a visible join, because it is buried well inside the main canopy.
+            if (Random.Range(0f, 1f) < 0.55f)
             {
-                float yaw = Random.Range(0f, 360f);
-                Quaternion br = Quaternion.Euler(0f, yaw, Random.Range(28f, 42f));
-                AddPrimitive(barkBatch, PrimitiveType.Cylinder,
-                             basePos + Vector3.up * (height * 0.78f) + br * new Vector3(0f, 0.42f, 0f),
-                             new Vector3(0.10f, 0.45f, 0.10f), br);
-            }
+                float ang = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+                Vector3 off = new Vector3(Mathf.Sin(ang), 0f, Mathf.Cos(ang)) * canopy * 0.42f;
 
-            // Canopy: one main mass plus three smaller lobes pushed out around it.
-            Vector3 crown = basePos + leanRot * new Vector3(0f, height + canopy * 0.20f, 0f);
-            AddPrimitive(foliageBatch, PrimitiveType.Sphere, crown,
-                         new Vector3(canopy * 2.0f, canopy * 1.55f, canopy * 2.0f),
-                         Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
-
-            for (int i = 0; i < 3; i++)
-            {
-                float ang = Random.Range(0f, 360f);
-                Vector3 off = Quaternion.Euler(0f, ang, 0f) * new Vector3(canopy * 0.62f, 0f, 0f);
-                AddPrimitive(foliageBatch, PrimitiveType.Sphere,
-                             crown + off + Vector3.up * Random.Range(-0.35f, 0.30f),
-                             Vector3.one * (canopy * Random.Range(0.95f, 1.35f)),
-                             Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+                AddMesh(foliageBatch, BlobVariant(variant + 3),
+                        crown + off + Vector3.down * (canopy * Random.Range(0.20f, 0.45f)),
+                        Vector3.one * (canopy * Random.Range(0.55f, 0.72f)),
+                        Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
             }
         }
 
@@ -1203,8 +1254,8 @@ namespace VRTutorial.EditorTools
                 for (int i = 0; i < count; i++)
                 {
                     Vector3 p = start + dir * (step * (i + 0.5f) + Random.Range(-0.8f, 0.8f));
-                    float height = Random.Range(4.2f, 5.6f);
-                    float canopy = Random.Range(1.5f, 2.1f);
+                    float height = Random.Range(6.0f, 7.6f);
+                    float canopy = Random.Range(1.45f, 1.90f);
                     AddTree(barkBatch, foliageBatch, p, height, canopy);
 
                     var col = new GameObject("StreetTreeCollider_" + index.ToString("00"));
@@ -1243,23 +1294,19 @@ namespace VRTutorial.EditorTools
             int treeIndex = 0;
             foreach (Vector2 p in ScatterPoints(TreeDensity, 1.5f, 0.8f))
             {
-                float height = Random.Range(2.8f, 4.2f);
-                float canopy = Random.Range(1.1f, 1.7f);
+                float height = Random.Range(4.6f, 6.4f);
+                float canopy = Random.Range(1.15f, 1.60f);
 
                 AddTree(barkBatch, foliageBatches[Random.Range(0, foliageBatches.Length)],
                         new Vector3(p.x, 0f, p.y), height, canopy);
 
-                // Mulch ring, so the trunk meets the lawn instead of spearing through it.
-                AddPrimitive(barkBatch, PrimitiveType.Cylinder,
-                             new Vector3(p.x, 0.011f, p.y),
-                             new Vector3(Random.Range(1.25f, 1.75f), 0.011f, Random.Range(1.25f, 1.75f)),
-                             Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+                // No mulch ring: the flared trunk foot now meets the lawn on its own.
 
                 var col = new GameObject("TreeCollider_" + treeIndex.ToString("00"));
                 col.transform.SetParent(trunkColliders, false);
                 col.transform.localPosition = new Vector3(p.x, height * 0.5f, p.y);
                 var capsule = col.AddComponent<CapsuleCollider>();
-                capsule.radius = 0.22f;
+                capsule.radius = 0.26f;
                 capsule.height = height;
                 col.isStatic = true;
                 treeIndex++;
@@ -1273,6 +1320,11 @@ namespace VRTutorial.EditorTools
                 float scaleBase = Random.Range(0.75f, 1.35f);
                 int lobes = Random.Range(4, 7);
 
+                // Remember each lobe, so flowers can be planted on an actual surface rather
+                // than at a guessed height. Guessing is what left them hanging in mid-air.
+                var lobeAt = new List<Vector3>();
+                var lobeR = new List<float>();
+
                 for (int i = 0; i < lobes; i++)
                 {
                     float drop = 1f - (i / (float)lobes) * 0.45f;      // smaller toward the top
@@ -1280,23 +1332,33 @@ namespace VRTutorial.EditorTools
                     Vector2 offset = Random.insideUnitCircle * 0.30f * scaleBase;
                     float y = (0.16f + (i / (float)lobes) * 0.42f) * scaleBase;
 
-                    AddPrimitive(bush, PrimitiveType.Sphere,
-                                 new Vector3(p.x + offset.x, y, p.y + offset.y),
+                    Vector3 at = new Vector3(p.x + offset.x, y, p.y + offset.y);
+                    AddPrimitive(bush, PrimitiveType.Sphere, at,
                                  new Vector3(s, s * Random.Range(0.75f, 0.95f), s),
                                  Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+
+                    lobeAt.Add(at);
+                    lobeR.Add(s * 0.5f);           // primitive sphere scale is diameter
                 }
 
                 if (Random.Range(0f, 1f) < 0.17f)
                 {
-                    int flowers = Random.Range(4, 8);
+                    int flowers = Random.Range(5, 10);
                     for (int i = 0; i < flowers; i++)
                     {
-                        Vector2 offset = Random.insideUnitCircle * 0.34f * scaleBase;
+                        int k = Random.Range(0, lobeAt.Count);
+
+                        // Outward and upward, then pulled in to 80% of the lobe radius so the
+                        // bloom is bedded into the foliage instead of floating off it.
+                        float ang = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+                        float up = Random.Range(0.25f, 0.95f);
+                        float flat = 1f - up;
+                        Vector3 dir = new Vector3(Mathf.Sin(ang) * flat, up,
+                                                  Mathf.Cos(ang) * flat).normalized;
+
                         AddPrimitive(flowerBatch, PrimitiveType.Sphere,
-                                     new Vector3(p.x + offset.x,
-                                                 Random.Range(0.35f, 0.66f) * scaleBase,
-                                                 p.y + offset.y),
-                                     Vector3.one * Random.Range(0.07f, 0.13f), Quaternion.identity);
+                                     lobeAt[k] + dir * (lobeR[k] * 0.80f),
+                                     Vector3.one * Random.Range(0.07f, 0.12f), Quaternion.identity);
                     }
                 }
             }
@@ -1334,7 +1396,7 @@ namespace VRTutorial.EditorTools
 
             EndBatch(barkBatch, group, "Tree_Trunks", "TreeTrunkMesh", bark);
             for (int i = 0; i < foliageBatches.Length; i++)
-                EndBatch(foliageBatches[i], group, "Foliage_" + i, "FoliageMesh_" + i, foliages[i]);
+                EndBatch(foliageBatches[i], group, "Foliage_" + i, "FoliageMesh_" + i, foliages[i], 1.5f);
             EndBatch(flowerBatch, group, "Flowers",    "FlowerMesh",    flowerMat);
             EndBatch(tuftBatch,   group, "GrassTufts", "GrassTuftMesh", tuft);
             EndBatch(rockBatch,   group, "Rocks",      "RockMesh",      rock);
@@ -1582,7 +1644,32 @@ namespace VRTutorial.EditorTools
                 }
             }
 
-            EndBatch(batch, group, "Lawn_Stripes", "LawnStripeMesh", stripe);
+            EndBatch(batch, group, "Lawn_Stripes", "LawnStripeMesh", stripe, 3f);
+        }
+
+        /// <summary>
+        /// A landmark is only a landmark if you can see it. Flags any that a lamp post would
+        /// stand in front of, rather than leaving it to be spotted in the headset.
+        /// </summary>
+        private static void WarnOnLandmarkClashes()
+        {
+            if (!IncludeLandmarks) return;
+
+            foreach (var l in Landmarks)
+            {
+                foreach (var p in LampPosts)
+                {
+                    float dx = l.x - p.x, dz = l.y - p.y;
+                    float dist = Mathf.Sqrt(dx * dx + dz * dz);
+                    if (dist < 1.6f)
+                    {
+                        Debug.LogWarning("[VRTutorial] Lamp post at (" + p.x + ", " + p.y +
+                                         ") is only " + dist.ToString("0.00") +
+                                         " m from the landmark at (" + l.x + ", " + l.y +
+                                         ") and will obscure it.");
+                    }
+                }
+            }
         }
 
         // ----------------------------------------------------------- checkpoints
@@ -1655,7 +1742,8 @@ namespace VRTutorial.EditorTools
 
         /// <summary>Merges everything in the batch into one saved mesh and one renderer.</summary>
         private static void EndBatch(Transform batch, Transform parent, string objectName,
-                                     string meshAssetName, Material material)
+                                     string meshAssetName, Material material,
+                                     float metresPerTile = 2f)
         {
             var filters = batch.GetComponentsInChildren<MeshFilter>();
             if (filters.Length == 0)
@@ -1674,6 +1762,12 @@ namespace VRTutorial.EditorTools
             var mesh = new Mesh { name = meshAssetName, indexFormat = IndexFormat.UInt32 };
             mesh.CombineMeshes(combine, true, true);
             mesh.RecalculateBounds();
+            ApplyBoxUVs(mesh, metresPerTile);
+
+            // Tangents must come AFTER the UVs, because they are derived from them. Without
+            // this every normal-mapped surface in the scene is lit using undefined tangents,
+            // which shows up as light and dark banding that has nothing to do with the shape.
+            mesh.RecalculateTangents();
 
             string meshPath = GeneratedFolder + "/" + meshAssetName + ".asset";
             AssetDatabase.DeleteAsset(meshPath);
@@ -1698,23 +1792,115 @@ namespace VRTutorial.EditorTools
 
         private static GameObject CreateSlab(string name, Transform parent,
             float x0, float z0, float x1, float z1,
-            float topY, float thickness, Material mat, bool withCollider)
+            float topY, float thickness, Material mat, bool withCollider,
+            float metresPerTile = 2f)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = name;
+            Vector3 size = new Vector3(Mathf.Abs(x1 - x0), thickness, Mathf.Abs(z1 - z0));
+
+            // Built at size with a scale of 1, so the box projection gives this slab the same
+            // texel density as everything else. A scaled primitive cannot.
+            Mesh mesh = MakeBoxMesh(size);
+            mesh.name = name + "Mesh";
+            ApplyBoxUVs(mesh, metresPerTile);
+            mesh.RecalculateTangents();
+
+            string meshPath = GeneratedFolder + "/" + mesh.name + ".asset";
+            AssetDatabase.DeleteAsset(meshPath);
+            AssetDatabase.CreateAsset(mesh, meshPath);
+
+            var go = new GameObject(name);
             go.transform.SetParent(parent, false);
             go.transform.localPosition = new Vector3((x0 + x1) * 0.5f, topY - thickness * 0.5f, (z0 + z1) * 0.5f);
-            go.transform.localScale = new Vector3(Mathf.Abs(x1 - x0), thickness, Mathf.Abs(z1 - z0));
-            go.GetComponent<MeshRenderer>().sharedMaterial = mat;
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
 
-            if (!withCollider)
+            if (withCollider)
             {
-                var col = go.GetComponent<Collider>();
-                if (col != null) Object.DestroyImmediate(col);
+                var box = go.AddComponent<BoxCollider>();
+                box.size = size;
             }
 
             go.isStatic = true;
             return go;
+        }
+
+        // ------------------------------------------------------------------ UVs
+        /// <summary>
+        /// Box projection: each vertex takes its UV from the two world axes perpendicular to
+        /// its dominant normal, divided by a fixed metres-per-tile.
+        ///
+        /// This is the whole reason textures are usable here. Unity primitives carry 0-1 UVs
+        /// per face, so a cube stretched to 30 m across has that single tile smeared over the
+        /// whole thing while a 16 cm kerb squashes it - and CombineMeshes just preserves
+        /// whatever it is handed. Projecting from world position instead gives every surface
+        /// the same texel density regardless of the object's scale, with no UV authoring and
+        /// no custom shader. It is baked once at build time, so it costs nothing at runtime.
+        /// </summary>
+        private static void ApplyBoxUVs(Mesh mesh, float metresPerTile)
+        {
+            Vector3[] verts = mesh.vertices;
+            Vector3[] norms = mesh.normals;
+            if (verts.Length == 0 || norms.Length != verts.Length) return;
+
+            var uvs = new Vector2[verts.Length];
+            float s = 1f / Mathf.Max(0.01f, metresPerTile);
+
+            for (int i = 0; i < verts.Length; i++)
+            {
+                Vector3 n = norms[i];
+                float ax = Mathf.Abs(n.x), ay = Mathf.Abs(n.y), az = Mathf.Abs(n.z);
+
+                if (ay >= ax && ay >= az)                       // floor or ceiling
+                    uvs[i] = new Vector2(verts[i].x * s, verts[i].z * s);
+                else if (ax >= az)                              // facing east or west
+                    uvs[i] = new Vector2(verts[i].z * s, verts[i].y * s);
+                else                                            // facing north or south
+                    uvs[i] = new Vector2(verts[i].x * s, verts[i].y * s);
+            }
+
+            mesh.uv = uvs;
+        }
+
+        /// <summary>
+        /// A box built at its real size with flat normals, rather than a unit primitive scaled
+        /// up. Scaling a primitive is what wrecks its UVs; building at size means the box
+        /// projection above lands correctly.
+        /// </summary>
+        private static Mesh MakeBoxMesh(Vector3 size)
+        {
+            Vector3 h = new Vector3(size.x * 0.5f, size.y * 0.5f, size.z * 0.5f);
+
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+
+            AddQuad(verts, tris, new Vector3(-h.x, h.y, -h.z), new Vector3(-h.x, h.y, h.z),
+                                 new Vector3( h.x, h.y,  h.z), new Vector3( h.x, h.y, -h.z));   // top
+            AddQuad(verts, tris, new Vector3(-h.x, -h.y, h.z), new Vector3(-h.x, -h.y, -h.z),
+                                 new Vector3( h.x, -h.y, -h.z), new Vector3( h.x, -h.y, h.z));  // bottom
+            AddQuad(verts, tris, new Vector3(-h.x, -h.y, -h.z), new Vector3(-h.x, h.y, -h.z),
+                                 new Vector3( h.x,  h.y, -h.z), new Vector3( h.x, -h.y, -h.z)); // -Z
+            AddQuad(verts, tris, new Vector3( h.x, -h.y, h.z), new Vector3( h.x, h.y, h.z),
+                                 new Vector3(-h.x,  h.y, h.z), new Vector3(-h.x, -h.y, h.z));   // +Z
+            AddQuad(verts, tris, new Vector3(-h.x, -h.y,  h.z), new Vector3(-h.x, h.y,  h.z),
+                                 new Vector3(-h.x,  h.y, -h.z), new Vector3(-h.x, -h.y, -h.z)); // -X
+            AddQuad(verts, tris, new Vector3( h.x, -h.y, -h.z), new Vector3( h.x, h.y, -h.z),
+                                 new Vector3( h.x,  h.y,  h.z), new Vector3( h.x, -h.y,  h.z)); // +X
+
+            var m = new Mesh { name = "Box" };
+            m.SetVertices(verts);
+            m.SetTriangles(tris, 0);
+            m.RecalculateNormals();
+            m.RecalculateBounds();
+            return m;
+        }
+
+        private static void AddQuad(List<Vector3> verts, List<int> tris,
+                                    Vector3 a, Vector3 b, Vector3 c, Vector3 d)
+        {
+            int i = verts.Count;
+            verts.Add(a); verts.Add(b); verts.Add(c); verts.Add(d);
+            tris.Add(i); tris.Add(i + 1); tris.Add(i + 2);
+            tris.Add(i); tris.Add(i + 2); tris.Add(i + 3);
         }
 
         // A triangular prism, built by hand because Unity has no primitive for one and a
@@ -1765,6 +1951,333 @@ namespace VRTutorial.EditorTools
             tris.Add(i); tris.Add(i + 1); tris.Add(i + 2);
         }
 
+        // --------------------------------------------------- organic tree geometry
+        // Overlapping spheres can never read as one mass: wherever two intersect you see the
+        // circle of intersection, and that is the "obvious connection". The only way to remove
+        // it is to make the canopy a SINGLE closed surface, so there is nothing to intersect.
+        // Each canopy is therefore one sphere mesh whose vertices are pushed in and out by 3D
+        // noise - continuous by construction, smooth-shaded, and different for every seed.
+
+        private static int Hash3(int x, int y, int z, int seed)
+        {
+            int h = x * 374761393 + y * 668265263 + z * 2147483647 + seed * 1274126177;
+            h = (h ^ (h >> 13)) * 1274126177;
+            return h ^ (h >> 16);
+        }
+
+        private static float Hash3F(int x, int y, int z, int seed)
+        {
+            return (Hash3(x, y, z, seed) & 0x7fffffff) / 2147483647f;
+        }
+
+        /// <summary>Trilinear value noise in three dimensions.</summary>
+        private static float Noise3(Vector3 p, int seed)
+        {
+            int x0 = Mathf.FloorToInt(p.x), y0 = Mathf.FloorToInt(p.y), z0 = Mathf.FloorToInt(p.z);
+            float fx = p.x - x0, fy = p.y - y0, fz = p.z - z0;
+
+            fx = fx * fx * (3f - 2f * fx);
+            fy = fy * fy * (3f - 2f * fy);
+            fz = fz * fz * (3f - 2f * fz);
+
+            float c000 = Hash3F(x0,     y0,     z0,     seed);
+            float c100 = Hash3F(x0 + 1, y0,     z0,     seed);
+            float c010 = Hash3F(x0,     y0 + 1, z0,     seed);
+            float c110 = Hash3F(x0 + 1, y0 + 1, z0,     seed);
+            float c001 = Hash3F(x0,     y0,     z0 + 1, seed);
+            float c101 = Hash3F(x0 + 1, y0,     z0 + 1, seed);
+            float c011 = Hash3F(x0,     y0 + 1, z0 + 1, seed);
+            float c111 = Hash3F(x0 + 1, y0 + 1, z0 + 1, seed);
+
+            float x00 = c000 + (c100 - c000) * fx;
+            float x10 = c010 + (c110 - c010) * fx;
+            float x01 = c001 + (c101 - c001) * fx;
+            float x11 = c011 + (c111 - c011) * fx;
+
+            float y0v = x00 + (x10 - x00) * fy;
+            float y1v = x01 + (x11 - x01) * fy;
+
+            return y0v + (y1v - y0v) * fz;
+        }
+
+        /// <summary>
+        /// A closed blob: a sphere whose radius is modulated by two octaves of 3D noise.
+        /// Poles are single shared vertices and the seam column wraps, so RecalculateNormals
+        /// gives fully smooth shading with no seam line anywhere.
+        /// </summary>
+        /// <summary>Radius of the blob in a given direction: 1, pushed about by two octaves.</summary>
+        private static Vector3 BlobRadius(Vector3 dir, int seed, float lumpiness)
+        {
+            float d = 1f
+                    + (Noise3(dir * 1.9f + new Vector3(11f, 7f, 3f), seed) - 0.5f) * lumpiness
+                    + (Noise3(dir * 4.1f + new Vector3(3f, 17f, 9f), seed + 31) - 0.5f)
+                      * lumpiness * 0.45f;
+            return dir * Mathf.Max(0.35f, d);
+        }
+
+        private static int BlobRing(int r, int s, int segments)
+        {
+            return 1 + (r - 1) * segments + (s % segments);
+        }
+
+        private static Mesh MakeBlobMesh(int seed, int rings, int segments, float lumpiness)
+        {
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+
+            verts.Add(BlobRadius(Vector3.up, seed, lumpiness));      // 0 = north pole
+
+            for (int r = 1; r < rings; r++)
+            {
+                float phi = r * Mathf.PI / rings;
+                float sy = Mathf.Cos(phi), sr = Mathf.Sin(phi);
+
+                for (int s = 0; s < segments; s++)
+                {
+                    float th = s * 2f * Mathf.PI / segments;
+                    Vector3 dir = new Vector3(Mathf.Cos(th) * sr, sy, Mathf.Sin(th) * sr);
+                    verts.Add(BlobRadius(dir, seed, lumpiness));
+                }
+            }
+
+            int south = verts.Count;
+            verts.Add(BlobRadius(Vector3.up * -1f, seed, lumpiness));   // south pole
+
+            for (int s = 0; s < segments; s++)                    // north cap
+            {
+                tris.Add(0); tris.Add(BlobRing(1, s + 1, segments)); tris.Add(BlobRing(1, s, segments));
+            }
+
+            for (int r = 1; r < rings - 1; r++)                   // bands
+            {
+                for (int s = 0; s < segments; s++)
+                {
+                    tris.Add(BlobRing(r, s, segments)); tris.Add(BlobRing(r + 1, s + 1, segments)); tris.Add(BlobRing(r + 1, s, segments));
+                    tris.Add(BlobRing(r, s, segments)); tris.Add(BlobRing(r, s + 1, segments));     tris.Add(BlobRing(r + 1, s + 1, segments));
+                }
+            }
+
+            for (int s = 0; s < segments; s++)                    // south cap
+            {
+                tris.Add(south); tris.Add(BlobRing(rings - 1, s, segments)); tris.Add(BlobRing(rings - 1, s + 1, segments));
+            }
+
+            var m = new Mesh { name = "Blob" };
+            m.SetVertices(verts);
+            m.SetTriangles(tris, 0);
+            m.RecalculateNormals();
+            m.RecalculateBounds();
+            return m;
+        }
+
+        /// <summary>
+        /// One continuous tapered trunk with a gentle lean, rather than stacked cylinders.
+        /// Stacked sections are visible as steps however carefully the radii are chosen.
+        /// </summary>
+        /// <summary>
+        /// A straight tapered tube. Deliberately the simplest thing that can work.
+        ///
+        /// Earlier versions curved for three separate reasons - a smoothstep taper, a
+        /// quadratic lean applied per ring, and per-ring noise on the centreline - and each
+        /// one is invisible in the code but obvious in the silhouette. Here the radius is a
+        /// straight linear function of height and the centreline is exactly vertical, so the
+        /// outline is a cone and nothing else. Irregularity comes only from varying the radius
+        /// PER SIDE, constant up the whole trunk: the cross-section is slightly out of round,
+        /// which reads as organic, while every vertical edge stays dead straight.
+        ///
+        /// Lean is applied by rotating the whole mesh when it is placed, never by displacing
+        /// vertices - a rotation cannot bend anything.
+        /// </summary>
+        private static Mesh MakeTrunkMesh(int seed, int sides, int rings,
+                                          float baseRadius, float topRadius, float unusedLean)
+        {
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+
+            // Per-side multipliers, computed once and reused at every height.
+            var sideScale = new float[sides];
+            for (int s = 0; s < sides; s++)
+                sideScale[s] = 1f + (HashF(s, seed, 0) - 0.5f) * 0.14f;
+
+            for (int r = 0; r <= rings; r++)
+            {
+                float v = r / (float)rings;
+                // No root flare. Twice now a swell at the foot has been stretched across a
+                // whole ring spacing and smooth-shaded into a curve, which is precisely the
+                // artefact being chased. A cone with nothing added to it cannot do that.
+                float radius = Mathf.Lerp(baseRadius, topRadius, v);
+
+                for (int s = 0; s < sides; s++)
+                {
+                    float th = s * 2f * Mathf.PI / sides;
+                    float rr = radius * sideScale[s];
+                    verts.Add(new Vector3(Mathf.Cos(th) * rr, v, Mathf.Sin(th) * rr));
+                }
+            }
+
+            for (int r = 0; r < rings; r++)
+            {
+                for (int s = 0; s < sides; s++)
+                {
+                    int a = r * sides + s;
+                    int b = r * sides + (s + 1) % sides;
+                    int c = (r + 1) * sides + s;
+                    int d = (r + 1) * sides + (s + 1) % sides;
+
+                    // Wound OUTWARD. Reversed, these two triangles face into the trunk:
+                    // backface culling then hides the near wall and shows the inside of the
+                    // far one, which is a genuinely concave surface lit by inward normals.
+                    // That was the "concave trunk" the whole time - not the profile at all.
+                    tris.Add(a); tris.Add(c); tris.Add(d);
+                    tris.Add(a); tris.Add(d); tris.Add(b);
+                }
+            }
+
+            var m = new Mesh { name = "Trunk" };
+            m.SetVertices(verts);
+            m.SetTriangles(tris, 0);
+            m.RecalculateNormals();
+            m.RecalculateBounds();
+            return m;
+        }
+
+        // A handful of canopy and trunk shapes, reused with random rotation and scaling.
+        // Regenerating one per tree would be slower for no visible gain, since they all end
+        // up merged into a single batch mesh anyway.
+        private const int BlobVariants = 10;
+        private static Mesh[] _blobs;
+        private static Mesh[] _trunks;
+
+        private static Mesh BlobVariant(int i)
+        {
+            if (_blobs == null)
+            {
+                _blobs = new Mesh[BlobVariants];
+                for (int k = 0; k < BlobVariants; k++)
+                    _blobs[k] = MakeBlobMesh(1000 + k * 37, 14, 18, 0.42f);
+            }
+            return _blobs[((i % BlobVariants) + BlobVariants) % BlobVariants];
+        }
+
+        private static Mesh TrunkVariant(int i)
+        {
+            if (_trunks == null)
+            {
+                _trunks = new Mesh[BlobVariants];
+                for (int k = 0; k < BlobVariants; k++)
+                    _trunks[k] = MakeTrunkMesh(2000 + k * 53, 16, 6, 0.16f, 0.122f, 0f);
+            }
+            return _trunks[((i % BlobVariants) + BlobVariants) % BlobVariants];
+        }
+
+        /// <summary>
+        /// A real roof, as a single closed mesh.
+        ///
+        /// The previous version intersected full rectangles, which cannot make a correct hip:
+        /// the long faces of a hip are TRAPEZOIDS and the ends are TRIANGLES, so crossing four
+        /// rectangles leaves planes poking through each other at every corner. It also always
+        /// ran the ridge along Z, which is wrong whenever the house is wider than it is deep.
+        ///
+        /// Origin is at eave level, centred on plan. Built at real size, so it is placed with
+        /// a scale of 1.
+        /// </summary>
+        private static Mesh MakeRoofMesh(float w, float d, float overhang, float slopeDeg,
+                                         float thickness, bool hip)
+        {
+            float W = w * 0.5f + overhang;
+            float D = d * 0.5f + overhang;
+
+            // The ridge runs along whichever plan dimension is longer. Forcing it along one
+            // axis is what collapsed the hip to zero ridge length on wide houses.
+            bool ridgeAlongZ = D >= W;
+            float across = ridgeAlongZ ? W : D;
+            float along  = ridgeAlongZ ? D : W;
+
+            float rise = across * Mathf.Tan(slopeDeg * Mathf.Deg2Rad);
+            float ridgeHalf = hip ? Mathf.Max(0f, along - across) : along;
+
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+
+            var loop = new List<Vector3>();
+
+            // Top surface
+            if (ridgeAlongZ)
+            {
+                AddQuad(verts, tris, new Vector3(-across, 0f, -along), new Vector3(-across, 0f, along),
+                                     new Vector3(0f, rise, ridgeHalf), new Vector3(0f, rise, -ridgeHalf));
+                AddQuad(verts, tris, new Vector3(0f, rise, -ridgeHalf), new Vector3(0f, rise, ridgeHalf),
+                                     new Vector3(across, 0f, along), new Vector3(across, 0f, -along));
+                if (hip)
+                {
+                    AddTri(verts, tris, new Vector3(-across, 0f, along), new Vector3(across, 0f, along),
+                                        new Vector3(0f, rise, ridgeHalf));
+                    AddTri(verts, tris, new Vector3(across, 0f, -along), new Vector3(-across, 0f, -along),
+                                        new Vector3(0f, rise, -ridgeHalf));
+                    loop.Add(new Vector3(-across, 0f, -along)); loop.Add(new Vector3(across, 0f, -along));
+                    loop.Add(new Vector3(across, 0f, along));   loop.Add(new Vector3(-across, 0f, along));
+                }
+                else
+                {
+                    loop.Add(new Vector3(-across, 0f, -along)); loop.Add(new Vector3(0f, rise, -ridgeHalf));
+                    loop.Add(new Vector3(across, 0f, -along));  loop.Add(new Vector3(across, 0f, along));
+                    loop.Add(new Vector3(0f, rise, ridgeHalf)); loop.Add(new Vector3(-across, 0f, along));
+                }
+            }
+            else
+            {
+                // Rotated, NOT mirrored: (u, y, v) -> (v, y, -u). Swapping two axes instead
+                // would reflect the mesh and invert every face.
+                AddQuad(verts, tris, new Vector3(-along, 0f, across), new Vector3(along, 0f, across),
+                                     new Vector3(ridgeHalf, rise, 0f), new Vector3(-ridgeHalf, rise, 0f));
+                AddQuad(verts, tris, new Vector3(-ridgeHalf, rise, 0f), new Vector3(ridgeHalf, rise, 0f),
+                                     new Vector3(along, 0f, -across), new Vector3(-along, 0f, -across));
+                if (hip)
+                {
+                    AddTri(verts, tris, new Vector3(along, 0f, across), new Vector3(along, 0f, -across),
+                                        new Vector3(ridgeHalf, rise, 0f));
+                    AddTri(verts, tris, new Vector3(-along, 0f, -across), new Vector3(-along, 0f, across),
+                                        new Vector3(-ridgeHalf, rise, 0f));
+                    loop.Add(new Vector3(-along, 0f, across)); loop.Add(new Vector3(along, 0f, across));
+                    loop.Add(new Vector3(along, 0f, -across)); loop.Add(new Vector3(-along, 0f, -across));
+                }
+                else
+                {
+                    loop.Add(new Vector3(-along, 0f, across));    loop.Add(new Vector3(-ridgeHalf, rise, 0f));
+                    loop.Add(new Vector3(-along, 0f, -across));   loop.Add(new Vector3(along, 0f, -across));
+                    loop.Add(new Vector3(ridgeHalf, rise, 0f));   loop.Add(new Vector3(along, 0f, across));
+                }
+            }
+
+            // Underside: the same faces dropped by the thickness, wound the other way.
+            int topCount = verts.Count;
+            var drop = new Vector3(0f, -thickness, 0f);
+            for (int i = 0; i < topCount; i++) verts.Add(verts[i] + drop);
+
+            int topTris = tris.Count;
+            for (int i = 0; i < topTris; i += 3)
+            {
+                tris.Add(topCount + tris[i]);
+                tris.Add(topCount + tris[i + 2]);
+                tris.Add(topCount + tris[i + 1]);
+            }
+
+            // Rim around the outer edge, closing the slab so the eave reads as having depth.
+            for (int i = 0; i < loop.Count; i++)
+            {
+                Vector3 a = loop[i];
+                Vector3 b = loop[(i + 1) % loop.Count];
+                AddQuad(verts, tris, a, b, b + drop, a + drop);
+            }
+
+            var m = new Mesh { name = "Roof" };
+            m.SetVertices(verts);
+            m.SetTriangles(tris, 0);
+            m.RecalculateNormals();
+            m.RecalculateBounds();
+            return m;
+        }
+
         /// <summary>Adds a hand-built mesh to a batch, alongside the primitives.</summary>
         private static void AddMesh(Transform parent, Mesh mesh, Vector3 pos, Vector3 scale, Quaternion rot)
         {
@@ -1794,7 +2307,8 @@ namespace VRTutorial.EditorTools
         /// cheapest way to stop a large area reading as a single flat colour.
         /// </summary>
         private static Material[] Variants(string baseName, Color colour, float smoothness,
-                                           int count, float spread)
+                                           int count, float spread,
+                                           Texture2D albedo = null, Texture2D normal = null)
         {
             var mats = new Material[count];
             for (int i = 0; i < count; i++)
@@ -1805,12 +2319,13 @@ namespace VRTutorial.EditorTools
                     Mathf.Clamp01(colour.g + t * spread * 0.85f),
                     Mathf.Clamp01(colour.b + t * spread * 0.7f),
                     colour.a);
-                mats[i] = GetOrCreateMaterial(baseName + "_" + i, c, smoothness);
+                mats[i] = GetOrCreateMaterial(baseName + "_" + i, c, smoothness, albedo, normal);
             }
             return mats;
         }
 
-        private static Material GetOrCreateMaterial(string name, Color colour, float smoothness)
+        private static Material GetOrCreateMaterial(string name, Color colour, float smoothness,
+                                                    Texture2D albedo = null, Texture2D normal = null)
         {
             string path = MaterialFolder + "/" + name + ".mat";
             var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -1826,9 +2341,267 @@ namespace VRTutorial.EditorTools
             if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", smoothness);
             if (mat.HasProperty("_Glossiness")) mat.SetFloat("_Glossiness", smoothness);
 
+            // Tiling stays at 1. Scale is controlled by the metres-per-tile used when the
+            // UVs were projected, which is per surface rather than per material.
+            if (albedo != null)
+            {
+                if (mat.HasProperty("_BaseMap"))  mat.SetTexture("_BaseMap", albedo);
+                if (mat.HasProperty("_MainTex"))  mat.SetTexture("_MainTex", albedo);
+            }
+
+            if (normal != null && mat.HasProperty("_BumpMap"))
+            {
+                mat.SetTexture("_BumpMap", normal);
+                if (mat.HasProperty("_BumpScale")) mat.SetFloat("_BumpScale", 1f);
+                mat.EnableKeyword("_NORMALMAP");
+            }
+
             EditorUtility.SetDirty(mat);
             return mat;
         }
+
+        // ------------------------------------------------------- procedural textures
+        // Everything here is generated in code and written out as PNG assets, so the project
+        // needs no downloaded art. It is tileable by construction: the noise lattice wraps at
+        // the texture size, so there is no seam where tiles meet.
+        //
+        // Normal maps matter more than albedo at this level of detail. Under a baked bounce,
+        // relief is what makes a surface read as concrete or grass; a flat colour with a good
+        // normal beats a busy albedo with none.
+
+        private const int TexSize = 512;
+
+        private static int HashInt(int x, int y, int seed)
+        {
+            int h = x * 374761393 + y * 668265263 + seed * 1274126177;
+            h = (h ^ (h >> 13)) * 1274126177;
+            return h ^ (h >> 16);
+        }
+
+        private static float HashF(int x, int y, int seed)
+        {
+            return (HashInt(x, y, seed) & 0x7fffffff) / 2147483647f;
+        }
+
+        private static int Wrap(int v, int period)
+        {
+            int r = v % period;
+            return r < 0 ? r + period : r;
+        }
+
+        /// <summary>Value noise that wraps at <paramref name="period"/>, so the result tiles.</summary>
+        private static float Noise(float x, float y, int period, int seed)
+        {
+            int x0 = Mathf.FloorToInt(x), y0 = Mathf.FloorToInt(y);
+            float fx = x - x0, fy = y - y0;
+            fx = fx * fx * (3f - 2f * fx);
+            fy = fy * fy * (3f - 2f * fy);
+
+            float v00 = HashF(Wrap(x0, period),     Wrap(y0, period),     seed);
+            float v10 = HashF(Wrap(x0 + 1, period), Wrap(y0, period),     seed);
+            float v01 = HashF(Wrap(x0, period),     Wrap(y0 + 1, period), seed);
+            float v11 = HashF(Wrap(x0 + 1, period), Wrap(y0 + 1, period), seed);
+
+            float a = v00 + (v10 - v00) * fx;
+            float b = v01 + (v11 - v01) * fx;
+            return a + (b - a) * fy;
+        }
+
+        /// <summary>Several octaves of the above, still tiling.</summary>
+        private static float Fbm(float u, float v, int basePeriod, int octaves, int seed)
+        {
+            float sum = 0f, amp = 1f, norm = 0f;
+            int period = basePeriod;
+
+            for (int o = 0; o < octaves; o++)
+            {
+                sum += Noise(u * period, v * period, period, seed + o * 17) * amp;
+                norm += amp;
+                amp *= 0.5f;
+                period *= 2;
+            }
+            return sum / norm;
+        }
+
+        /// <summary>
+        /// The surface set. Each is deliberately quiet: the point is that a participant can
+        /// tell footpath from grass from road at a glance, not that the ground is busy.
+        /// Generated once and cached as assets - delete the Textures folder to regenerate.
+        /// </summary>
+        private static void BuildTextures(out Texture2D grassA, out Texture2D grassN,
+                                          out Texture2D concA,  out Texture2D concN,
+                                          out Texture2D asphA,  out Texture2D asphN,
+                                          out Texture2D timbA,  out Texture2D timbN,
+                                          out Texture2D roofA,  out Texture2D roofN,
+                                          out Texture2D rendA,  out Texture2D rendN,
+                                          out Texture2D foliA)
+        {
+            // Grass: broad mottling plus a fine speckle, so it does not read as felt.
+            grassA = Albedo("T_Grass_A", (u, v) =>
+            {
+                float broad = Fbm(u, v, 4, 4, 11);
+                float fine  = Fbm(u, v, 48, 2, 23);
+                float k = broad * 0.7f + fine * 0.3f;
+                return new Color(0.20f + k * 0.14f, 0.36f + k * 0.20f, 0.14f + k * 0.10f);
+            });
+            grassN = NormalMap("T_Grass_N", (u, v) => Fbm(u, v, 40, 3, 23), 2.2f);
+
+            // Concrete: aggregate speckle over gentle blotching.
+            concA = Albedo("T_Concrete_A", (u, v) =>
+            {
+                float blotch = Fbm(u, v, 5, 3, 31);
+                float grit   = Fbm(u, v, 90, 2, 37);
+                float k = 0.62f + blotch * 0.10f + (grit - 0.5f) * 0.16f;
+                return new Color(k, k * 0.995f, k * 0.97f);
+            });
+            concN = NormalMap("T_Concrete_N", (u, v) => Fbm(u, v, 80, 3, 37), 1.6f);
+
+            // Asphalt: coarse and dark, with a scatter of paler stones.
+            asphA = Albedo("T_Asphalt_A", (u, v) =>
+            {
+                float grit = Fbm(u, v, 70, 3, 41);
+                float k = 0.15f + grit * 0.10f;
+                if (grit > 0.78f) k += 0.14f;           // exposed aggregate
+                return new Color(k, k, k * 1.04f);
+            });
+            asphN = NormalMap("T_Asphalt_N", (u, v) => Fbm(u, v, 70, 3, 41), 2.6f);
+
+            // Timber: vertical grain, with the boards running along V.
+            timbA = Albedo("T_Timber_A", (u, v) =>
+            {
+                float grain = Fbm(u * 6f, v * 0.35f, 24, 3, 53);
+                float rings = Mathf.Abs(Mathf.Sin((u * 26f + grain * 3.5f) * 3.14159f));
+                float k = 0.46f + grain * 0.16f - rings * 0.09f;
+                return new Color(k, k * 0.80f, k * 0.60f);
+            });
+            timbN = NormalMap("T_Timber_N",
+                (u, v) => Fbm(u * 6f, v * 0.35f, 24, 3, 53) * 0.6f
+                          + Mathf.Abs(Mathf.Sin(u * 26f * 3.14159f)) * 0.4f, 1.4f);
+
+            // Roof: horizontal tile courses. The ridges do most of the work here.
+            roofA = Albedo("T_Roof_A", (u, v) =>
+            {
+                float course = Frac(v * 8f);
+                float shade = course < 0.10f ? 0.62f : 1f;      // shadow under each lap
+                float grit = Fbm(u, v, 40, 2, 67);
+                float k = (0.30f + grit * 0.09f) * shade;
+                return new Color(k, k * 0.94f, k * 0.92f);
+            });
+            roofN = NormalMap("T_Roof_N", (u, v) =>
+            {
+                float course = Frac(v * 8f);
+                float lap = course < 0.14f ? (course / 0.14f) : 1f;
+                return lap * 0.75f + Fbm(u, v, 40, 2, 67) * 0.25f;
+            }, 3.2f);
+
+            // Render: fine stucco, the calmest surface in the set.
+            rendA = Albedo("T_Render_A", (u, v) =>
+            {
+                float stipple = Fbm(u, v, 110, 2, 71);
+                float k = 0.74f + (stipple - 0.5f) * 0.10f;
+                return new Color(k, k * 0.985f, k * 0.95f);
+            });
+            rendN = NormalMap("T_Render_N", (u, v) => Fbm(u, v, 110, 2, 71), 1.1f);
+
+            // Foliage: mottled green so canopies are not one solid mass.
+            foliA = Albedo("T_Foliage_A", (u, v) =>
+            {
+                float k = Fbm(u, v, 14, 4, 83);
+                return new Color(0.13f + k * 0.16f, 0.28f + k * 0.24f, 0.11f + k * 0.12f);
+            });
+        }
+
+        private static void EnsureTextureFolder()
+        {
+            EnsureFolder(TextureFolder);
+        }
+
+        private static string DiskPath(string assetPath)
+        {
+            string projectRoot = Application.dataPath.Substring(
+                0, Application.dataPath.Length - "Assets".Length);
+            return projectRoot + assetPath;
+        }
+
+        private static Texture2D WritePng(string name, Color[] pixels, bool isNormalMap)
+        {
+            EnsureTextureFolder();
+            string assetPath = TextureFolder + "/" + name + ".png";
+
+            var tex = new Texture2D(TexSize, TexSize, TextureFormat.RGBA32, false);
+            tex.SetPixels(pixels);
+            tex.Apply();
+
+            System.IO.File.WriteAllBytes(DiskPath(assetPath), tex.EncodeToPNG());
+            Object.DestroyImmediate(tex);
+
+            AssetDatabase.ImportAsset(assetPath);
+
+            var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+            if (importer != null)
+            {
+                importer.textureType = isNormalMap ? TextureImporterType.NormalMap
+                                                   : TextureImporterType.Default;
+                importer.wrapMode = TextureWrapMode.Repeat;
+                importer.filterMode = FilterMode.Bilinear;
+                importer.anisoLevel = 4;
+                importer.mipmapEnabled = true;
+                importer.maxTextureSize = TexSize;
+                importer.SaveAndReimport();
+            }
+
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
+        }
+
+        /// <summary>Albedo from a colour function over 0..1 UV space. Cached on disk.</summary>
+        private static Texture2D Albedo(string name, System.Func<float, float, Color> fn)
+        {
+            string assetPath = TextureFolder + "/" + name + ".png";
+            var existing = AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
+            if (existing != null) return existing;
+
+            var px = new Color[TexSize * TexSize];
+            for (int y = 0; y < TexSize; y++)
+            {
+                for (int x = 0; x < TexSize; x++)
+                    px[y * TexSize + x] = fn(x / (float)TexSize, y / (float)TexSize);
+            }
+            return WritePng(name, px, false);
+        }
+
+        /// <summary>
+        /// Normal map derived from a height function by central differences, then encoded.
+        /// Sampling wraps, so the normal map tiles exactly as the albedo does.
+        /// </summary>
+        private static Texture2D NormalMap(string name, System.Func<float, float, float> height,
+                                           float strength)
+        {
+            string assetPath = TextureFolder + "/" + name + ".png";
+            var existing = AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
+            if (existing != null) return existing;
+
+            float step = 1f / TexSize;
+            var px = new Color[TexSize * TexSize];
+
+            for (int y = 0; y < TexSize; y++)
+            {
+                float v = y / (float)TexSize;
+                for (int x = 0; x < TexSize; x++)
+                {
+                    float u = x / (float)TexSize;
+
+                    float hL = height(u - step, v), hR = height(u + step, v);
+                    float hD = height(u, v - step), hU = height(u, v + step);
+
+                    Vector3 n = new Vector3((hL - hR) * strength, (hD - hU) * strength, 1f).normalized;
+                    px[y * TexSize + x] = new Color(n.x * 0.5f + 0.5f, n.y * 0.5f + 0.5f,
+                                                    n.z * 0.5f + 0.5f, 1f);
+                }
+            }
+            return WritePng(name, px, true);
+        }
+
+        private static float Frac(float v) { return v - Mathf.Floor(v); }
 
         private static Shader FindLitShader()
         {
