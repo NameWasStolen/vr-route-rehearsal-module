@@ -1,11 +1,33 @@
 using UnityEngine;
 using UnityEngine.Serialization;
 using Unity.XR.CoreUtils;
+using UnityEngine.SceneManagement;
+using System.Collections;
 
 public class RunSystemController : MonoBehaviour
 {
 	[FormerlySerializedAs("guidedSpawnPoint")]
 	[SerializeField] private Transform runStartPoint;
+
+	private TimerController timerController;
+	private bool isEndingRun;
+
+	private void OnEnable()
+	{
+		Debug.Log($"RunSystemController enabled in scene '{gameObject.scene.name}'.", this);
+		timerController = FindFirstObjectByType<TimerController>();
+
+		if (timerController != null)
+			timerController.RunEnded += HandleRunEnded;
+		else
+			Debug.LogError("RunSystemController could not find TimerController.", this);
+	}
+
+	private void OnDisable()
+	{
+		if (timerController != null)
+			timerController.RunEnded -= HandleRunEnded;
+	}
 
 	public void StartRun()
 	{
@@ -36,5 +58,28 @@ public class RunSystemController : MonoBehaviour
 
 		if (characterController != null)
 			characterController.enabled = true;
+	}
+
+	private void HandleRunEnded(float elapsedTime)
+	{
+		if (!isEndingRun)
+			StartCoroutine(ReturnToMainMenu(elapsedTime));
+	}
+
+	private IEnumerator ReturnToMainMenu(float elapsedTime)
+	{
+		isEndingRun = true;
+		Debug.Log($"Returning to main menu after a {elapsedTime:F2} second run.");
+
+		MenuController menuController =
+			FindFirstObjectByType<MenuController>(FindObjectsInactive.Include);
+
+		if (menuController != null)
+			menuController.ShowMainMenu();
+
+		Scene runSystemScene = gameObject.scene;
+
+		if (runSystemScene.IsValid() && runSystemScene.isLoaded)
+			yield return SceneManager.UnloadSceneAsync(runSystemScene);
 	}
 }
