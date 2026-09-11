@@ -45,7 +45,11 @@ public class RunSystemController : MonoBehaviour
 			return;
 		}
 
-		XRPlayerTeleport.MoveToStandingPoint(xrOrigin, runStartPoint);
+		XRPlayerTeleport.MoveToStandingPoint(
+			xrOrigin,
+			runStartPoint,
+			this
+		);
 	}
 
 	private void HandleRunEnded(float elapsedTime)
@@ -69,5 +73,52 @@ public class RunSystemController : MonoBehaviour
 
 		if (runSystemScene.IsValid() && runSystemScene.isLoaded)
 			yield return SceneManager.UnloadSceneAsync(runSystemScene);
+	}
+}
+
+public static class XRPlayerTeleport
+{
+	public static bool MoveToStandingPoint(
+		XROrigin xrOrigin,
+		Transform standingPoint,
+		Object context)
+	{
+		if (xrOrigin == null)
+		{
+			Debug.LogError("Could not find the XR Origin.", context);
+			return false;
+		}
+
+		if (standingPoint == null)
+		{
+			Debug.LogError("No standing point has been assigned.", context);
+			return false;
+		}
+
+		CharacterController characterController =
+			xrOrigin.GetComponent<CharacterController>();
+
+		if (characterController != null)
+			characterController.enabled = false;
+
+		xrOrigin.transform.rotation = Quaternion.Euler(
+			0f,
+			standingPoint.eulerAngles.y,
+			0f
+		);
+
+		Transform cameraTransform = xrOrigin.Camera.transform;
+		float cameraHeight = cameraTransform.position.y - xrOrigin.transform.position.y;
+		Vector3 desiredCameraPosition =
+			standingPoint.position + Vector3.up * cameraHeight;
+		Vector3 cameraCorrection =
+			desiredCameraPosition - cameraTransform.position;
+
+		xrOrigin.transform.position += cameraCorrection;
+
+		if (characterController != null)
+			characterController.enabled = true;
+
+		return true;
 	}
 }

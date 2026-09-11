@@ -51,18 +51,12 @@ public class MenuController : MonoBehaviour
     {
         XROrigin xrOrigin = FindFirstObjectByType<XROrigin>();
 
-        if (xrOrigin != null && menuStandingPoint != null)
+        if (XRPlayerTeleport.MoveToStandingPoint(
+                xrOrigin,
+                menuStandingPoint,
+                this))
         {
-            if (XRPlayerTeleport.MoveToStandingPoint(xrOrigin, menuStandingPoint))
-                Debug.Log("Player returned to the main menu standing point.", this);
-        }
-        else if (xrOrigin == null)
-        {
-            Debug.LogError("MenuController could not find the XR Origin.", this);
-        }
-        else if (menuStandingPoint == null)
-        {
-            Debug.LogError("MenuController has no menu standing point assigned.", this);
+            Debug.Log("Player returned to the main menu.", this);
         }
     }
 
