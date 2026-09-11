@@ -1,0 +1,206 @@
+using UnityEngine;
+
+namespace VRTutorial
+{
+    /// <summary>
+    /// Keeps a world-space UI canvas (or any object) positioned at a fixed offset from the
+    /// player's head and facing them - a "body-locked" HUD popup.
+    ///
+    /// Attach to the root of a World Space Canvas. Assign the XR camera (the one under
+    /// XR Origin -> Camera Offset -> Main Camera) as headTransform.
+    ///
+    /// Offset is defined in the head's local space: X = right, Y = up, Z = forward.
+    /// "2 m forward, slightly left" is roughly (-0.3, 0, 2).
+    /// </summary>
+    public class HeadLockedUI : MonoBehaviour
+    {
+        [Header("Target")]
+        [Tooltip("The XR camera to follow. If left empty, uses Camera.main.")]
+        [SerializeField] private Transform headTransform;
+
+        [Header("Placement")]
+        [Tooltip("Offset from the head, in the head's local space. Z is forward, X is right, Y is up.")]
+        [SerializeField] private Vector3 localOffset = new Vector3(-0.3f, 0f, 2f);
+
+        [Header("Rotation")]
+        [Tooltip("If true, the panel always faces the player. If false, it keeps a fixed " +
+                 "world rotation and only its position follows.")]
+        [SerializeField] private bool billboardToPlayer = true;
+
+        [Tooltip("Ignore head pitch/roll when billboarding, so the panel stays upright " +
+                 "instead of tilting when the player looks up or down.")]
+        [SerializeField] private bool lockUpright = true;
+
+        [Tooltip("Extra rotation applied on top of the billboard, in degrees. Y yaws the panel " +
+                 "left/right, X pitches it (negative tilts the top toward you - useful when the " +
+                 "panel sits above eye level), Z rolls it. Leave at zero to face the player squarely.")]
+        [SerializeField] private Vector3 rotationOffset = Vector3.zero;
+
+        [Header("Comfort")]
+        [Tooltip("0 = instantly welded to the head (can feel nauseating). Higher values lag " +
+                 "behind head movement, which reads as more comfortable and less 'stuck to your face'. " +
+                 "0.12-0.20 is a good starting range for a tutorial popup.")]
+        [Range(0f, 0.5f)]
+        [SerializeField] private float followSmoothTime = 0.15f;
+
+        [Tooltip("Degrees per second cap on how fast the panel can turn to follow. Prevents a " +
+                 "fast head-snap from spinning the panel instantly.")]
+        [SerializeField] private float maxRotationSpeed = 180f;
+
+        [Tooltip("Snap instantly instead of easing when the head yaws by a large amount in a " +
+                 "single frame - i.e. a snap turn or a teleport. Without this the panel swings " +
+                 "through an arc to catch up and faces the wrong way while it does.")]
+        [SerializeField] private bool autoSnapOnLargeTurn = true;
+
+        [Tooltip("Single-frame yaw change that counts as a snap rather than natural head " +
+                 "movement. 20 is safely above anything a human neck produces in one frame.")]
+        [SerializeField] private float snapYawThreshold = 20f;
+
+        private Vector3 _velocity; // used by SmoothDamp
+        private float _lastHeadYaw;
+
+        /// <summary>
+        /// Time.unscaledTime of the last snap/teleport reposition. TutorialFlow waits for this
+        /// to go quiet before starting a transition - a cross-fade beginning on the same frame
+        /// as a teleport reads as two glitches at once.
+        /// Initialised far in the past so nothing is gated during the first frames of the scene.
+        /// </summary>
+        public float LastSnapTimeUnscaled { get; private set; } = -999f;
+
+        private void Reset()
+        {
+            if (Camera.main != null) headTransform = Camera.main.transform;
+        }
+
+        private void OnEnable()
+        {
+            TryResolveHead();
+
+            // Snap to the correct spot immediately on enable, rather than smoothing in from
+            // wherever the panel happened to be left in the editor.
+            if (headTransform != null)
+            {
+                transform.position = TargetPosition();
+                transform.rotation = TargetRotation();
+            }
+        }
+
+        /// <summary>
+        /// Resolves the head transform (and the Canvas's Event Camera) via Camera.main.
+        /// Called from OnEnable and, until it succeeds, from every LateUpdate - multi-scene
+        /// setups don't guarantee this scene's objects enable after the camera's scene has
+        /// finished loading, so a single failed attempt at startup must not be permanent.
+        /// </summary>
+        private void TryResolveHead()
+        {
+            if (headTransform == null && Camera.main != null)
+                headTransform = Camera.main.transform;
+
+            var canvas = GetComponent<Canvas>();
+            if (canvas != null && canvas.worldCamera == null && headTransform != null)
+                canvas.worldCamera = headTransform.GetComponent<Camera>();
+        }
+
+        private void LateUpdate()
+        {
+            if (headTransform == null) TryResolveHead();
+            if (headTransform == null) return;
+
+            // A snap turn or teleport moves the head far enough in one frame that easing
+            // toward the new target looks like the panel swinging around the player. Jump
+            // instead, so the panel is simply already in the right place afterwards.
+            float yaw = headTransform.eulerAngles.y;
+            float yawDelta = Mathf.DeltaAngle(_lastHeadYaw, yaw);
+            _lastHeadYaw = yaw;
+
+            if (autoSnapOnLargeTurn && Mathf.Abs(yawDelta) >= snapYawThreshold)
+            {
+                SnapToTarget();
+                return;
+            }
+
+            Vector3 targetPos = TargetPosition();
+            Quaternion targetRot = TargetRotation();
+
+            if (followSmoothTime <= 0f)
+            {
+                transform.position = targetPos;
+            }
+            else
+            {
+                transform.position = Vector3.SmoothDamp(
+                    transform.position, targetPos, ref _velocity, followSmoothTime);
+            }
+
+            if (billboardToPlayer)
+            {
+                transform.rotation = Quaternion.RotateTowards(
+                    transform.rotation, targetRot, maxRotationSpeed * Time.deltaTime);
+            }
+        }
+
+        private Vector3 TargetPosition()
+        {
+            return headTransform.TransformPoint(localOffset);
+        }
+
+        private Quaternion TargetRotation()
+        {
+            if (!billboardToPlayer) return transform.rotation;
+
+            Vector3 toPlayer = transform.position - headTransform.position;
+            if (lockUpright) toPlayer.y = 0f;
+
+            if (toPlayer.sqrMagnitude < 0.0001f) return transform.rotation;
+
+            // Face the player: the canvas's +Z (front face) must point away from the head,
+            // so that the readable side is what the head is looking at. The offset is applied
+            // afterwards, in the panel's own space, so it reads as "tilt relative to facing".
+            Quaternion facing = Quaternion.LookRotation(toPlayer.normalized, Vector3.up);
+            return facing * Quaternion.Euler(rotationOffset);
+        }
+
+        /// <summary>
+        /// Where the panel sits relative to the head, in head-local space (X right, Y up,
+        /// Z forward). Assigning EASES rather than jumps: the SmoothDamp follow below simply
+        /// treats it as a new target, so a step change slides the panel into place.
+        /// </summary>
+        public Vector3 LocalOffset
+        {
+            get => localOffset;
+            set => localOffset = value;
+        }
+
+        /// <summary>
+        /// Extra rotation applied on top of the billboard, in degrees. X pitches (positive
+        /// leans the top away from you, for a panel below eye level), Y yaws, Z rolls.
+        /// </summary>
+        public Vector3 RotationOffset
+        {
+            get => rotationOffset;
+            set => rotationOffset = value;
+        }
+
+        /// <summary>Call after teleporting the player to avoid a visible slide as the panel catches up.</summary>
+        public void SnapToTarget()
+        {
+            if (headTransform == null) return;
+            transform.position = TargetPosition();
+            transform.rotation = TargetRotation();
+            _velocity = Vector3.zero;
+            _lastHeadYaw = headTransform.eulerAngles.y;
+            LastSnapTimeUnscaled = Time.unscaledTime;
+        }
+
+#if UNITY_EDITOR
+        private void OnDrawGizmosSelected()
+        {
+            if (headTransform == null) return;
+            Gizmos.color = Color.cyan;
+            Vector3 target = headTransform.TransformPoint(localOffset);
+            Gizmos.DrawLine(headTransform.position, target);
+            Gizmos.DrawWireSphere(target, 0.05f);
+        }
+#endif
+    }
+}
