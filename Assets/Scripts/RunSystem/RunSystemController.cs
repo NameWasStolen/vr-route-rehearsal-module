@@ -1,38 +1,40 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 using Unity.XR.CoreUtils;
 
 public class RunSystemController : MonoBehaviour
 {
-    [SerializeField] private Transform guidedSpawnPoint;
+	[FormerlySerializedAs("guidedSpawnPoint")]
+	[SerializeField] private Transform runStartPoint;
 
-    public void StartGuidedRun()
-    {
-        XROrigin xrOrigin = FindFirstObjectByType<XROrigin>();
+	public void StartRun()
+	{
+		XROrigin xrOrigin = FindFirstObjectByType<XROrigin>();
 
-        if (xrOrigin == null)
-        {
-            Debug.LogError("RunSystemController could not find the XR Origin.", this);
-            return;
-        }
+		if (xrOrigin == null)
+		{
+			Debug.LogError("RunSystemController could not find the XR Origin.", this);
+			return;
+		}
 
-        if (guidedSpawnPoint == null)
-        {
-            Debug.LogError("RunSystemController has no guided spawn point assigned.", this);
-            return;
-        }
+		if (runStartPoint == null)
+		{
+			Debug.LogError("RunSystemController has no run start point assigned.", this);
+			return;
+		}
 
-        CharacterController characterController =
-            xrOrigin.GetComponent<CharacterController>();
+		CharacterController characterController =
+			xrOrigin.GetComponent<CharacterController>();
 
-        if (characterController != null)
-            characterController.enabled = false;
+		if (characterController != null)
+			characterController.enabled = false;
 
-        xrOrigin.transform.SetPositionAndRotation(
-            guidedSpawnPoint.position,
-            Quaternion.Euler(0f, guidedSpawnPoint.eulerAngles.y, 0f)
-        );
+		xrOrigin.transform.SetPositionAndRotation(
+			runStartPoint.position,
+			Quaternion.Euler(0f, runStartPoint.eulerAngles.y, 0f)
+		);
 
-        if (characterController != null)
-            characterController.enabled = true;
-    }
+		if (characterController != null)
+			characterController.enabled = true;
+	}
 }

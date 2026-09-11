@@ -15,11 +15,20 @@ public class MenuController : MonoBehaviour
     public void onGuidedButtonClick()
     {
         if (!isLoadingRunSystem)
-            StartCoroutine(LoadGuidedRun());
+            Debug.Log("Guided Button Clicked");
+            StartCoroutine(LoadRunSystem());
     }
 
-    private IEnumerator LoadGuidedRun()
+    public void onUnguidedButtonClick()
     {
+        if (!isLoadingRunSystem)
+            Debug.Log("Unguided Button Clicked");
+            StartCoroutine(LoadRunSystem());
+    }
+
+    private IEnumerator LoadRunSystem()
+    {
+        Debug.Log("Loading Run System");
         isLoadingRunSystem = true;
 
         AsyncOperation loadOperation =
@@ -44,7 +53,7 @@ public class MenuController : MonoBehaviour
             yield break;
         }
 
-        runSystemController.StartGuidedRun();
+        runSystemController.StartRun();
 
         if (mainMenuRoot != null)
             mainMenuRoot.SetActive(false);
