@@ -45,19 +45,7 @@ public class RunSystemController : MonoBehaviour
 			return;
 		}
 
-		CharacterController characterController =
-			xrOrigin.GetComponent<CharacterController>();
-
-		if (characterController != null)
-			characterController.enabled = false;
-
-		xrOrigin.transform.SetPositionAndRotation(
-			runStartPoint.position,
-			Quaternion.Euler(0f, runStartPoint.eulerAngles.y, 0f)
-		);
-
-		if (characterController != null)
-			characterController.enabled = true;
+		XRPlayerTeleport.MoveToStandingPoint(xrOrigin, runStartPoint);
 	}
 
 	private void HandleRunEnded(float elapsedTime)

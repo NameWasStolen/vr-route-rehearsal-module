@@ -384,7 +384,7 @@ Transform:
   m_GameObject: {fileID: 1587637715}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.037, y: 2.986, z: -0.043}
+  m_LocalPosition: {x: 0, y: 1, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -398,6 +398,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2257940322711572276, guid: 0f7283c20ff8f41438cc7804d3307bc0, type: 3}
+      propertyPath: m_PresetInfoIsWorld
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 2931429690541868276, guid: 0f7283c20ff8f41438cc7804d3307bc0, type: 3}
       propertyPath: m_Name
       value: MainMenuScreen
@@ -492,6 +496,10 @@ PrefabInstance:
       objectReference: {fileID: 586124085150554101}
     - target: {fileID: 7680468583447939022, guid: 0f7283c20ff8f41438cc7804d3307bc0, type: 3}
       propertyPath: menuReturnPoint
+      value: 
+      objectReference: {fileID: 1587637716}
+    - target: {fileID: 7680468583447939022, guid: 0f7283c20ff8f41438cc7804d3307bc0, type: 3}
+      propertyPath: menuStandingPoint
       value: 
       objectReference: {fileID: 1587637716}
     - target: {fileID: 9175683392797323139, guid: 0f7283c20ff8f41438cc7804d3307bc0, type: 3}

@@ -6,8 +6,13 @@ using Unity.XR.CoreUtils;
 public class MenuController : MonoBehaviour
 {
     [SerializeField] private GameObject mainMenuRoot;
-    [SerializeField] private Transform menuReturnPoint;
+    [SerializeField] private Transform menuStandingPoint;
     private bool isLoadingRunSystem;
+
+    private void Start()
+    {
+        TeleportPlayerToMenu();
+    }
 
     public void onRunSystemButtonClick()
     {
@@ -34,35 +39,31 @@ public class MenuController : MonoBehaviour
 
     public void ShowMainMenu()
     {
-        XROrigin xrOrigin = FindFirstObjectByType<XROrigin>();
-
-        if (xrOrigin != null && menuReturnPoint != null)
-        {
-            CharacterController characterController =
-                xrOrigin.GetComponent<CharacterController>();
-
-            if (characterController != null)
-                characterController.enabled = false;
-
-            xrOrigin.transform.SetPositionAndRotation(
-                menuReturnPoint.position,
-                Quaternion.Euler(0f, menuReturnPoint.eulerAngles.y, 0f)
-            );
-
-            if (characterController != null)
-                characterController.enabled = true;
-
-            Debug.Log("Player returned to the main menu.", this);
-        }
-        else if (menuReturnPoint == null)
-        {
-            Debug.LogError("MenuController has no menu return point assigned.", this);
-        }
+        TeleportPlayerToMenu();
 
         if (mainMenuRoot != null)
             mainMenuRoot.SetActive(true);
         else
             Debug.LogWarning("MenuController has no main menu root assigned.", this);
+    }
+
+    private void TeleportPlayerToMenu()
+    {
+        XROrigin xrOrigin = FindFirstObjectByType<XROrigin>();
+
+        if (xrOrigin != null && menuStandingPoint != null)
+        {
+            if (XRPlayerTeleport.MoveToStandingPoint(xrOrigin, menuStandingPoint))
+                Debug.Log("Player returned to the main menu standing point.", this);
+        }
+        else if (xrOrigin == null)
+        {
+            Debug.LogError("MenuController could not find the XR Origin.", this);
+        }
+        else if (menuStandingPoint == null)
+        {
+            Debug.LogError("MenuController has no menu standing point assigned.", this);
+        }
     }
 
     private IEnumerator LoadRunSystem()
