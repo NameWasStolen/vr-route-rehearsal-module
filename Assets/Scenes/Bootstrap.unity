@@ -168,7 +168,7 @@ Transform:
 --- !u!1 &251585164 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 2929931167316164458, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
-  m_PrefabInstance: {fileID: 1734149299}
+  m_PrefabInstance: {fileID: 827430640}
   m_PrefabAsset: {fileID: 0}
 --- !u!114 &251585169
 MonoBehaviour:
@@ -504,7 +504,7 @@ MonoBehaviour:
 --- !u!114 &1548921200 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 8037651474275244261, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
-  m_PrefabInstance: {fileID: 1734149299}
+  m_PrefabInstance: {fileID: 827430640}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 0}
   m_Enabled: 1
@@ -512,7 +512,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 626a4d6723d6ad24b9aebb811ad5a3dd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.XR.Interaction.Toolkit::UnityEngine.XR.Interaction.Toolkit.Locomotion.Movement.ContinuousMoveProvider
---- !u!1001 &1734149299
+--- !u!1001 &827430640
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -585,7 +585,7 @@ SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 735411778}
-  - {fileID: 1734149299}
+  - {fileID: 827430640}
   - {fileID: 209430543}
   - {fileID: 385855700}
   - {fileID: 688452636}
