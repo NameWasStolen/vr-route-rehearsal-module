@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 namespace VRTutorial
@@ -56,8 +57,25 @@ namespace VRTutorial
                  "movement. 20 is safely above anything a human neck produces in one frame.")]
         [SerializeField] private float snapYawThreshold = 20f;
 
+        [Header("Freezing")]
+        [Tooltip("Degrees the head may turn away from where the panel was frozen before it " +
+                 "recentres. A frozen panel is a stable pointer target, which is the whole point, " +
+                 "but one left behind the participant is a panel they cannot find.")]
+        [SerializeField] private float refreezeYawThreshold = 50f;
+
+        [Tooltip("Metres the participant may walk from where the panel was frozen before it " +
+                 "recentres.")]
+        [SerializeField] private float refreezeMoveDistance = 0.8f;
+
+        [Tooltip("Seconds to ease the panel to its new resting place when it recentres. Long " +
+                 "enough to read as the panel following them, not as a teleport.")]
+        [SerializeField] private float refreezeDuration = 0.35f;
+
         private Vector3 _velocity; // used by SmoothDamp
         private float _lastHeadYaw;
+        private float _frozenHeadYaw;
+        private Vector3 _frozenHeadPos;
+        private Coroutine _recentreRoutine;
 
         /// <summary>
         /// Time.unscaledTime of the last snap/teleport reposition. TutorialFlow waits for this
@@ -112,6 +130,14 @@ namespace VRTutorial
             float yaw = headTransform.eulerAngles.y;
             float yawDelta = Mathf.DeltaAngle(_lastHeadYaw, yaw);
             _lastHeadYaw = yaw;
+
+            // Frozen: the panel holds its world pose so it can be pointed at. Yaw is still
+            // tracked above, so unfreezing later does not see a huge delta and fire a snap.
+            if (IsFrozen)
+            {
+                HandleFrozenDrift(yaw);
+                return;
+            }
 
             if (autoSnapOnLargeTurn && Mathf.Abs(yawDelta) >= snapYawThreshold)
             {
@@ -179,6 +205,85 @@ namespace VRTutorial
         {
             get => rotationOffset;
             set => rotationOffset = value;
+        }
+
+        /// <summary>
+        /// True while the panel is holding a fixed world pose instead of following the head.
+        /// </summary>
+        public bool IsFrozen { get; private set; }
+
+        /// <summary>
+        /// Places the panel correctly, then leaves it there.
+        ///
+        /// For anything the participant has to aim at. The follow below smooth-damps with a lag
+        /// that is comfortable for reading and wrong for pointing: a button that drifts as the
+        /// head moves is a moving target, and a harder one than it looks for an older participant.
+        /// Use this when a menu opens, and Unfreeze when it closes.
+        /// </summary>
+        public void FreezeAtCurrent()
+        {
+            TryResolveHead();
+            SnapToTarget();
+            IsFrozen = true;
+            CaptureFrozenReference();
+        }
+
+        /// <summary>Returns the panel to following the head.</summary>
+        public void Unfreeze()
+        {
+            if (_recentreRoutine != null)
+            {
+                StopCoroutine(_recentreRoutine);
+                _recentreRoutine = null;
+            }
+            IsFrozen = false;
+        }
+
+        private void CaptureFrozenReference()
+        {
+            if (headTransform == null) return;
+            _frozenHeadYaw = headTransform.eulerAngles.y;
+            _frozenHeadPos = headTransform.position;
+        }
+
+        /// <summary>
+        /// A frozen panel still has to come back if the participant turns around or walks off,
+        /// otherwise the menu is simply lost behind them and the only way out is to guess.
+        /// </summary>
+        private void HandleFrozenDrift(float yaw)
+        {
+            if (_recentreRoutine != null) return;
+
+            bool turnedAway = Mathf.Abs(Mathf.DeltaAngle(_frozenHeadYaw, yaw)) > refreezeYawThreshold;
+            bool walkedAway = (headTransform.position - _frozenHeadPos).sqrMagnitude >
+                              refreezeMoveDistance * refreezeMoveDistance;
+
+            if (turnedAway || walkedAway) _recentreRoutine = StartCoroutine(Recentre());
+        }
+
+        private IEnumerator Recentre()
+        {
+            Vector3 fromPos = transform.position;
+            Quaternion fromRot = transform.rotation;
+
+            float t = 0f;
+            while (t < refreezeDuration)
+            {
+                t += Time.unscaledDeltaTime;
+                float k = Mathf.Clamp01(t / refreezeDuration);
+                k = k * k * (3f - 2f * k);   // smoothstep, no velocity jump at either end
+
+                transform.position = Vector3.Lerp(fromPos, TargetPosition(), k);
+                transform.rotation = Quaternion.Slerp(fromRot, TargetRotation(), k);
+                yield return null;
+            }
+
+            transform.position = TargetPosition();
+            transform.rotation = TargetRotation();
+            _velocity = Vector3.zero;
+
+            CaptureFrozenReference();
+            _recentreRoutine = null;
         }
 
         /// <summary>Call after teleporting the player to avoid a visible slide as the panel catches up.</summary>

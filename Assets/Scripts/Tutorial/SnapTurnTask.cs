@@ -12,7 +12,7 @@ namespace VRTutorial
     /// it over many frames and won't cross the threshold. Physical head turning doesn't rotate
     /// the rig root at all, so it can't produce a false positive.
     /// </summary>
-    public class SnapTurnTask : MonoBehaviour
+    public class SnapTurnTask : MonoBehaviour, ITutorialTask
     {
         public enum TurnMode
         {

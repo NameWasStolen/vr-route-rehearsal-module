@@ -59,8 +59,19 @@ public class ControllerHandednessManager : MonoBehaviour
 
         bool useLeftHand = selectedHand == ControllerHand.Left;
 
-        SetMapEnabled(_leftHandActions, useLeftHand);
-        SetMapEnabled(_rightHandActions, !useLeftHand);
+        // While locomotion is suspended - the pause menu is open - the choice is recorded but no
+        // map is enabled. Otherwise changing hands from the pause menu would hand movement back
+        // mid-pause, and the participant would walk off while reading the settings.
+        if (IsLocomotionSuspended)
+        {
+            SetMapEnabled(_leftHandActions, false);
+            SetMapEnabled(_rightHandActions, false);
+        }
+        else
+        {
+            SetMapEnabled(_leftHandActions, useLeftHand);
+            SetMapEnabled(_rightHandActions, !useLeftHand);
+        }
 
         Debug.Log($"Active controller: {selectedHand}");
 
@@ -68,6 +79,37 @@ public class ControllerHandednessManager : MonoBehaviour
         // Deliberately fires even when the hand did not actually change - a listener that has
         // only just enabled relies on this to sync, and re-applying the same hand is harmless.
         HandChanged?.Invoke(selectedHand);
+    }
+
+    /// <summary>True while both locomotion maps are held off, e.g. the pause menu is open.</summary>
+    public bool IsLocomotionSuspended { get; private set; }
+
+    /// <summary>
+    /// Turns locomotion off without forgetting which hand the participant chose.
+    ///
+    /// This is how pausing is done. It is deliberately not Time.timeScale: the tutorial's
+    /// coroutines all run on unscaled time so a zero timescale would not stop them, and freezing
+    /// the world while head tracking carries on is unpleasant in a headset. Disabling the action
+    /// maps is the same mechanism that already switches hands, so there is nothing new to trust.
+    ///
+    /// The pause button itself must live outside these two maps, or it would disable itself.
+    /// </summary>
+    public void SuspendLocomotion()
+    {
+        if (IsLocomotionSuspended) return;
+
+        IsLocomotionSuspended = true;
+        SetMapEnabled(_leftHandActions, false);
+        SetMapEnabled(_rightHandActions, false);
+    }
+
+    /// <summary>Hands locomotion back to whichever controller is currently selected.</summary>
+    public void ResumeLocomotion()
+    {
+        if (!IsLocomotionSuspended) return;
+
+        IsLocomotionSuspended = false;
+        SelectHand(ActiveHand);
     }
 
     /// <summary>
