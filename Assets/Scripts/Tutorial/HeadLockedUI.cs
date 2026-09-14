@@ -57,6 +57,30 @@ namespace VRTutorial
                  "movement. 20 is safely above anything a human neck produces in one frame.")]
         [SerializeField] private float snapYawThreshold = 20f;
 
+        [Header("Obstacle avoidance")]
+        [Tooltip("Pull the panel toward the participant when scenery would otherwise pass through " +
+                 "it - a hedge, a fence, or the ground when they look down.")]
+        [SerializeField] private bool avoidObstacles = true;
+
+        [Tooltip("What counts as scenery. Set this to the environment layers only.\n\n" +
+                 "If the player's own collider is included, the cast hits the body immediately and " +
+                 "the panel sits at Min Distance permanently - a panel stuck too close is the " +
+                 "symptom of this mask being wrong, not of the feature being broken.")]
+        [SerializeField] private LayerMask obstacleLayers = ~0;
+
+        [Tooltip("Half-width of the panel, in metres, used as the cast radius. A thin ray would " +
+                 "let a fence post slide through a corner of the panel while the centre stayed " +
+                 "clear, which looks worse than a panel that simply moved.")]
+        [SerializeField] private float panelRadius = 0.3f;
+
+        [Tooltip("Metres kept between the panel and whatever it found.")]
+        [SerializeField] private float clearance = 0.15f;
+
+        [Tooltip("The panel never comes nearer than this, however tight the space. Text at arm's " +
+                 "length is uncomfortable, and for this cohort a panel that lunges is worse than " +
+                 "one that clips.")]
+        [SerializeField] private float minDistance = 0.55f;
+
         [Header("Freezing")]
         [Tooltip("Degrees the head may turn away from where the panel was frozen before it " +
                  "recentres. A frozen panel is a stable pointer target, which is the whole point, " +
@@ -167,7 +191,32 @@ namespace VRTutorial
 
         private Vector3 TargetPosition()
         {
-            return headTransform.TransformPoint(localOffset);
+            Vector3 desired = headTransform.TransformPoint(localOffset);
+            if (!avoidObstacles) return desired;
+
+            Vector3 origin = headTransform.position;
+            Vector3 to = desired - origin;
+            float distance = to.magnitude;
+            if (distance < 1e-4f) return desired;
+
+            Vector3 direction = to / distance;
+
+            // Start the cast at the closest the panel is ever allowed to be, so the sphere is
+            // already clear of the participant's own body. Casting from the head itself would
+            // start overlapping the character controller and report an immediate hit.
+            float start = Mathf.Min(minDistance, distance);
+            float length = distance - start;
+            if (length <= 0f) return desired;
+
+            if (Physics.SphereCast(origin + direction * start, panelRadius, direction,
+                                   out RaycastHit hit, length, obstacleLayers,
+                                   QueryTriggerInteraction.Ignore))
+            {
+                float allowed = Mathf.Max(minDistance, start + hit.distance - clearance);
+                if (allowed < distance) return origin + direction * allowed;
+            }
+
+            return desired;
         }
 
         private Quaternion TargetRotation()

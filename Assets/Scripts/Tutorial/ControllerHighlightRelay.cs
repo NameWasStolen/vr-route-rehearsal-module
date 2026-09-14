@@ -27,6 +27,27 @@ namespace VRTutorial
         public void StopPulsing() => ForEach(h => h.StopPulsing());
         public void Flash() => ForEach(h => h.Flash());
 
+        /// <summary>
+        /// Marks the pause button on BOTH controllers, whatever this relay's Target is set to.
+        ///
+        /// Not an oversight. The Pause action is bound to the secondary button on each hand and
+        /// PauseController listens to both, so both buttons genuinely open the menu - marking only
+        /// the preferred one would be a lie. It also has to survive a participant switching hands
+        /// in the settings an hour later, which a single-hand mark would not.
+        /// </summary>
+        public void HoldMarked()
+        {
+            Apply(ControllerHand.Left, h => h.HoldMarked());
+            Apply(ControllerHand.Right, h => h.HoldMarked());
+        }
+
+        /// <summary>Removes the lasting mark from both controllers.</summary>
+        public void ClearMark()
+        {
+            Apply(ControllerHand.Left, h => h.ClearMark());
+            Apply(ControllerHand.Right, h => h.ClearMark());
+        }
+
         private void ForEach(System.Action<ControllerButtonHighlight> action)
         {
             switch (target)

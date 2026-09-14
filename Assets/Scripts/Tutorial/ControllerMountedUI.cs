@@ -35,9 +35,24 @@ namespace VRTutorial
         [Tooltip("Standalone-testing override for the right controller. See above.")]
         [SerializeField] private Transform rightAnchorOverride;
 
-        [Tooltip("Offset from the anchor, in the anchor's local space. Push it up and slightly " +
-                 "back so the label clears the controller shell instead of intersecting it.")]
-        [SerializeField] private Vector3 localOffset = new Vector3(0f, 0.045f, -0.02f);
+        [Tooltip("How the offset below is interpreted.\n\n" +
+                 "World up / head-relative is the sane default: Y is straight up, Z is away from " +
+                 "the participant, X is their right. Anchor local uses the anchor's own axes, " +
+                 "which sounds tidier and is a trap - the XR Controller prefab carries a 180 " +
+                 "degree Y rotation and a MIRRORED x scale, and the model beneath it is rotated " +
+                 "-90 degrees about X, so a face button's local 'up' points somewhere else " +
+                 "entirely. Use Anchor local only when you want the label to roll with the wrist.")]
+        [SerializeField] private OffsetSpace offsetSpace = OffsetSpace.WorldAligned;
+
+        public enum OffsetSpace
+        {
+            [InspectorName("World up / head-relative")] WorldAligned,
+            [InspectorName("Anchor local")] AnchorLocal,
+        }
+
+        [Tooltip("Offset from the anchor, in metres. With the default space: Y up, Z away from " +
+                 "the participant, X to their right. 5 cm up clears the controller shell.")]
+        [SerializeField] private Vector3 localOffset = new Vector3(0f, 0.05f, 0f);
 
         [Tooltip("The head to face. Left empty, uses Camera.main.")]
         [SerializeField] private Transform headTransform;
@@ -215,7 +230,7 @@ namespace VRTutorial
 
             if (headTransform == null) return;
 
-            Vector3 target = _anchor.TransformPoint(localOffset);
+            Vector3 target = TargetPosition();
 
             transform.position = followSmoothTime > 0f
                 ? Vector3.SmoothDamp(transform.position, target, ref _velocity, followSmoothTime)
@@ -242,6 +257,30 @@ namespace VRTutorial
                              "right hand set.", this);
         }
 
+        /// <summary>
+        /// Where the label sits, in world space.
+        ///
+        /// The world-aligned path deliberately ignores the anchor's rotation and uses only its
+        /// position. A face button's local axes are whatever the model author left them as, and
+        /// on this controller they are nothing like "up" - so interpreting a hand-tuned offset in
+        /// that space puts the label somewhere unpredictable and makes nudging it a guessing game.
+        /// </summary>
+        private Vector3 TargetPosition()
+        {
+            if (_anchor == null) return transform.position;
+            if (offsetSpace == OffsetSpace.AnchorLocal) return _anchor.TransformPoint(localOffset);
+
+            Vector3 forward = headTransform != null ? headTransform.forward : Vector3.forward;
+            forward.y = 0f;
+            forward = forward.sqrMagnitude > 1e-6f ? forward.normalized : Vector3.forward;
+            Vector3 right = Vector3.Cross(Vector3.up, forward);
+
+            return _anchor.position
+                 + Vector3.up * localOffset.y
+                 + right * localOffset.x
+                 + forward * localOffset.z;
+        }
+
         private Quaternion FacingRotation()
         {
             Vector3 toPlayer = transform.position - headTransform.position;
@@ -256,7 +295,7 @@ namespace VRTutorial
         {
             if (_anchor == null) return;
 
-            transform.position = _anchor.TransformPoint(localOffset);
+            transform.position = TargetPosition();
             _velocity = Vector3.zero;
 
             if (headTransform != null) transform.rotation = FacingRotation();
@@ -269,8 +308,9 @@ namespace VRTutorial
             if (a == null) return;
 
             Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(a.TransformPoint(localOffset), 0.01f);
-            Gizmos.DrawLine(a.position, a.TransformPoint(localOffset));
+            Vector3 t = Application.isPlaying ? TargetPosition() : a.TransformPoint(localOffset);
+            Gizmos.DrawWireSphere(t, 0.01f);
+            Gizmos.DrawLine(a.position, t);
         }
 #endif
     }

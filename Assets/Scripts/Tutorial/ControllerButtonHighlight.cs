@@ -49,6 +49,14 @@ namespace VRTutorial
         [Range(0f, 1f)]
         [SerializeField] private float pulseDepth = 0.55f;
 
+        [Header("Lasting mark")]
+        [Tooltip("How strongly the button stays tinted once the lesson has taught it, 0-1. Lower " +
+                 "than the pulse depth on purpose: this is a label the participant lives with for " +
+                 "the rest of the session, not a cue asking for attention. It should read as 'that " +
+                 "button is special' at a glance and be ignorable the rest of the time.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float markedDepth = 0.3f;
+
         [Header("Press flash")]
         [Tooltip("Seconds for the confirmation flash to rise and fall.")]
         [SerializeField] private float flashDuration = 0.35f;
@@ -59,6 +67,7 @@ namespace VRTutorial
         private bool _ready;
         private Coroutine _pulseRoutine;
         private Coroutine _flashRoutine;
+        private bool _marked;
 
         private static readonly Dictionary<ControllerHand, ControllerButtonHighlight> Registered =
             new Dictionary<ControllerHand, ControllerButtonHighlight>();
@@ -128,7 +137,7 @@ namespace VRTutorial
             _pulseRoutine = StartCoroutine(Pulse());
         }
 
-        /// <summary>Stops the waiting pulse and returns the button to its authored colour.</summary>
+        /// <summary>Stops the waiting pulse and settles the button back to its resting colour.</summary>
         public void StopPulsing()
         {
             if (_pulseRoutine != null)
@@ -136,7 +145,42 @@ namespace VRTutorial
                 StopCoroutine(_pulseRoutine);
                 _pulseRoutine = null;
             }
-            Restore();
+            SettleToResting();
+        }
+
+        /// <summary>
+        /// Leaves the button quietly tinted for the rest of the session.
+        ///
+        /// This is the lasting affordance, and it is deliberately the button itself rather than a
+        /// label floating beside it: a tint needs no reading, so it survives a participant with
+        /// little English, and it cannot drift out of position or occlude anything. The component
+        /// lives on the rig in Bootstrap, so the mark carries into the route scenes too.
+        /// </summary>
+        public void HoldMarked()
+        {
+            Prepare();
+            if (!_ready) return;
+
+            if (_pulseRoutine != null) { StopCoroutine(_pulseRoutine); _pulseRoutine = null; }
+            _marked = true;
+            if (_flashRoutine == null) SetBlend(markedDepth);
+        }
+
+        /// <summary>Removes the lasting mark and returns the button to its authored colour.</summary>
+        public void ClearMark()
+        {
+            _marked = false;
+            if (_flashRoutine == null) SettleToResting();
+        }
+
+        /// <summary>
+        /// Where the button sits when nothing is animating it - marked, or as authored. Every
+        /// animation ends here rather than at Restore, so a flash cannot wipe the lasting mark.
+        /// </summary>
+        private void SettleToResting()
+        {
+            if (!_ready) return;
+            SetBlend(_marked ? markedDepth : 0f);
         }
 
         /// <summary>
@@ -192,16 +236,17 @@ namespace VRTutorial
                 yield return null;
             }
 
+            float floor = _marked ? markedDepth : 0f;
             t = 0f;
             while (t < half)
             {
                 t += Time.unscaledDeltaTime;
-                SetBlend(1f - Mathf.Clamp01(t / half));
+                SetBlend(Mathf.Lerp(1f, floor, Mathf.Clamp01(t / half)));
                 yield return null;
             }
 
-            Restore();
             _flashRoutine = null;
+            SettleToResting();
         }
 
         private void SetBlend(float k)
