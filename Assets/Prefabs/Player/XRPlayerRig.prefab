@@ -1221,13 +1221,56 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6163737171295032436, guid: 9f3369e30fbd31f4bb596b1a99babe83, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1702055211053822573}
+    - targetCorrespondingSourceObject: {fileID: 6163737171295032436, guid: 9f3369e30fbd31f4bb596b1a99babe83, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2701052116970249396}
   m_SourcePrefab: {fileID: 100100000, guid: 9f3369e30fbd31f4bb596b1a99babe83, type: 3}
 --- !u!4 &1143212736115311377 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3475118261464492563, guid: 9f3369e30fbd31f4bb596b1a99babe83, type: 3}
   m_PrefabInstance: {fileID: 4604816582131804418}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &7669179384403737974 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6163737171295032436, guid: 9f3369e30fbd31f4bb596b1a99babe83, type: 3}
+  m_PrefabInstance: {fileID: 4604816582131804418}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1702055211053822573
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7669179384403737974}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: adb2e5a914ba7fa4081538adf2ed5d4b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.ControllerAnchor
+  hand: 1
+--- !u!114 &2701052116970249396
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7669179384403737974}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: db55c1451e1269147825e0fcbedfa111, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.ControllerButtonHighlight
+  hand: 1
+  targetRenderer: {fileID: 0}
+  colourProperty: _BaseColor
+  highlightColour: {r: 0.4, g: 0.8, b: 1, a: 1}
+  pulsePeriod: 1.8
+  pulseDepth: 0.55
+  flashDuration: 0.35
 --- !u!1001 &5559426873517743226
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1283,8 +1326,51 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6593186904332347165, guid: 1392f805216c47742996d4742c80721c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5774515471106551449}
+    - targetCorrespondingSourceObject: {fileID: 6593186904332347165, guid: 1392f805216c47742996d4742c80721c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 901104405996230305}
   m_SourcePrefab: {fileID: 100100000, guid: 1392f805216c47742996d4742c80721c, type: 3}
+--- !u!1 &1610241134971698023 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6593186904332347165, guid: 1392f805216c47742996d4742c80721c, type: 3}
+  m_PrefabInstance: {fileID: 5559426873517743226}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &5774515471106551449
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1610241134971698023}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: adb2e5a914ba7fa4081538adf2ed5d4b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.ControllerAnchor
+  hand: 0
+--- !u!114 &901104405996230305
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1610241134971698023}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: db55c1451e1269147825e0fcbedfa111, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.ControllerButtonHighlight
+  hand: 0
+  targetRenderer: {fileID: 0}
+  colourProperty: _BaseColor
+  highlightColour: {r: 0.4, g: 0.8, b: 1, a: 1}
+  pulsePeriod: 1.8
+  pulseDepth: 0.55
+  flashDuration: 0.35
 --- !u!4 &4602949500594811797 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8270855663187062767, guid: 1392f805216c47742996d4742c80721c, type: 3}

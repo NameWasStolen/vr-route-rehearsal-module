@@ -501,6 +501,9 @@ MonoBehaviour:
   brightnessSlider: {fileID: 4929178348026246696}
   volumeSlider: {fileID: 5834374848992151033}
   fontSizeSlider: {fileID: 5747110591423086858}
+  ambienceVolumeSlider: {fileID: 0}
+  uiVolumeSlider: {fileID: 0}
+  movementVolumeSlider: {fileID: 0}
   usageModeToggles:
   - {fileID: 5160467479301098225}
   - {fileID: 2464009303648590040}
@@ -512,19 +515,7 @@ MonoBehaviour:
   - {fileID: 4683625299534241028}
   - {fileID: 7723608729239903949}
   brightnessProfile: {fileID: 11400000, guid: 0ac2fe042ec2a2640bbb640071adf043, type: 2}
-  audioMixer: {fileID: 24100000, guid: 2465695b0e423de4db133b06154aae06, type: 2}
-  textElements:
-  - {fileID: 4269515055502190758}
-  - {fileID: 5262745884118683308}
-  - {fileID: 1373656843011425136}
-  - {fileID: 1524176992316060530}
-  - {fileID: 960455592094233012}
-  - {fileID: 6812250123459927785}
-  - {fileID: 7684176143367255598}
-  - {fileID: 3781102183233203674}
-  - {fileID: 6815735024141597692}
-  - {fileID: 2025442500744443585}
-  - {fileID: 6197485138531850595}
+  resetToDefaultsButton: {fileID: 0}
 --- !u!1 &781541746469650923
 GameObject:
   m_ObjectHideFlags: 0
@@ -2209,6 +2200,7 @@ GameObject:
   - component: {fileID: 2517763947073759742}
   - component: {fileID: 7854261598094129995}
   - component: {fileID: 7680468583447939022}
+  - component: {fileID: 1666008241387645215}
   m_Layer: 5
   m_Name: MainMenuScreen
   m_TagString: Untagged
@@ -2332,6 +2324,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8aebb2c2225de5e4ab399ec8efffb8d5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
+  tutorialSceneName: Tutorial
+  mainMenuSceneName: MainMenu
+--- !u!114 &1666008241387645215
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2931429690541868276}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be3f92f4862f4c24a0a94415b4d6f303, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ScalableUIRoot
+  maxScale: 1.6
+  allowShrink: 0
 --- !u!1 &3025678354699304728
 GameObject:
   m_ObjectHideFlags: 0
@@ -5646,6 +5654,7 @@ GameObject:
   - component: {fileID: 8924641243784076352}
   - component: {fileID: 7477558687125197761}
   - component: {fileID: 4269515055502190758}
+  - component: {fileID: 282877999767467971}
   m_Layer: 5
   m_Name: SettingsTitle
   m_TagString: Untagged
@@ -5774,6 +5783,20 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
+--- !u!114 &282877999767467971
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8369663173717046216}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 65c441c2bbf744ed8c256aba652ffd0c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ScalableText
+  scaleAutoSizeBounds: 1
+  localWeight: 1
 --- !u!1 &8536942172052995791
 GameObject:
   m_ObjectHideFlags: 0
