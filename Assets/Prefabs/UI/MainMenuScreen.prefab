@@ -664,6 +664,9 @@ MonoBehaviour:
   - {fileID: 6815735024141597692}
   - {fileID: 2025442500744443585}
   - {fileID: 6197485138531850595}
+  - {fileID: 6412526012540691969}
+  - {fileID: 8068306736739797541}
+  - {fileID: 1484104308331236712}
 --- !u!1 &781541746469650923
 GameObject:
   m_ObjectHideFlags: 0
@@ -2519,6 +2522,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8aebb2c2225de5e4ab399ec8efffb8d5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
+  tutorialSceneName: Tutorial
+  mainMenuSceneName: MainMenu
   mainMenuRoot: {fileID: 0}
   menuStandingPoint: {fileID: 0}
 --- !u!1 &2994005576474196919
