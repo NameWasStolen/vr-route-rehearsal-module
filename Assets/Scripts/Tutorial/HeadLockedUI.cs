@@ -59,6 +59,14 @@ namespace VRTutorial
         private Vector3 _velocity; // used by SmoothDamp
         private float _lastHeadYaw;
 
+        /// <summary>
+        /// Time.unscaledTime of the last snap/teleport reposition. TutorialFlow waits for this
+        /// to go quiet before starting a transition - a cross-fade beginning on the same frame
+        /// as a teleport reads as two glitches at once.
+        /// Initialised far in the past so nothing is gated during the first frames of the scene.
+        /// </summary>
+        public float LastSnapTimeUnscaled { get; private set; } = -999f;
+
         private void Reset()
         {
             if (Camera.main != null) headTransform = Camera.main.transform;
@@ -152,6 +160,27 @@ namespace VRTutorial
             return facing * Quaternion.Euler(rotationOffset);
         }
 
+        /// <summary>
+        /// Where the panel sits relative to the head, in head-local space (X right, Y up,
+        /// Z forward). Assigning EASES rather than jumps: the SmoothDamp follow below simply
+        /// treats it as a new target, so a step change slides the panel into place.
+        /// </summary>
+        public Vector3 LocalOffset
+        {
+            get => localOffset;
+            set => localOffset = value;
+        }
+
+        /// <summary>
+        /// Extra rotation applied on top of the billboard, in degrees. X pitches (positive
+        /// leans the top away from you, for a panel below eye level), Y yaws, Z rolls.
+        /// </summary>
+        public Vector3 RotationOffset
+        {
+            get => rotationOffset;
+            set => rotationOffset = value;
+        }
+
         /// <summary>Call after teleporting the player to avoid a visible slide as the panel catches up.</summary>
         public void SnapToTarget()
         {
@@ -160,6 +189,7 @@ namespace VRTutorial
             transform.rotation = TargetRotation();
             _velocity = Vector3.zero;
             _lastHeadYaw = headTransform.eulerAngles.y;
+            LastSnapTimeUnscaled = Time.unscaledTime;
         }
 
 #if UNITY_EDITOR

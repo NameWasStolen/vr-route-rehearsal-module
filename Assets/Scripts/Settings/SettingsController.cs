@@ -1,6 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using UnityEngine.Audio;
+using TMPro;
 
 public class SettingsController : MonoBehaviour
 {
@@ -10,26 +14,44 @@ public class SettingsController : MonoBehaviour
     public List<Toggle> usageModeToggles = new();
     public List<Toggle> handToggles = new();
     public List<Toggle> rotationToggles = new();
+    public VolumeProfile brightnessProfile;
+    private ColorAdjustments colorAdjustments;
+    public AudioMixer audioMixer;
+    public List<TMP_Text> textElements = new();
+    private List<float> originalFontSizes = new();
 
     void Start()
     {
         // Brightness Slider Setup
         brightnessSlider.onValueChanged.AddListener(value =>
         {
+            brightnessProfile.TryGet(out colorAdjustments);
+            brightnessSlider.onValueChanged.AddListener(SetBrightness);
+            SetBrightness(brightnessSlider.value);
             Debug.Log(brightnessSlider.name + " changed value to: " + value);
         });
 
         // Volume Slider Setup
-        volumeSlider.onValueChanged.AddListener(value =>
+        if (audioMixer == null)
         {
-            Debug.Log(volumeSlider.name + " changed value to: " + value);
-        });
+            Debug.LogError("Audio Mixer is not assigned.");
+        }
+        else
+        {
+            volumeSlider.onValueChanged.AddListener(SetVolume);
+            SetVolume(volumeSlider.value);
+        }
 
         // Font Size Slider Setup
-        fontSizeSlider.onValueChanged.AddListener(value =>
+        originalFontSizes.Clear();
+
+        foreach (TMP_Text textElement in textElements)
         {
-            Debug.Log(fontSizeSlider.name + " changed value to: " + value);
-        });
+            originalFontSizes.Add(textElement.fontSize);
+        }
+
+        fontSizeSlider.onValueChanged.AddListener(SetFontSize);
+        SetFontSize(fontSizeSlider.value);
 
         // Usage Mode Toggle Setup
         foreach (var toggle in usageModeToggles)
@@ -107,6 +129,32 @@ public class SettingsController : MonoBehaviour
                     }
                 }
             });
+        }
+    }
+
+    void SetBrightness(float sliderValue)
+    {
+        float exposure = Mathf.Lerp(-2f, 2f, sliderValue);
+        colorAdjustments.postExposure.value = exposure;
+    }
+
+    void SetVolume(float sliderValue)
+    {
+        float decibels = Mathf.Lerp(-20f, 0f, sliderValue);
+        audioMixer.SetFloat("MasterVolume", decibels);
+    }
+
+    void SetFontSize(float sliderValue)
+    {
+        float sizeMultiplier = Mathf.Lerp(0.8f, 1.4f, sliderValue);
+
+        for (int index = 0; index < textElements.Count; index++)
+        {
+            if (textElements[index] != null)
+            {
+                textElements[index].fontSize =
+                    originalFontSizes[index] * sizeMultiplier;
+            }
         }
     }
 }

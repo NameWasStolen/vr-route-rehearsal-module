@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -10,6 +11,20 @@ public enum ControllerHand
 public class ControllerHandednessManager : MonoBehaviour
 {
     public static ControllerHandednessManager Instance { get; private set; }
+
+    /// <summary>
+    /// Raised whenever the active hand is set - including the initial call from Start().
+    /// Subscribers that may enable AFTER this manager has already run Start() (anything in an
+    /// additively-loaded scene, e.g. the tutorial UI) must ALSO read <see cref="ActiveHand"/>
+    /// on enable; the event alone will have already fired and they would never hear it.
+    /// </summary>
+    public static event Action<ControllerHand> HandChanged;
+
+    /// <summary>
+    /// True once SelectHand has run at least once, so subscribers can tell "right by default,
+    /// nothing chosen yet" apart from "the user actively chose right".
+    /// </summary>
+    public bool HasResolvedHand { get; private set; }
 
     [SerializeField] private InputActionAsset _locomotionActions; // Contains the action maps for both left and right hand locomotion
     [SerializeField] private ControllerHand _defaultHand = ControllerHand.Right;
@@ -40,6 +55,7 @@ public class ControllerHandednessManager : MonoBehaviour
      */
     {
         ActiveHand = selectedHand;
+        HasResolvedHand = true;
 
         bool useLeftHand = selectedHand == ControllerHand.Left;
 
@@ -47,6 +63,29 @@ public class ControllerHandednessManager : MonoBehaviour
         SetMapEnabled(_rightHandActions, !useLeftHand);
 
         Debug.Log($"Active controller: {selectedHand}");
+
+        // Fired last, so every listener sees a fully-applied state (maps already switched).
+        // Deliberately fires even when the hand did not actually change - a listener that has
+        // only just enabled relies on this to sync, and re-applying the same hand is harmless.
+        HandChanged?.Invoke(selectedHand);
+    }
+
+    /// <summary>
+    /// Convenience for UnityEvents / toggles that can't pass an enum from the Inspector.
+    /// </summary>
+    public void SelectLeftHand() => SelectHand(ControllerHand.Left);
+
+    /// <summary>
+    /// Convenience for UnityEvents / toggles that can't pass an enum from the Inspector.
+    /// </summary>
+    public void SelectRightHand() => SelectHand(ControllerHand.Right);
+
+    /// <summary>
+    /// The hand to use when no manager exists yet - lets scenes be opened and tested standalone.
+    /// </summary>
+    public static ControllerHand CurrentOrDefault(ControllerHand fallback)
+    {
+        return Instance != null && Instance.HasResolvedHand ? Instance.ActiveHand : fallback;
     }
 
     private InputActionMap FindActionMap(string mapName)
