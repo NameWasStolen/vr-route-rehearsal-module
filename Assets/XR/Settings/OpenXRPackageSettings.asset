@@ -554,11 +554,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f0ebc320a151d3408ea1e9fce54d40e, type: 3}
   m_Name: OpenXRPackageSettings
   m_EditorClassIdentifier: Unity.XR.OpenXR.Editor::UnityEditor.XR.OpenXR.OpenXRPackageSettings
-  Keys: 01000000070000000d000000
+  Keys: 0100000007000000
   Values:
   - {fileID: -3906370206996070472}
   - {fileID: -4628816512504762673}
-  - {fileID: 750952019205931319}
 --- !u!114 &375780393524589925
 MonoBehaviour:
   m_ObjectHideFlags: 0

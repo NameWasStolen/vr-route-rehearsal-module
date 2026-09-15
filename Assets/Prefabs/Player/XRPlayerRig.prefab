@@ -75,6 +75,7 @@ GameObject:
   - component: {fileID: 508270736697098478}
   - component: {fileID: 7011628997759105114}
   - component: {fileID: 5002810436517361211}
+  - component: {fileID: 109300964375052332}
   m_Layer: 0
   m_Name: XRPlayerRig
   m_TagString: Player
@@ -157,6 +158,21 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0.8, z: 0}
+--- !u!114 &109300964375052332
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2929931167316164458}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4afbf76c4a955304c9eb1fa8479b8e4e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UsageModeController
+  _xrOrigin: {fileID: 508270736697098478}
+  _sittingCameraHeight: 1.1176
+  _defaultMode: 0
 --- !u!1 &3393374181577018499
 GameObject:
   m_ObjectHideFlags: 0
