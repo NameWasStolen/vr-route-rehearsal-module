@@ -62,16 +62,28 @@ public class SettingsController : MonoBehaviour
 
                 if (state)
                 {
+                    UsageModeController usageController =
+                        UsageModeController.Instance;
+
+                    if (usageController == null)
+                    {
+                        Debug.LogWarning("UsageModeController was not found.");
+                        return;
+                    }
+
                     if (toggle.name == "StandingToggle")
                     {
-                        // TODO
-                    } else if (toggle.name == "SittingToggle")
+                        usageController.SetUsageMode(PlayerUsageMode.Standing);
+                    }
+                    else if (toggle.name == "SittingToggle")
                     {
-                        // TODO
+                        usageController.SetUsageMode(PlayerUsageMode.Sitting);
                     }
                 }
             });
         }
+        // Sync usage mode toggles
+        SyncUsageModeToggles();
 
         // Hand Toggle Setup
         foreach (var toggle in handToggles)
@@ -105,6 +117,7 @@ public class SettingsController : MonoBehaviour
                     }
             });
         }
+
         // Sync hand toggles
         ControllerHandednessManager handednessManager =
             ControllerHandednessManager.Instance;
@@ -247,6 +260,30 @@ public class SettingsController : MonoBehaviour
             activeHand == ControllerHand.Right
         );
     }
+
+    private void SyncUsageModeToggles()
+    {
+        UsageModeController controller =
+            UsageModeController.Instance;
+
+        if (controller == null)
+        {
+            return;
+        }
+
+        SetToggleState(
+            usageModeToggles,
+            "StandingToggle",
+            controller.CurrentMode == PlayerUsageMode.Standing
+        );
+
+        SetToggleState(
+            usageModeToggles,
+            "SittingToggle",
+            controller.CurrentMode == PlayerUsageMode.Sitting
+        );
+    }
+
     private void OnEnable()
     {
         ControllerHandednessManager.HandChanged += SyncHandToggles;
