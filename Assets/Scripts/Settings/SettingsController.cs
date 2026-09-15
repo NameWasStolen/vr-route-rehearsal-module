@@ -105,6 +105,15 @@ public class SettingsController : MonoBehaviour
                     }
             });
         }
+        // Sync hand toggles
+        ControllerHandednessManager handednessManager =
+            ControllerHandednessManager.Instance;
+
+        if (handednessManager != null &&
+            handednessManager.HasResolvedHand)
+        {
+            SyncHandToggles(handednessManager.ActiveHand);
+        }
 
         // Rotation Toggle Setup
         foreach (var toggle in rotationToggles)
@@ -115,21 +124,38 @@ public class SettingsController : MonoBehaviour
 
                 if (state)
                 {
+                    RotationModeController rotationController =
+                        RotationModeController.Instance;
+
+                    if (rotationController == null)
+                    {
+                        Debug.LogWarning("RotationModeController was not found.");
+                        return;
+                    }
+
                     if (toggle.name == "ContinuousToggle")
                     {
-                        // TODO
+                        rotationController.SetRotationMode(
+                            PlayerRotationMode.Continuous
+                        );
                     }
                     else if (toggle.name == "SnapToggle")
                     {
-                        // TODO
+                        rotationController.SetRotationMode(
+                            PlayerRotationMode.Snap
+                        );
                     }
                     else if (toggle.name == "RawToggle")
                     {
-                        // TODO
+                        rotationController.SetRotationMode(
+                            PlayerRotationMode.HeadOnly
+                        );
                     }
                 }
             });
         }
+        // Sync toggles
+        SyncRotationToggles();
     }
 
     void SetBrightness(float sliderValue)
@@ -157,4 +183,79 @@ public class SettingsController : MonoBehaviour
             }
         }
     }
+
+
+    // TOGGLE METHODS
+    private static void SetToggleState(
+        List<Toggle> toggles,
+        string toggleName,
+        bool isOn
+    )
+    /**
+        Sets the state of a toggle in the provided list by its name.
+        Needed so that the UI settings are actually synced to the current setup when checking the page again.
+    */
+    {
+        Toggle toggle = toggles.Find(item => item.name == toggleName);
+
+        if (toggle != null)
+        {
+            toggle.SetIsOnWithoutNotify(isOn);
+        }
+    }
+
+    private void SyncRotationToggles()
+    {
+        RotationModeController controller =
+            RotationModeController.Instance;
+
+        if (controller == null)
+        {
+            return;
+        }
+
+        SetToggleState(
+            rotationToggles,
+            "ContinuousToggle",
+            controller.CurrentMode == PlayerRotationMode.Continuous
+        );
+
+        SetToggleState(
+            rotationToggles,
+            "SnapToggle",
+            controller.CurrentMode == PlayerRotationMode.Snap
+        );
+
+        SetToggleState(
+            rotationToggles,
+            "RawToggle",
+            controller.CurrentMode == PlayerRotationMode.HeadOnly
+        );
+    }
+
+    private void SyncHandToggles(ControllerHand activeHand)
+    {
+        SetToggleState(
+            handToggles,
+            "LeftToggle",
+            activeHand == ControllerHand.Left
+        );
+
+        SetToggleState(
+            handToggles,
+            "RightToggle",
+            activeHand == ControllerHand.Right
+        );
+    }
+    private void OnEnable()
+    {
+        ControllerHandednessManager.HandChanged += SyncHandToggles;
+    }
+
+    private void OnDisable()
+    {
+        ControllerHandednessManager.HandChanged -= SyncHandToggles;
+    }
 }
+
+
