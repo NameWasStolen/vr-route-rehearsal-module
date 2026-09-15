@@ -46,6 +46,14 @@ public class FootstepAudio : MonoBehaviour
              "producing a slow drip of footsteps while the participant stands and reads.")]
     [SerializeField] private float minSpeed = 0.15f;
 
+    [Tooltip("Only play steps while the CharacterController reports it is grounded. Off by " +
+             "default, and deliberately so: CharacterController.isGrounded is only refreshed " +
+             "by a Move() that actually pushes down into the ground, and XRI's body " +
+             "transformer moves the rig horizontally. On flat ground isGrounded is therefore " +
+             "false most frames, which silently suppresses every footstep. Turn this on only " +
+             "if a GravityProvider is present and the rig genuinely leaves the ground.")]
+    [SerializeField] private bool requireGrounded = false;
+
     [Header("Surfaces")]
     [SerializeField] private SurfaceClips[] surfaces = new SurfaceClips[0];
 
@@ -72,6 +80,8 @@ public class FootstepAudio : MonoBehaviour
     private Vector3 _lastPosition;
     private float _accumulated;
     private int _lastClipIndex = -1;
+    private readonly System.Collections.Generic.HashSet<SurfaceKind> _warnedSurfaces =
+        new System.Collections.Generic.HashSet<SurfaceKind>();
 
     private void Awake()
     {
@@ -111,7 +121,8 @@ public class FootstepAudio : MonoBehaviour
         if (distance / dt < minSpeed) return;
 
         // Only count travel while actually on the ground, where there is a surface to hear.
-        if (_controller != null && !_controller.isGrounded) return;
+        // Opt-in: see requireGrounded for why this is not the default.
+        if (requireGrounded && _controller != null && !_controller.isGrounded) return;
 
         _accumulated += distance;
         if (_accumulated < strideLength) return;
@@ -124,8 +135,18 @@ public class FootstepAudio : MonoBehaviour
 
     private void PlayStep()
     {
-        SurfaceClips set = Resolve(ProbeSurface());
-        if (set == null || set.clips == null || set.clips.Length == 0) return;
+        SurfaceKind kind = ProbeSurface();
+        SurfaceClips set = Resolve(kind);
+
+        if (set == null || set.clips == null || set.clips.Length == 0)
+        {
+            // Warn once per surface. A footstep that resolves to an empty clip set is the
+            // single most common reason this looks broken, and returning quietly hides it.
+            if (_warnedSurfaces.Add(kind))
+                Debug.LogWarning($"[FootstepAudio] Surface '{kind}' has no clips assigned " +
+                                 "(and neither does the fallback) - no footstep played.", this);
+            return;
+        }
 
         _source.pitch = 1f + UnityEngine.Random.Range(-pitchJitter, pitchJitter);
         _source.PlayOneShot(PickClip(set.clips), set.volume);
