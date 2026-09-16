@@ -5,6 +5,18 @@ using UnityEngine;
 namespace VRTutorial
 {
     /// <summary>
+    /// Which face button a highlight is attached to.
+    ///
+    /// Secondary is first so that it is the zero value: components authored before this enum
+    /// existed deserialise to it, which keeps the pause-button wiring working untouched.
+    /// </summary>
+    public enum ControllerButton
+    {
+        [InspectorName("Secondary (B / Y) - pause")] Secondary,
+        [InspectorName("Primary (A / X) - ask for help")] Primary,
+    }
+
+    /// <summary>
     /// Tints a real piece of controller geometry - Button_B and friends inside the XR Controller
     /// prefab - to draw the eye to it, and to confirm a press.
     ///
@@ -27,6 +39,11 @@ namespace VRTutorial
                  "scene can reach it - the rig lives in Bootstrap, so nothing in a content scene " +
                  "can hold a direct reference. Drive it through a ControllerHighlightRelay.")]
         [SerializeField] private ControllerHand hand = ControllerHand.Right;
+
+        [Tooltip("Which face button this highlight sits on. Published under hand AND button, so " +
+                 "one controller can carry a highlight for the pause button and another for the " +
+                 "assistance button without the two overwriting each other in the registry.")]
+        [SerializeField] private ControllerButton button = ControllerButton.Secondary;
 
         [Tooltip("Renderer of the button geometry. Leave empty to use the Renderer on this object.")]
         [SerializeField] private Renderer targetRenderer;
@@ -69,13 +86,32 @@ namespace VRTutorial
         private Coroutine _flashRoutine;
         private bool _marked;
 
-        private static readonly Dictionary<ControllerHand, ControllerButtonHighlight> Registered =
-            new Dictionary<ControllerHand, ControllerButtonHighlight>();
+        // Keyed on hand AND button. Keying on hand alone - which this did originally - silently
+        // allows only one highlight per controller: a second component registering for the same
+        // hand replaces the first, and whichever lost the race stops responding with no error.
+        // An int key rather than a tuple keeps it allocation-free and avoids depending on
+        // ValueTuple being available.
+        private static readonly Dictionary<int, ControllerButtonHighlight> Registered =
+            new Dictionary<int, ControllerButtonHighlight>();
 
-        /// <summary>The highlight registered for a hand, or null if the rig is not loaded.</summary>
+        private static int Key(ControllerHand hand, ControllerButton button)
+        {
+            return ((int)hand << 4) | (int)button;
+        }
+
+        /// <summary>The highlight registered for a hand and button, or null if the rig is not loaded.</summary>
+        public static ControllerButtonHighlight For(ControllerHand hand, ControllerButton button)
+        {
+            return Registered.TryGetValue(Key(hand, button), out ControllerButtonHighlight h) ? h : null;
+        }
+
+        /// <summary>
+        /// The secondary-button highlight for a hand. Kept so callers written before highlights
+        /// were per-button still resolve to the pause button, which is what they meant.
+        /// </summary>
         public static ControllerButtonHighlight For(ControllerHand hand)
         {
-            return Registered.TryGetValue(hand, out ControllerButtonHighlight h) ? h : null;
+            return For(hand, ControllerButton.Secondary);
         }
 
         private void Awake()
@@ -86,7 +122,16 @@ namespace VRTutorial
 
         private void OnEnable()
         {
-            Registered[hand] = this;
+            int key = Key(hand, button);
+            if (Registered.TryGetValue(key, out ControllerButtonHighlight existing) &&
+                existing != null && existing != this)
+            {
+                Debug.LogWarning($"[ControllerButtonHighlight] '{name}' and '{existing.name}' are " +
+                                 $"both registered for {hand} {button}; the later one wins and the " +
+                                 "other will stop responding. Give one of them a different Button.",
+                                 this);
+            }
+            Registered[key] = this;
         }
 
         private void Prepare()
@@ -118,8 +163,9 @@ namespace VRTutorial
 
         private void OnDisable()
         {
-            if (Registered.TryGetValue(hand, out ControllerButtonHighlight current) && current == this)
-                Registered.Remove(hand);
+            int key = Key(hand, button);
+            if (Registered.TryGetValue(key, out ControllerButtonHighlight current) && current == this)
+                Registered.Remove(key);
 
             StopPulsing();
             Restore();

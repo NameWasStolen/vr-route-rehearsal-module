@@ -189,9 +189,14 @@ namespace VRTutorial
             }
         }
 
+        private Vector3 _nudge;
+
+        /// <summary>Authored offset plus any temporary nudge.</summary>
+        private Vector3 EffectiveOffset => localOffset + _nudge;
+
         private Vector3 TargetPosition()
         {
-            Vector3 desired = headTransform.TransformPoint(localOffset);
+            Vector3 desired = headTransform.TransformPoint(EffectiveOffset);
             if (!avoidObstacles) return desired;
 
             Vector3 origin = headTransform.position;
@@ -245,6 +250,47 @@ namespace VRTutorial
             get => localOffset;
             set => localOffset = value;
         }
+
+        /// <summary>
+        /// A temporary shift added on top of the authored offset, in the same head-local space.
+        ///
+        /// Deliberately separate from LocalOffset rather than something callers assign directly.
+        /// A caller that wrote LocalOffset would have to remember the authored value to put it
+        /// back, and the authored value is a serialised field somebody may well retune in the
+        /// Inspector between the push and the pop. A nudge is additive and always undone by
+        /// clearing it, so the two cannot drift apart.
+        ///
+        /// Not serialised: this is runtime-only state and should never be saved into the scene.
+        /// </summary>
+        public Vector3 Nudge
+        {
+            get => _nudge;
+            set => _nudge = value;
+        }
+
+        /// <summary>
+        /// Shifts the panel vertically. Metres, negative is down.
+        ///
+        /// A float UnityEvent target, so a step or a controller can lower a panel out of the way
+        /// of another one without a glue script - and because assigning the offset only moves the
+        /// SmoothDamp target, the panel slides rather than jumps.
+        /// </summary>
+        public void NudgeY(float metres) => _nudge = new Vector3(_nudge.x, metres, _nudge.z);
+
+        /// <summary>Shifts the panel sideways. Metres, negative is left.</summary>
+        public void NudgeX(float metres) => _nudge = new Vector3(metres, _nudge.y, _nudge.z);
+
+        /// <summary>
+        /// Shifts the panel nearer or further. Metres, positive is further away.
+        ///
+        /// Useful in combination with the other two: pushing a panel back shrinks how much of
+        /// the view it covers, so it needs less sideways or downward travel to clear something.
+        /// The cost is legibility, which for this cohort runs out quickly past about two metres.
+        /// </summary>
+        public void NudgeZ(float metres) => _nudge = new Vector3(_nudge.x, _nudge.y, metres);
+
+        /// <summary>Returns the panel to its authored offset.</summary>
+        public void ClearNudge() => _nudge = Vector3.zero;
 
         /// <summary>
         /// Extra rotation applied on top of the billboard, in degrees. X pitches (positive
@@ -351,7 +397,7 @@ namespace VRTutorial
         {
             if (headTransform == null) return;
             Gizmos.color = Color.cyan;
-            Vector3 target = headTransform.TransformPoint(localOffset);
+            Vector3 target = headTransform.TransformPoint(EffectiveOffset);
             Gizmos.DrawLine(headTransform.position, target);
             Gizmos.DrawWireSphere(target, 0.05f);
         }

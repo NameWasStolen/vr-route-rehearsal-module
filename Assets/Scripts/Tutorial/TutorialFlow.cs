@@ -468,10 +468,43 @@ namespace VRTutorial
         }
 
         /// <summary>Brings the panel back after a dismissal.</summary>
+        /// <summary>
+        /// Dismisses the panel to get it out of the way of something else, remembering whether
+        /// it actually had to do anything.
+        ///
+        /// Pair with RestoreIfTemporary. The naive pairing of Dismiss and Restore has a bug that
+        /// only shows up away from the tutorial: a participant who asks for help halfway down the
+        /// street has a panel that is already dismissed, so Dismiss does nothing - and then the
+        /// matching Restore faithfully fades the tutorial panel back in, resurrecting a lesson
+        /// they finished ten minutes ago. Remembering who dismissed it is what stops that.
+        /// </summary>
+        public void DismissTemporarily()
+        {
+            if (IsDismissed)
+            {
+                _temporarilyDismissed = false;   // somebody else's; not ours to put back
+                return;
+            }
+
+            _temporarilyDismissed = true;
+            Dismiss();
+        }
+
+        /// <summary>Undoes DismissTemporarily, and does nothing if that is not what dismissed it.</summary>
+        public void RestoreIfTemporary()
+        {
+            if (!_temporarilyDismissed) return;
+            _temporarilyDismissed = false;
+            Restore();
+        }
+
+        private bool _temporarilyDismissed;
+
         public void Restore()
         {
             if (!IsDismissed) return;
             IsDismissed = false;
+            _temporarilyDismissed = false;
 
             if (_panelFadeRoutine != null) StopCoroutine(_panelFadeRoutine);
             _panelFadeRoutine = StartCoroutine(FadePanel(1f, dismissFadeDuration));

@@ -21,6 +21,11 @@ namespace VRTutorial
         [Tooltip("Hand assumed when no ControllerHandednessManager is present.")]
         [SerializeField] private ControllerHand editorFallbackHand = ControllerHand.Right;
 
+        [Tooltip("Which face button this relay drives. One relay per button: the pause lesson " +
+                 "points at a Secondary relay, the assistance lesson at a Primary one. Defaults " +
+                 "to Secondary so relays authored before this field existed keep driving pause.")]
+        [SerializeField] private ControllerButton button = ControllerButton.Secondary;
+
         public enum Target { ActiveHand, Left, Right, Both }
 
         public void StartPulsing() => ForEach(h => h.StartPulsing());
@@ -28,12 +33,13 @@ namespace VRTutorial
         public void Flash() => ForEach(h => h.Flash());
 
         /// <summary>
-        /// Marks the pause button on BOTH controllers, whatever this relay's Target is set to.
+        /// Marks this relay's button on BOTH controllers, whatever its Target is set to.
         ///
-        /// Not an oversight. The Pause action is bound to the secondary button on each hand and
-        /// PauseController listens to both, so both buttons genuinely open the menu - marking only
-        /// the preferred one would be a lie. It also has to survive a participant switching hands
-        /// in the settings an hour later, which a single-hand mark would not.
+        /// Not an oversight, and it holds for both buttons this drives. Pause and Request
+        /// Assistance are each bound to their button on both hands, and both controllers are
+        /// listened to, so both buttons genuinely work - marking only the preferred one would be
+        /// a lie. It also has to survive a participant switching hands in the settings an hour
+        /// later, which a single-hand mark would not.
         /// </summary>
         public void HoldMarked()
         {
@@ -68,9 +74,9 @@ namespace VRTutorial
             }
         }
 
-        private static void Apply(ControllerHand hand, System.Action<ControllerButtonHighlight> action)
+        private void Apply(ControllerHand hand, System.Action<ControllerButtonHighlight> action)
         {
-            ControllerButtonHighlight highlight = ControllerButtonHighlight.For(hand);
+            ControllerButtonHighlight highlight = ControllerButtonHighlight.For(hand, button);
             if (highlight != null) action(highlight);
         }
     }

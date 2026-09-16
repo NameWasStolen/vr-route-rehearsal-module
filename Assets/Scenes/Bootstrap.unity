@@ -829,7 +829,65 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 2929931167316164458, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
       insertIndex: -1
       addedObject: {fileID: 251585169}
+    - targetCorrespondingSourceObject: {fileID: 6536476985021135287, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 827430644}
+    - targetCorrespondingSourceObject: {fileID: 2774469073195827110, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 827430643}
   m_SourcePrefab: {fileID: 100100000, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
+--- !u!1 &827430641 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 2774469073195827110, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
+  m_PrefabInstance: {fileID: 827430640}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &827430642 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6536476985021135287, guid: f35f1bc613805234294064fb76cf90a0, type: 3}
+  m_PrefabInstance: {fileID: 827430640}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &827430643
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 827430641}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: db55c1451e1269147825e0fcbedfa111, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.ControllerButtonHighlight
+  hand: 1
+  button: 1
+  targetRenderer: {fileID: 0}
+  colourProperty: _BaseColor
+  highlightColour: {r: 0.4, g: 0.8, b: 1, a: 1}
+  pulsePeriod: 1.8
+  pulseDepth: 0.55
+  markedDepth: 0.3
+  flashDuration: 0.35
+--- !u!114 &827430644
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 827430642}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: db55c1451e1269147825e0fcbedfa111, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.ControllerButtonHighlight
+  hand: 0
+  button: 1
+  targetRenderer: {fileID: 0}
+  colourProperty: _BaseColor
+  highlightColour: {r: 0.4, g: 0.8, b: 1, a: 1}
+  pulsePeriod: 1.8
+  pulseDepth: 0.55
+  markedDepth: 0.3
+  flashDuration: 0.35
 --- !u!1 &939071953
 GameObject:
   m_ObjectHideFlags: 0
@@ -874,6 +932,57 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -12.494083, y: 4.3234015, z: -3.306572}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1198092276
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1198092278}
+  - component: {fileID: 1198092277}
+  m_Layer: 0
+  m_Name: SpectatorBanner
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1198092277
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1198092276}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e523e1487a30ba647b07cc187a4e37a5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SpectatorMarker
+  defaultMessage: ASSISTANCE REQUESTED
+  heightFraction: 0.09
+  textFraction: 0.45
+  background: {r: 0.72, g: 0.1, b: 0.1, a: 0.92}
+  textColour: {r: 1, g: 1, b: 1, a: 1}
+  blinksPerSecond: 0.8
+  logToConsole: 1
+--- !u!4 &1198092278
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1198092276}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.92127, y: 1.52885, z: 1.68194}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -956,3 +1065,4 @@ SceneRoots:
   - {fileID: 688452636}
   - {fileID: 939071955}
   - {fileID: 435491677}
+  - {fileID: 1198092278}
