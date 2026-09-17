@@ -119,6 +119,52 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &25669006
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 25669008}
+  - component: {fileID: 25669007}
+  m_Layer: 0
+  m_Name: SelectedControllerOnly
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &25669007
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 25669006}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 143e55c7af8e7074a9cee317c218b4ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.SelectedControllerOnly
+  editorFallbackHand: 1
+  recheckInterval: 1
+--- !u!4 &25669008
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 25669006}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 2.17921, y: 0, z: 20.43416}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &29465320
 GameObject:
   m_ObjectHideFlags: 0
@@ -15352,6 +15398,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1751933179}
   - component: {fileID: 1751933178}
+  - component: {fileID: 1751933180}
   m_Layer: 0
   m_Name: PauseController
   m_TagString: Untagged
@@ -15398,6 +15445,35 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1751933180
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1751933177}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a43f3ddebe01184eb3ca721b8c90701, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.TutorialResetController
+  pauseController: {fileID: 0}
+  flow: {fileID: 0}
+  startAgainLabel: Start Again
+  confirmQuestion: Start the tutorial again?
+  confirmDetail: 'You will go back to the beginning.
+
+    Your settings will stay
+    the same.'
+  yesLabel: Yes, start again
+  noLabel: No, go back
+  startAgainPosition: {x: 300, y: -130}
+  questionPosition: {x: 0, y: 330}
+  detailPosition: {x: 0, y: 190}
+  noPosition: {x: 0, y: 10}
+  yesPosition: {x: 0, y: -210}
+  confirmButtonSize: {x: 600, y: 130}
+  logEventName: tutorial_reset
 --- !u!1 &1751966812
 GameObject:
   m_ObjectHideFlags: 0
@@ -18589,3 +18665,4 @@ SceneRoots:
   - {fileID: 1198092278}
   - {fileID: 1072761645}
   - {fileID: 348707840}
+  - {fileID: 25669008}

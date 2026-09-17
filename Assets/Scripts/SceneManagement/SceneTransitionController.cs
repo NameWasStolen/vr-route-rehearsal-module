@@ -180,6 +180,76 @@ public class SceneTransitionController : MonoBehaviour
     }
 
     /// <summary>
+    /// Unloads a content scene and loads a fresh copy of it, behind a fade - "start again".
+    ///
+    /// SwitchTo cannot do this: asked to load a scene that is already loaded, it keeps the
+    /// existing copy and skips the unload, so nothing would reset. Here the old copy goes first,
+    /// then a new one comes up, so every lesson, trigger and timer starts from its authored state
+    /// and the player is placed on the scene's spawn point again.
+    /// </summary>
+    /// <returns>False if a transition is already running, so the caller can re-enable its button.</returns>
+    public bool ReloadScene(string sceneName)
+    {
+        if (IsTransitioning || string.IsNullOrEmpty(sceneName)) return false;
+        StartCoroutine(ReloadRoutine(sceneName));
+        return true;
+    }
+
+    private IEnumerator ReloadRoutine(string sceneName)
+    {
+        IsTransitioning = true;
+        if (fader == null) ResolveReferences();
+
+        // 1. Dark first.
+        if (fader != null) yield return fader.FadeTo(1f, fadeOutDuration);
+        float audioFrom = AudioListener.volume;
+        if (fadeAudio) AudioListener.volume = 0f;
+
+        // 2. Hold movement off under this controller's own name. The pause menu releases its own
+        //    hold as the scene unloads; without this, walking would come back while still dark.
+        SetLocomotionEnabled(false);
+        ControllerHandednessManager.Instance?.SuspendLocomotion(this);
+
+        // 3. Out with the old copy. Bootstrap is made active first - Unity will not unload the
+        //    active scene while deciding what replaces it.
+        Scene old = SceneManager.GetSceneByName(sceneName);
+        if (old.IsValid() && old.isLoaded)
+        {
+            if (SceneManager.GetActiveScene() == old) SceneManager.SetActiveScene(gameObject.scene);
+            AsyncOperation unload = SceneManager.UnloadSceneAsync(old);
+            while (unload != null && !unload.isDone) yield return null;
+        }
+
+        // 4. In with a fresh one.
+        AsyncOperation load = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Additive);
+        if (load == null)
+        {
+            Debug.LogError($"[SceneTransitionController] '{sceneName}' could not be reloaded. " +
+                           "Is it in File > Build Settings?", this);
+        }
+        else
+        {
+            while (!load.isDone) yield return null;
+            Scene fresh = SceneManager.GetSceneByName(sceneName);
+            if (fresh.IsValid() && fresh.isLoaded) SceneManager.SetActiveScene(fresh);
+        }
+
+        // 5. Back to the start position, while still unseen.
+        MoveToSpawnPoint();
+
+        for (int i = 0; i < settleFrames; i++) yield return null;
+        if (holdDarkDuration > 0f) yield return new WaitForSecondsRealtime(holdDarkDuration);
+
+        // 6. Reveal, then hand control back.
+        if (fadeAudio) AudioListener.volume = audioFrom;
+        if (fader != null) yield return fader.FadeTo(0f, fadeInDuration);
+
+        ControllerHandednessManager.Instance?.ResumeLocomotion(this);
+        SetLocomotionEnabled(true);
+        IsTransitioning = false;
+    }
+
+    /// <summary>
     /// Moves the rig so the player's HEAD lands on the spawn point, not the rig root. Those are
     /// different: the player's physical position inside their playspace offsets the camera from
     /// the root, so moving the root alone lands them off-target by however far they had walked.

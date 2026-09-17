@@ -100,7 +100,7 @@ namespace VRTutorial
         /// every controller. Matched by type name so this does not depend on which assembly the
         /// driver comes from.
         /// </summary>
-        private static Transform FindTrackedHand(Transform from)
+        internal static Transform FindTrackedHand(Transform from)
         {
             for (Transform t = from; t != null; t = t.parent)
             {
@@ -119,6 +119,7 @@ namespace VRTutorial
         private Settings _settings;
 
         private RectTransform _badge;
+        private Canvas _badgeCanvas;
         private CanvasGroup _badgeGroup;
         private LineRenderer _line;
         private Material _lineMaterial;
@@ -144,6 +145,7 @@ namespace VRTutorial
 
             var canvas = badgeGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
+            _badgeCanvas = canvas;
             _badgeGroup = badgeGo.AddComponent<CanvasGroup>();
             _badgeGroup.blocksRaycasts = false;
             _badgeGroup.interactable = false;
@@ -192,6 +194,12 @@ namespace VRTutorial
                 Destroy(gameObject);
                 return;
             }
+
+            // Hidden along with its controller when that hand is not the selected one.
+            bool visible = !ControllerVisibility.IsHidden(_hand);
+            if (_badgeCanvas != null && _badgeCanvas.enabled != visible) _badgeCanvas.enabled = visible;
+            if (_line != null && _line.enabled != visible) _line.enabled = visible;
+            if (!visible) return;
 
             float fade = _settings.fadeDuration > 0f
                 ? Mathf.Clamp01((Time.unscaledTime - _shownAt) / _settings.fadeDuration)

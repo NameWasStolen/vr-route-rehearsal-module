@@ -53,6 +53,9 @@ namespace VRTutorial
 
         public bool IsOpen { get; private set; }
 
+        /// <summary>The pause menu panel, for components that add pages or buttons to it.</summary>
+        public GameObject MenuRoot => menuRoot;
+
         /// <summary>
         /// Whether the pause button currently does anything. The pause lesson can turn this on
         /// through SetAvailable if Available From Start is unticked.
