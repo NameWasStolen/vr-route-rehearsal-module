@@ -3547,7 +3547,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: 13e26557a14e3f24cbd331f687847e8e, type: 3}
   m_PlayOnAwake: 1
-  m_Volume: 0.15
+  m_Volume: 0.05
   m_Pitch: 1
   Loop: 1
   Mute: 0
@@ -10379,6 +10379,8 @@ MonoBehaviour:
   onReviewFinished:
     m_PersistentCalls:
       m_Calls: []
+  maxFontMagnification: 1.6
+  allowFontShrink: 0
 --- !u!114 &1244802969
 MonoBehaviour:
   m_ObjectHideFlags: 0
