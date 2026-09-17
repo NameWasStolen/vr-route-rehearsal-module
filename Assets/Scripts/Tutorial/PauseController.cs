@@ -8,9 +8,10 @@ namespace VRTutorial
     /// <summary>
     /// Opens and closes the pause menu, and owns what pausing means.
     ///
-    /// Pausing suspends locomotion through ControllerHandednessManager - the same action-map
-    /// mechanism that already switches hands - and raises TutorialPause so tasks hold their
-    /// timers. It does not touch Time.timeScale; see TutorialPause for why.
+    /// Pausing suspends locomotion through ControllerHandednessManager (walking and snap turning
+    /// both stop) and holds TutorialPause, which tasks read to hold their timers and which every
+    /// HeadLockedUI panel reads to lock in place. While paused the participant can only look
+    /// around by moving their head. It does not touch Time.timeScale; see TutorialPause for why.
     ///
     /// The pause action must NOT live in the Left/Right Locomotion maps, because suspending
     /// locomotion would disable the button that un-suspends it. Put it in its own map, or leave
@@ -42,14 +43,6 @@ namespace VRTutorial
         [Header("Menu")]
         [Tooltip("Root of the pause menu panel. Needs a CanvasGroup.")]
         [SerializeField] private GameObject menuRoot;
-
-        [Tooltip("Hold the menu at a fixed world pose while it is open, instead of letting it " +
-                 "follow the head.\n\n" +
-                 "Off by default. Freezing makes the buttons a stationary target, which matters " +
-                 "for poking; with a ray pointer it matters much less, and a menu that stays put " +
-                 "while the participant looks around reads as the menu having been left behind. " +
-                 "Tick it only if aiming at the buttons turns out to be a problem in testing.")]
-        [SerializeField] private bool freezeWhenOpen = false;
 
         [Tooltip("Seconds to fade the menu in and out.")]
         [SerializeField] private float fadeDuration = 0.25f;
@@ -97,8 +90,8 @@ namespace VRTutorial
             // session convinced it began paused.
             if (IsOpen)
             {
-                TutorialPause.IsPaused = false;
-                ControllerHandednessManager.Instance?.ResumeLocomotion();
+                TutorialPause.Release(this);
+                ControllerHandednessManager.Instance?.ResumeLocomotion(this);
             }
             TutorialPause.ResetState();
             IsOpen = false;
@@ -149,19 +142,21 @@ namespace VRTutorial
             if (IsOpen || menuRoot == null) return;
             IsOpen = true;
 
-            TutorialPause.IsPaused = true;
-            ControllerHandednessManager.Instance?.SuspendLocomotion();
+            // Hold the pause before the menu appears: every HeadLockedUI panel locks where it is
+            // on this call, including the tutorial panel behind the menu.
+            TutorialPause.Hold(this);
+            ControllerHandednessManager.Instance?.SuspendLocomotion(this);
 
             menuRoot.SetActive(true);
             if (_canvas != null) _canvas.enabled = true;
 
             if (_headLocked != null)
             {
-                // Snap first either way, so the menu is already in the right place on the frame
-                // it appears rather than sliding in from wherever the panel was last left.
+                // Place the menu straight ahead, level, at eye height - not wherever the head
+                // happens to be pitched. Somebody looking down at their controller to find the
+                // button would otherwise get a menu tilted into the ground, pulled in by the
+                // obstacle check. It then stays locked there until the menu closes.
                 _headLocked.SnapToTarget();
-                if (freezeWhenOpen) _headLocked.FreezeAtCurrent();
-                else _headLocked.Unfreeze();
             }
 
             StartFade(1f);
@@ -173,10 +168,11 @@ namespace VRTutorial
             if (!IsOpen) return;
             IsOpen = false;
 
-            TutorialPause.IsPaused = false;
-            ControllerHandednessManager.Instance?.ResumeLocomotion();
-
-            if (_headLocked != null) _headLocked.Unfreeze();
+            // Releases only the menu's own hold. If a help request is also holding the pause -
+            // "Get help" closes the menu on its way to the request panel - everything stays
+            // paused and locked until that is dismissed.
+            TutorialPause.Release(this);
+            ControllerHandednessManager.Instance?.ResumeLocomotion(this);
 
             StartFade(0f);
             onClosed?.Invoke();
@@ -184,8 +180,8 @@ namespace VRTutorial
 
         /// <summary>
         /// Matches UnityEvent&lt;int&gt; so it can be wired straight to TutorialFlow.onReviewStarted.
-        /// Reopening a lesson has to close the menu: practising the movement hold is impossible
-        /// while the menu is holding locomotion suspended.
+        /// Reopening a lesson has to close the menu: practising the movement hold or snap turn is
+        /// impossible while the menu is holding locomotion suspended.
         /// </summary>
         public void Close(int _) => Close();
 

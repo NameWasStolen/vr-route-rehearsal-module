@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -81,35 +82,96 @@ public class ControllerHandednessManager : MonoBehaviour
         HandChanged?.Invoke(selectedHand);
     }
 
-    /// <summary>True while both locomotion maps are held off, e.g. the pause menu is open.</summary>
-    public bool IsLocomotionSuspended { get; private set; }
+    /// <summary>True while anything holds locomotion off, e.g. the pause menu is open.</summary>
+    public bool IsLocomotionSuspended => _suspenders.Count > 0;
+
+    private readonly HashSet<object> _suspenders = new HashSet<object>();
+
+    // Locomotion provider components this manager switched off, so resuming turns back on only
+    // those - ContinuousTurnProvider ships disabled and must stay that way.
+    private readonly List<Behaviour> _providersWeDisabled = new List<Behaviour>();
 
     /// <summary>
     /// Turns locomotion off without forgetting which hand the participant chose.
     ///
     /// This is how pausing is done. It is deliberately not Time.timeScale: the tutorial's
     /// coroutines all run on unscaled time so a zero timescale would not stop them, and freezing
-    /// the world while head tracking carries on is unpleasant in a headset. Disabling the action
-    /// maps is the same mechanism that already switches hands, so there is nothing new to trust.
+    /// the world while head tracking carries on is unpleasant in a headset.
+    ///
+    /// Two layers, so walking and snap turning are reliably off while a menu is up:
+    ///   - both locomotion action maps are disabled (the same mechanism that switches hands), and
+    ///   - the rig's locomotion provider components (move, snap turn, continuous turn) are
+    ///     disabled, so nothing that still reads an action - or a provider enabled from some
+    ///     other asset - can move the rig.
+    ///
+    /// Suspension is held per owner. The pause menu and a help request both suspend, and closing
+    /// the menu while a request panel is opening must not hand movement back.
     ///
     /// The pause button itself must live outside these two maps, or it would disable itself.
     /// </summary>
-    public void SuspendLocomotion()
+    public void SuspendLocomotion(object owner = null)
     {
-        if (IsLocomotionSuspended) return;
+        bool was = IsLocomotionSuspended;
+        _suspenders.Add(owner ?? this);
+        if (was) return;
 
-        IsLocomotionSuspended = true;
         SetMapEnabled(_leftHandActions, false);
         SetMapEnabled(_rightHandActions, false);
+        SetProvidersEnabled(false);
     }
 
-    /// <summary>Hands locomotion back to whichever controller is currently selected.</summary>
-    public void ResumeLocomotion()
+    /// <summary>
+    /// Releases an owner's suspension, and hands locomotion back to whichever controller is
+    /// currently selected once nobody else is holding it off.
+    /// </summary>
+    public void ResumeLocomotion(object owner = null)
     {
-        if (!IsLocomotionSuspended) return;
+        if (!_suspenders.Remove(owner ?? this)) return;
+        if (IsLocomotionSuspended) return;
 
-        IsLocomotionSuspended = false;
+        SetProvidersEnabled(true);
         SelectHand(ActiveHand);
+    }
+
+    private void SetProvidersEnabled(bool enable)
+    {
+        if (!enable)
+        {
+            _providersWeDisabled.Clear();
+            foreach (Behaviour provider in FindLocomotionProviders())
+            {
+                if (!provider.enabled) continue;
+                provider.enabled = false;
+                _providersWeDisabled.Add(provider);
+            }
+            return;
+        }
+
+        foreach (Behaviour provider in _providersWeDisabled)
+            if (provider != null) provider.enabled = true;
+        _providersWeDisabled.Clear();
+    }
+
+    /// <summary>
+    /// Every XRI LocomotionProvider on this rig. Matched by base-type name rather than by type,
+    /// so this script does not take a hard dependency on the XR Interaction Toolkit assembly
+    /// and keeps compiling if the package version moves the class between namespaces.
+    /// </summary>
+    private IEnumerable<Behaviour> FindLocomotionProviders()
+    {
+        Behaviour[] all = transform.root.GetComponentsInChildren<Behaviour>(true);
+        foreach (Behaviour b in all)
+        {
+            if (b == null) continue;
+            for (Type t = b.GetType(); t != null && t != typeof(MonoBehaviour); t = t.BaseType)
+            {
+                if (t.Name == "LocomotionProvider")
+                {
+                    yield return b;
+                    break;
+                }
+            }
+        }
     }
 
     /// <summary>

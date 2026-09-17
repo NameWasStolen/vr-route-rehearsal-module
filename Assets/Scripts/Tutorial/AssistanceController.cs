@@ -178,8 +178,8 @@ namespace VRTutorial
             // began mid-request, with locomotion suspended by a panel that no longer exists.
             if (AssistanceRequest.IsActive)
             {
-                TutorialPause.IsPaused = false;
-                ControllerHandednessManager.Instance?.ResumeLocomotion();
+                TutorialPause.Release(this);
+                ControllerHandednessManager.Instance?.ResumeLocomotion(this);
             }
             AssistanceRequest.ResetState();
             _held = 0f;
@@ -275,8 +275,8 @@ namespace VRTutorial
 
             AssistanceRequest.State = AssistanceState.Idle;
 
-            TutorialPause.IsPaused = false;
-            ControllerHandednessManager.Instance?.ResumeLocomotion();
+            TutorialPause.Release(this);
+            ControllerHandednessManager.Instance?.ResumeLocomotion(this);
 
             if (pauseController != null) pauseController.SetAvailable(_pauseWasAvailable);
             if (spectatorMarker != null) spectatorMarker.Hide();
@@ -332,8 +332,12 @@ namespace VRTutorial
             // Requesting help suspends locomotion, the same way pausing does. The panel says
             // somebody is coming; the participant should be standing still when they arrive, not
             // walking into a road while reading it.
-            TutorialPause.IsPaused = true;
-            ControllerHandednessManager.Instance?.SuspendLocomotion();
+            //
+            // Held under this controller's own name, before the pause menu is closed below. The
+            // menu's Close releases only the menu's hold, so a request placed from "Get help"
+            // stays paused - previously that close un-paused it and handed movement back.
+            TutorialPause.Hold(this);
+            ControllerHandednessManager.Instance?.SuspendLocomotion(this);
 
             if (pauseController != null)
             {
@@ -393,7 +397,9 @@ namespace VRTutorial
             if (canvas != null) canvas.enabled = true;
 
             // Snap rather than slide in from wherever the panel was last left, so it is already in
-            // the right place on the frame it appears.
+            // the right place on the frame it appears. While paused (the requested panel) the
+            // snap places it level at eye height and it stays locked; Unfreeze below only clears
+            // an explicit freeze, never the pause lock.
             if (headLocked != null)
             {
                 headLocked.SnapToTarget();

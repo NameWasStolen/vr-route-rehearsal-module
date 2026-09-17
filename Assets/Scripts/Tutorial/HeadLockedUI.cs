@@ -81,6 +81,18 @@ namespace VRTutorial
                  "one that clips.")]
         [SerializeField] private float minDistance = 0.55f;
 
+        [Header("Locking while paused")]
+        [Tooltip("Lock this panel in place while the tutorial is paused (pause menu or help " +
+                 "request open). The participant cannot walk or turn then, so a panel that keeps " +
+                 "chasing the head only moves under the pointer - and a head-pitched panel dips " +
+                 "into the ground and gets pulled around by the obstacle check.")]
+        [SerializeField] private bool lockWhilePaused = true;
+
+        [Tooltip("While locked, place the panel from the head's heading only - level, at eye " +
+                 "height - ignoring whether the participant is looking up or down. Keeps a panel " +
+                 "that is opened while looking at the controller clear of the ground.")]
+        [SerializeField] private bool levelWhenLocked = true;
+
         [Header("Freezing")]
         [Tooltip("Degrees the head may turn away from where the panel was frozen before it " +
                  "recentres. A frozen panel is a stable pointer target, which is the whole point, " +
@@ -101,6 +113,12 @@ namespace VRTutorial
         private Vector3 _frozenHeadPos;
         private Coroutine _recentreRoutine;
 
+        private bool _explicitFrozen;   // FreezeAtCurrent / Unfreeze
+        private bool _pauseLocked;      // TutorialPause
+        private bool _referenceValid;   // _frozenHead* captured from a real head pose
+        private Vector3 _placedOffset;
+        private Vector3 _placedRotationOffset;
+
         /// <summary>
         /// Time.unscaledTime of the last snap/teleport reposition. TutorialFlow waits for this
         /// to go quiet before starting a transition - a cross-fade beginning on the same frame
@@ -118,13 +136,61 @@ namespace VRTutorial
         {
             TryResolveHead();
 
+            // The pause may have ended while this panel was disabled and not listening, so the
+            // lock is re-derived from the current state rather than trusted from before.
+            _pauseLocked = false;
+            TutorialPause.Changed += OnPauseChanged;
+
             // Snap to the correct spot immediately on enable, rather than smoothing in from
             // wherever the panel happened to be left in the editor.
             if (headTransform != null)
             {
-                transform.position = TargetPosition();
-                transform.rotation = TargetRotation();
+                Vector3 pos = TargetPosition();
+                transform.position = pos;
+                transform.rotation = TargetRotationAt(pos);
             }
+
+            // Enabling into a session that is already paused - the pause menu itself, which is
+            // activated just after the pause is held - locks straight away.
+            if (TutorialPause.IsPaused) OnPauseChanged(true);
+        }
+
+        private void OnDisable()
+        {
+            TutorialPause.Changed -= OnPauseChanged;
+            StopRecentre();
+        }
+
+        private void OnPauseChanged(bool paused)
+        {
+            if (!lockWhilePaused) return;
+
+            if (paused)
+            {
+                if (_pauseLocked) return;
+                bool wasFrozen = IsFrozen;
+                _pauseLocked = true;
+                if (!wasFrozen) LockInPlace();
+            }
+            else
+            {
+                if (!_pauseLocked) return;
+                _pauseLocked = false;
+                if (!IsFrozen) StopRecentre();
+            }
+        }
+
+        /// <summary>
+        /// Locks where the panel already is. A panel that jumped the moment the menu opened
+        /// would read as the whole view shifting, which is exactly what locking is meant to stop.
+        /// It is only re-placed if something changes its offset, it is snapped, or the
+        /// participant turns well away.
+        /// </summary>
+        private void LockInPlace()
+        {
+            TryResolveHead();
+            CaptureFrozenReference();
+            RememberPlacement();
         }
 
         /// <summary>
@@ -159,6 +225,8 @@ namespace VRTutorial
             // tracked above, so unfreezing later does not see a huge delta and fire a snap.
             if (IsFrozen)
             {
+                if (!_referenceValid) CaptureFrozenReference();
+                FollowPlacementChangesWhileLocked();
                 HandleFrozenDrift(yaw);
                 return;
             }
@@ -196,10 +264,30 @@ namespace VRTutorial
 
         private Vector3 TargetPosition()
         {
+            if (IsFrozen && levelWhenLocked) return LockedTargetPosition();
+
             Vector3 desired = headTransform.TransformPoint(EffectiveOffset);
+            return AvoidObstacles(headTransform.position, desired);
+        }
+
+        /// <summary>
+        /// Where a locked panel belongs: the authored offset applied to the head pose captured
+        /// when it locked, using that pose's heading only. Measured from the captured pose rather
+        /// than the live head, so looking around while locked never moves it.
+        /// </summary>
+        private Vector3 LockedTargetPosition()
+        {
+            if (!_referenceValid) CaptureFrozenReference();
+
+            Quaternion heading = Quaternion.Euler(0f, _frozenHeadYaw, 0f);
+            Vector3 desired = _frozenHeadPos + heading * EffectiveOffset;
+            return AvoidObstacles(_frozenHeadPos, desired);
+        }
+
+        private Vector3 AvoidObstacles(Vector3 origin, Vector3 desired)
+        {
             if (!avoidObstacles) return desired;
 
-            Vector3 origin = headTransform.position;
             Vector3 to = desired - origin;
             float distance = to.magnitude;
             if (distance < 1e-4f) return desired;
@@ -224,11 +312,14 @@ namespace VRTutorial
             return desired;
         }
 
-        private Quaternion TargetRotation()
+        private Quaternion TargetRotation() => TargetRotationAt(transform.position);
+
+        private Quaternion TargetRotationAt(Vector3 panelPosition)
         {
             if (!billboardToPlayer) return transform.rotation;
 
-            Vector3 toPlayer = transform.position - headTransform.position;
+            Vector3 eye = IsFrozen && levelWhenLocked ? _frozenHeadPos : headTransform.position;
+            Vector3 toPlayer = panelPosition - eye;
             if (lockUpright) toPlayer.y = 0f;
 
             if (toPlayer.sqrMagnitude < 0.0001f) return transform.rotation;
@@ -303,9 +394,13 @@ namespace VRTutorial
         }
 
         /// <summary>
-        /// True while the panel is holding a fixed world pose instead of following the head.
+        /// True while the panel is holding a fixed world pose instead of following the head -
+        /// either frozen explicitly or locked because the tutorial is paused.
         /// </summary>
-        public bool IsFrozen { get; private set; }
+        public bool IsFrozen => _explicitFrozen || _pauseLocked;
+
+        /// <summary>True while locked specifically because the tutorial is paused.</summary>
+        public bool IsPauseLocked => _pauseLocked;
 
         /// <summary>
         /// Places the panel correctly, then leaves it there.
@@ -318,20 +413,50 @@ namespace VRTutorial
         public void FreezeAtCurrent()
         {
             TryResolveHead();
+            _explicitFrozen = true;
             SnapToTarget();
-            IsFrozen = true;
-            CaptureFrozenReference();
         }
 
-        /// <summary>Returns the panel to following the head.</summary>
+        /// <summary>
+        /// Clears an explicit freeze. A panel that is also locked because the tutorial is paused
+        /// stays locked until the pause ends - this never overrides that.
+        /// </summary>
         public void Unfreeze()
+        {
+            _explicitFrozen = false;
+            if (!IsFrozen) StopRecentre();
+        }
+
+        private void StopRecentre()
         {
             if (_recentreRoutine != null)
             {
                 StopCoroutine(_recentreRoutine);
                 _recentreRoutine = null;
             }
-            IsFrozen = false;
+            _velocity = Vector3.zero;
+        }
+
+        private void RememberPlacement()
+        {
+            _placedOffset = EffectiveOffset;
+            _placedRotationOffset = rotationOffset;
+        }
+
+        /// <summary>
+        /// TutorialFlow can still change a locked panel's offset - pulling it in front of the
+        /// menu, or a step's placement easing in. Follow that, measured from the locked pose, so
+        /// the panel moves as authored without starting to track the head again.
+        /// </summary>
+        private void FollowPlacementChangesWhileLocked()
+        {
+            if (_recentreRoutine != null) return;
+            if (EffectiveOffset == _placedOffset && rotationOffset == _placedRotationOffset) return;
+
+            Vector3 pos = TargetPosition();
+            transform.position = pos;
+            transform.rotation = TargetRotationAt(pos);
+            RememberPlacement();
         }
 
         private void CaptureFrozenReference()
@@ -339,6 +464,7 @@ namespace VRTutorial
             if (headTransform == null) return;
             _frozenHeadYaw = headTransform.eulerAngles.y;
             _frozenHeadPos = headTransform.position;
+            _referenceValid = true;
         }
 
         /// <summary>
@@ -361,6 +487,10 @@ namespace VRTutorial
             Vector3 fromPos = transform.position;
             Quaternion fromRot = transform.rotation;
 
+            // Re-anchor to where they are facing now, so the target does not keep sliding while
+            // the head finishes its turn.
+            CaptureFrozenReference();
+
             float t = 0f;
             while (t < refreezeDuration)
             {
@@ -368,8 +498,9 @@ namespace VRTutorial
                 float k = Mathf.Clamp01(t / refreezeDuration);
                 k = k * k * (3f - 2f * k);   // smoothstep, no velocity jump at either end
 
-                transform.position = Vector3.Lerp(fromPos, TargetPosition(), k);
-                transform.rotation = Quaternion.Slerp(fromRot, TargetRotation(), k);
+                Vector3 target = TargetPosition();
+                transform.position = Vector3.Lerp(fromPos, target, k);
+                transform.rotation = Quaternion.Slerp(fromRot, TargetRotationAt(target), k);
                 yield return null;
             }
 
@@ -377,7 +508,7 @@ namespace VRTutorial
             transform.rotation = TargetRotation();
             _velocity = Vector3.zero;
 
-            CaptureFrozenReference();
+            RememberPlacement();
             _recentreRoutine = null;
         }
 
@@ -385,8 +516,18 @@ namespace VRTutorial
         public void SnapToTarget()
         {
             if (headTransform == null) return;
-            transform.position = TargetPosition();
-            transform.rotation = TargetRotation();
+
+            // Snapping a locked panel re-anchors it to the head as it is now - this is how the
+            // pause menu is placed as it opens - and it then stays put.
+            if (IsFrozen)
+            {
+                CaptureFrozenReference();
+            }
+
+            Vector3 pos = TargetPosition();
+            transform.position = pos;
+            transform.rotation = TargetRotationAt(pos);
+            RememberPlacement();
             _velocity = Vector3.zero;
             _lastHeadYaw = headTransform.eulerAngles.y;
             LastSnapTimeUnscaled = Time.unscaledTime;
