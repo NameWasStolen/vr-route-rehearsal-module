@@ -146,11 +146,39 @@ namespace VRTutorial
         private bool _pulledForward;
 
         /// <summary>
-        /// Accessibility text scale. The frame is multiplied by this so that larger type keeps
-        /// the same proportion of the panel, and therefore the same line breaks, rather than
-        /// overflowing the border you authored.
+        /// Accessibility text scale. The whole panel is magnified by it - frame, text, controller
+        /// diagram and highlights together - the same way ScalableUIRoot magnifies the pause and
+        /// help panels.
+        ///
+        /// Previously only the frame's sizeDelta was multiplied, and nothing in the steps scaled
+        /// its text, so a larger setting gave a bigger border around the same small words.
+        /// Magnifying the transform keeps every hand-placed element in proportion, so line breaks
+        /// and diagram positions never change and nothing can overlap. It is folded in here
+        /// rather than by a ScalableUIRoot on the panel because this component already owns the
+        /// panel's localScale - a second component writing it would be overwritten on the next
+        /// step change.
         /// </summary>
         private float _fontScale = AccessibilitySettings.DefaultFontScale;
+
+        [Header("Text size")]
+        [Tooltip("Ceiling on how far the text-size setting magnifies the tutorial panel. Matches " +
+                 "ScalableUIRoot on the pause menu, so all panels grow alike. Past this the panel " +
+                 "spreads beyond a comfortable head-turn and gets harder to read, not easier.")]
+        [Range(1f, 2f)]
+        [SerializeField] private float maxFontMagnification = 1.6f;
+
+        [Tooltip("Let a text size below 100% shrink the panel. Off by default, like the pause " +
+                 "menu: a smaller panel also means smaller things to point at.")]
+        [SerializeField] private bool allowFontShrink = false;
+
+        private float PanelMagnification
+        {
+            get
+            {
+                float m = Mathf.Min(_fontScale, maxFontMagnification);
+                return allowFontShrink ? m : Mathf.Max(m, 1f);
+            }
+        }
 
         private void OnEnable()
         {
@@ -222,10 +250,10 @@ namespace VRTutorial
             // through this method, so none of them can disagree about whether it is in effect.
             if (_pulledForward) offset.z = pulledDistance;
 
-            // Accessibility scale multiplies whatever the step asked for. Applied here rather
+            // Accessibility scale magnifies whatever the step asked for. Applied here rather
             // than at the call sites so that ApplyPlacementImmediate and MovePanel cannot
             // disagree about whether it has been applied yet.
-            size *= _fontScale;
+            scale *= PanelMagnification;
         }
 
         private void ApplyPlacementImmediate(TutorialStep step)

@@ -32,6 +32,7 @@ public class ScalableText : MonoBehaviour
     private float _authoredMin;
     private float _authoredMax;
     private bool _captured;
+    private bool _deferToRoot;
 
     private void Awake() => Capture();
 
@@ -45,6 +46,12 @@ public class ScalableText : MonoBehaviour
         _authoredSize = _text.fontSize;
         _authoredMin = _text.fontSizeMin;
         _authoredMax = _text.fontSizeMax;
+
+        // A text inside a panel that ScalableUIRoot already magnifies must not scale its font
+        // too, or it grows twice as fast as the panel around it and overlaps its neighbours -
+        // which is what SettingsTitle on MainMenuScreen was doing. Deferring here rather than
+        // just warning means an extra ScalableText can never break a panel.
+        _deferToRoot = GetComponentInParent<ScalableUIRoot>(true) != null;
         _captured = true;
     }
 
@@ -66,6 +73,7 @@ public class ScalableText : MonoBehaviour
     private void Apply(float scale)
     {
         if (!_captured || _text == null) return;
+        if (_deferToRoot) return;
 
         float s = scale * localWeight;
         _text.fontSize = _authoredSize * s;

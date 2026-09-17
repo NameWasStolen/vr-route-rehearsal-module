@@ -23,8 +23,9 @@ using UnityEngine;
 /// is read once at the start of a session that is the right call. For dense content you would
 /// want real layout groups instead.
 ///
-/// Do NOT combine with ScalableText or ScalableRect on the same panel - both would apply the
-/// same scale a second time. This component warns if it finds any beneath it.
+/// Do NOT combine with ScalableRect on the same panel - it would apply the same scale a second
+/// time, and this component warns if it finds one. A ScalableText beneath it is harmless: it
+/// notices this component and stands down.
 /// </summary>
 [DisallowMultipleComponent]
 public class ScalableUIRoot : MonoBehaviour
@@ -81,16 +82,14 @@ public class ScalableUIRoot : MonoBehaviour
 
     private void WarnAboutDoubleScaling()
     {
-        var texts = GetComponentsInChildren<ScalableText>(true);
+        // ScalableText defers to this component automatically, so only ScalableRect can still
+        // double up.
         var rects = GetComponentsInChildren<ScalableRect>(true);
-
-        if (texts.Length == 0 && rects.Length == 0) return;
+        if (rects.Length == 0) return;
 
         Debug.LogWarning(
-            $"[ScalableUIRoot] '{name}' scales this whole panel, but found {texts.Length} " +
-            $"ScalableText and {rects.Length} ScalableRect beneath it. Those apply the same " +
-            "scale a second time, so text will grow roughly twice as fast as the panel around " +
-            "it and will overlap. Remove them from this panel, or remove this component and " +
-            "give the panel real layout groups instead.", this);
+            $"[ScalableUIRoot] '{name}' scales this whole panel, but found {rects.Length} " +
+            "ScalableRect beneath it. That applies the same scale a second time, so those rects " +
+            "will grow roughly twice as fast as the panel around them. Remove them from this panel.", this);
     }
 }
