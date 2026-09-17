@@ -23,6 +23,11 @@ public class CueRelay : MonoBehaviour
              "scene standalone; noise in a real run, so it defaults off.")]
     [SerializeField] private bool warnWhenUnavailable = false;
 
+    public void PlayActionAccepted()
+    {
+        if (Available()) UiCuePlayer.Instance.PlayActionAccepted();
+    }
+
     public void PlayStepComplete()
     {
         if (Available()) UiCuePlayer.Instance.PlayStepComplete();

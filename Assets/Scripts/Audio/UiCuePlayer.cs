@@ -23,6 +23,11 @@ public class UiCuePlayer : MonoBehaviour
     public static UiCuePlayer Instance { get; private set; }
 
     [Header("Clips")]
+    [Tooltip("One correct action inside a lesson - the first turn in the right direction, the " +
+             "grip squeezed, the menu opened. The quietest and shortest cue: it says 'yes, that " +
+             "one', and it will be heard many times in a session.")]
+    [SerializeField] private AudioClip actionAccepted;
+
     [Tooltip("A step was completed correctly. Keep it short, warm and low - a bright ping " +
              "reads as an alert, and an alert is the wrong message for 'you did that right'.")]
     [SerializeField] private AudioClip stepComplete;
@@ -31,8 +36,9 @@ public class UiCuePlayer : MonoBehaviour
              "asking for attention, not rewarding anything.")]
     [SerializeField] private AudioClip stepAdvance;
 
-    [Tooltip("Optional. Played when the participant does the right action the wrong way - the " +
-             "wrong-direction turn. Must not sound like a buzzer.")]
+    [Tooltip("Neutral 'not quite - try again'. Played for the wrong-direction turn, letting go of " +
+             "the grip mid-hold, and letting go of the help button before the bar fills. Must not " +
+             "sound like a buzzer: same pitch repeated, never a falling interval.")]
     [SerializeField] private AudioClip gentleRetry;
 
     [Tooltip("The whole tutorial is finished.")]
@@ -49,8 +55,21 @@ public class UiCuePlayer : MonoBehaviour
              "like a fault rather than a confirmation.")]
     [SerializeField] private float minGap = 0.12f;
 
+    [Tooltip("Minimum gap between two neutral cues. A participant who keeps turning the wrong " +
+             "way should hear it once, not be nagged on every flick.")]
+    [SerializeField] private float retryCooldown = 1.5f;
+
+    /// <summary>
+    /// Higher wins when two cues land inside minGap. The case that matters: the final correct
+    /// turn raises both 'action accepted' and 'step complete' in the same frame, and it is the
+    /// completion the participant needs to hear, not the tick.
+    /// </summary>
+    public enum CuePriority { Action = 0, Retry = 1, Advance = 1, Complete = 2, Flow = 3 }
+
     private AudioSource _source;
     private float _lastPlayTime = -99f;
+    private float _lastRetryTime = -99f;
+    private CuePriority _lastPriority = CuePriority.Action;
 
     private void Awake()
     {
@@ -79,10 +98,17 @@ public class UiCuePlayer : MonoBehaviour
     }
 
     // Inspector-friendly entry points for UnityEvents.
-    public void PlayStepComplete() => Play(stepComplete);
-    public void PlayStepAdvance() => Play(stepAdvance);
-    public void PlayGentleRetry() => Play(gentleRetry);
-    public void PlayFlowComplete() => Play(flowComplete);
+    public void PlayActionAccepted() => Play(actionAccepted, CuePriority.Action);
+    public void PlayStepComplete() => Play(stepComplete, CuePriority.Complete);
+    public void PlayStepAdvance() => Play(stepAdvance, CuePriority.Advance);
+    public void PlayFlowComplete() => Play(flowComplete, CuePriority.Flow);
+
+    public void PlayGentleRetry()
+    {
+        if (gentleRetry == null) return;
+        if (Time.unscaledTime - _lastRetryTime < retryCooldown) return;
+        if (Play(gentleRetry, CuePriority.Retry)) _lastRetryTime = Time.unscaledTime;
+    }
 
     /// <summary>
     /// Matches the signature of TutorialFlow.onStepChanged (UnityEvent&lt;int&gt;) so it can be
@@ -91,13 +117,26 @@ public class UiCuePlayer : MonoBehaviour
     /// </summary>
     public void PlayStepAdvance(int _) => PlayStepAdvance();
 
-    public void Play(AudioClip clip)
+    public void Play(AudioClip clip) => Play(clip, CuePriority.Action);
+
+    /// <returns>True if the clip was actually played.</returns>
+    public bool Play(AudioClip clip, CuePriority priority)
     {
-        if (clip == null || _source == null) return;
-        if (Time.unscaledTime - _lastPlayTime < minGap) return;
+        if (clip == null || _source == null) return false;
+
+        if (Time.unscaledTime - _lastPlayTime < minGap)
+        {
+            if (priority <= _lastPriority) return false;
+
+            // A more important cue arrived on top of a lesser one. Cut the lesser one rather
+            // than layering them - two clips at once reads as a glitch.
+            _source.Stop();
+        }
 
         _lastPlayTime = Time.unscaledTime;
+        _lastPriority = priority;
         _source.PlayOneShot(clip, volume);
+        return true;
     }
 
     /// <summary>Safe to call from anywhere, including a scene with no Bootstrap loaded.</summary>

@@ -91,6 +91,10 @@ namespace VRTutorial
                  "button highlight's Flash here.")]
         public UnityEvent onHoldStarted;
 
+        [Tooltip("Fires when a hold is let go before the bar fills, while no request has been " +
+                 "placed. Neutral 'try again' cue.")]
+        public UnityEvent onHoldCancelled;
+
         [Tooltip("Fires when the practice request is placed.")]
         public UnityEvent onRequested;
 
@@ -105,6 +109,7 @@ namespace VRTutorial
 
         private ControllerHand _hand = ControllerHand.Right;
         private bool _hasHeld;
+        private bool _confirming;
 
         private void OnEnable()
         {
@@ -142,6 +147,7 @@ namespace VRTutorial
             IsComplete = false;
             HasRequested = false;
             _hasHeld = false;
+            _confirming = false;
             SetPrompt(PromptSlot.First);
         }
 
@@ -154,6 +160,9 @@ namespace VRTutorial
         private void OnAssistanceChanged(AssistanceState state)
         {
             if (IsComplete) return;
+
+            bool wasConfirming = _confirming;
+            _confirming = state == AssistanceState.Confirming;
 
             switch (state)
             {
@@ -175,7 +184,11 @@ namespace VRTutorial
 
                 case AssistanceState.Idle:
                     if (completeWhen == CompleteWhen.Resumed && HasRequested) Complete();
-                    else if (!HasRequested) SetPrompt(PromptSlot.First);
+                    else if (!HasRequested)
+                    {
+                        if (wasConfirming) onHoldCancelled?.Invoke();
+                        SetPrompt(PromptSlot.First);
+                    }
                     break;
             }
         }

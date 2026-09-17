@@ -120,6 +120,9 @@ namespace VRTutorial
         public TutorialStep CurrentStep =>
             CurrentIndex >= 0 && CurrentIndex < steps.Count ? steps[CurrentIndex] : null;
 
+        /// <summary>Number of steps, end-zone panel included.</summary>
+        public int StepCount => steps.Count;
+
         private Coroutine _running;
         private Coroutine _placementRoutine;
         private Coroutine _reviewRoutine;

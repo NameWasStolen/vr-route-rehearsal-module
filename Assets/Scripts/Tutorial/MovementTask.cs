@@ -107,9 +107,13 @@ namespace VRTutorial
         [Tooltip("Fires the first time the participant produces movement input.")]
         public UnityEvent onHoldStarted;
 
-        [Tooltip("Fires when progress starts draining after a release. Use for a gentle visual " +
-                 "hint, never for a failure sound.")]
+        [Tooltip("Fires when progress starts draining after a release (i.e. after the grace " +
+                 "window, not the instant the grip opens). Neutral cue only - never a failure sound.")]
         public UnityEvent onHoldBroken;
+
+        [Tooltip("Fires when the grip is squeezed again after onHoldBroken. The counterpart that " +
+                 "tells them the second attempt is being counted.")]
+        public UnityEvent onHoldResumed;
 
         [Tooltip("Fires once the hold is satisfied. Wire to TutorialFlow.Begin, exactly like " +
                  "SnapTurnTask - the flow decides whether that means advance or end a review.")]
@@ -208,6 +212,7 @@ namespace VRTutorial
                 if (_draining)
                 {
                     _draining = false;
+                    onHoldResumed?.Invoke();
                 }
 
                 if (!_started)

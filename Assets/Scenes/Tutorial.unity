@@ -609,6 +609,9 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+  onHoldCancelled:
+    m_PersistentCalls:
+      m_Calls: []
   onRequested:
     m_PersistentCalls:
       m_Calls:
@@ -6916,6 +6919,9 @@ MonoBehaviour:
   onHoldBroken:
     m_PersistentCalls:
       m_Calls: []
+  onHoldResumed:
+    m_PersistentCalls:
+      m_Calls: []
   onCompleted:
     m_PersistentCalls:
       m_Calls:
@@ -10090,6 +10096,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7875907656543634160, guid: 43ff4fecf38b8524f9af8bebae1afbe0, type: 3}
       insertIndex: -1
       addedObject: {fileID: 0}
+    - targetCorrespondingSourceObject: {fileID: 7875907656543634160, guid: 43ff4fecf38b8524f9af8bebae1afbe0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1244802975}
   m_SourcePrefab: {fileID: 100100000, guid: 43ff4fecf38b8524f9af8bebae1afbe0, type: 3}
 --- !u!114 &1244802962 stripped
 MonoBehaviour:
@@ -10182,6 +10191,25 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   m_RaycastTriggerInteraction: 1
+--- !u!114 &1244802975
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1049090089}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 06066fcfdaf7c154eba021a3736a0bca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.TutorialAudioCues
+  flow: {fileID: 0}
+  actionCues: 1
+  completionCues: 1
+  retryCues: 1
+  advanceCues: 1
+  cueInitialStep: 1
+  logCues: 1
 --- !u!1 &1247144345
 GameObject:
   m_ObjectHideFlags: 0
