@@ -64,8 +64,8 @@ namespace VRTutorial
 
         [Tooltip("What counts as scenery. Set this to the environment layers only.\n\n" +
                  "If the player's own collider is included, the cast hits the body immediately and " +
-                 "the panel sits at Min Distance permanently - a panel stuck too close is the " +
-                 "symptom of this mask being wrong, not of the feature being broken.")]
+                 "the panel sits at Min Distance, drawn on top, permanently - that is the symptom " +
+                 "of this mask being wrong, not of the feature being broken.")]
         [SerializeField] private LayerMask obstacleLayers = ~0;
 
         [Tooltip("Half-width of the panel, in metres, used as the cast radius. A thin ray would " +
@@ -76,10 +76,27 @@ namespace VRTutorial
         [Tooltip("Metres kept between the panel and whatever it found.")]
         [SerializeField] private float clearance = 0.15f;
 
-        [Tooltip("The panel never comes nearer than this, however tight the space. Text at arm's " +
-                 "length is uncomfortable, and for this cohort a panel that lunges is worse than " +
-                 "one that clips.")]
-        [SerializeField] private float minDistance = 0.55f;
+        [Tooltip("The panel never comes nearer than this, however tight the space. Keep it only a " +
+                 "little inside the authored distance: a panel that lunges toward the face is " +
+                 "jarring. Scenery nearer than this is handled by drawing the panel on top of it.\n\n" +
+                 "Renamed from Min Distance on purpose, without carrying the old value over: every " +
+                 "panel in Tutorial.unity had 0.55 saved, which would have silently overridden the " +
+                 "new default and left panels lunging exactly as before.")]
+        [SerializeField] private float minPanelDistance = 1.3f;
+
+        [Tooltip("Where the obstacle check starts, in metres from the head. Kept close so scenery " +
+                 "nearer than Min Distance is still found, but far enough out to clear the " +
+                 "participant's own body.")]
+        [SerializeField] private float castStartDistance = 0.55f;
+
+        [Tooltip("When scenery is nearer than Min Distance, draw the panel over it instead of " +
+                 "letting the scenery hide it. Requires the panel to be a world-space Canvas; a " +
+                 "UIDrawOnTop component is added automatically if missing.")]
+        [SerializeField] private bool drawOnTopWhenObstructed = true;
+
+        [Tooltip("Extra metres of clear space needed before drawing on top switches off again. " +
+                 "Stops the panel flickering between the two states at the edge of a hedge.")]
+        [SerializeField] private float obstructedReleaseMargin = 0.1f;
 
         [Header("Locking while paused")]
         [Tooltip("Lock this panel in place while the tutorial is paused (pause menu or help " +
@@ -119,6 +136,10 @@ namespace VRTutorial
         private Vector3 _placedOffset;
         private Vector3 _placedRotationOffset;
 
+        private UIDrawOnTop _drawOnTop;
+        private bool _obstructed;
+        private readonly Collider[] _overlapBuffer = new Collider[16];
+
         /// <summary>
         /// Time.unscaledTime of the last snap/teleport reposition. TutorialFlow waits for this
         /// to go quiet before starting a transition - a cross-fade beginning on the same frame
@@ -130,6 +151,13 @@ namespace VRTutorial
         private void Reset()
         {
             if (Camera.main != null) headTransform = Camera.main.transform;
+        }
+
+        private void Awake()
+        {
+            _drawOnTop = GetComponent<UIDrawOnTop>();
+            if (_drawOnTop == null && drawOnTopWhenObstructed)
+                _drawOnTop = gameObject.AddComponent<UIDrawOnTop>();
         }
 
         private void OnEnable()
@@ -159,6 +187,7 @@ namespace VRTutorial
         {
             TutorialPause.Changed -= OnPauseChanged;
             StopRecentre();
+            SetObstructed(false);
         }
 
         private void OnPauseChanged(bool paused)
@@ -286,7 +315,11 @@ namespace VRTutorial
 
         private Vector3 AvoidObstacles(Vector3 origin, Vector3 desired)
         {
-            if (!avoidObstacles) return desired;
+            if (!avoidObstacles)
+            {
+                SetObstructed(false);
+                return desired;
+            }
 
             Vector3 to = desired - origin;
             float distance = to.magnitude;
@@ -294,23 +327,73 @@ namespace VRTutorial
 
             Vector3 direction = to / distance;
 
-            // Start the cast at the closest the panel is ever allowed to be, so the sphere is
-            // already clear of the participant's own body. Casting from the head itself would
-            // start overlapping the character controller and report an immediate hit.
-            float start = Mathf.Min(minDistance, distance);
-            float length = distance - start;
-            if (length <= 0f) return desired;
+            // Casting from the head itself would start inside the participant's own body and
+            // report an immediate hit, so start a little way out. This is deliberately nearer
+            // than minPanelDistance: scenery between the two must still be found, so the panel can be
+            // drawn over it rather than silently hidden behind it.
+            float start = Mathf.Min(castStartDistance, distance);
+            Vector3 startPoint = origin + direction * start;
+            float free = float.PositiveInfinity;   // how far out the panel could sit, clear of scenery
 
-            if (Physics.SphereCast(origin + direction * start, panelRadius, direction,
-                                   out RaycastHit hit, length, obstacleLayers,
-                                   QueryTriggerInteraction.Ignore))
+            // SphereCast ignores anything the sphere already overlaps at its start, so a hedge
+            // right in front of the participant has to be checked for separately.
+            if (OverlapsScenery(startPoint))
             {
-                float allowed = Mathf.Max(minDistance, start + hit.distance - clearance);
-                if (allowed < distance) return origin + direction * allowed;
+                free = 0f;
+            }
+            else if (distance - start > 0f &&
+                     Physics.SphereCast(startPoint, panelRadius, direction, out RaycastHit hit,
+                                        distance - start, obstacleLayers,
+                                        QueryTriggerInteraction.Ignore))
+            {
+                free = start + hit.distance - clearance;
             }
 
+            // A panel authored nearer than minPanelDistance keeps its authored distance.
+            float floor = Mathf.Min(minPanelDistance, distance);
+
+            // Scenery nearer than the floor: stay at the floor and draw over it. Hysteresis so
+            // the state does not flicker while the participant edges along a hedge.
+            SetObstructed(_obstructed ? free < floor + obstructedReleaseMargin : free < floor);
+
+            if (free < distance) return origin + direction * Mathf.Max(floor, free);
             return desired;
         }
+
+        /// <summary>
+        /// Like Physics.CheckSphere, but ignoring the participant's own rig.
+        ///
+        /// SphereCast never reported the body, because it skips anything it starts inside. This
+        /// start-point check does not skip it, and the start sphere reaches back toward the head
+        /// - looking down, it sits inside the CharacterController capsule. With Obstacle Layers
+        /// still on Everything that would count as scenery every time the participant looked at
+        /// their feet, and draw the panel on top of their own controllers.
+        /// </summary>
+        private bool OverlapsScenery(Vector3 point)
+        {
+            int count = Physics.OverlapSphereNonAlloc(point, panelRadius, _overlapBuffer,
+                                                      obstacleLayers, QueryTriggerInteraction.Ignore);
+            Transform rig = headTransform != null ? headTransform.root : null;
+
+            for (int i = 0; i < count; i++)
+            {
+                Collider c = _overlapBuffer[i];
+                if (c == null) continue;
+                if (rig != null && c.transform.IsChildOf(rig)) continue;
+                if (c.transform.IsChildOf(transform)) continue;   // the panel's own colliders, if any
+                return true;
+            }
+            return false;
+        }
+
+        private void SetObstructed(bool obstructed)
+        {
+            _obstructed = obstructed;
+            if (_drawOnTop != null) _drawOnTop.OnTop = drawOnTopWhenObstructed && obstructed;
+        }
+
+        /// <summary>True while scenery is nearer than Min Distance and the panel is drawn over it.</summary>
+        public bool IsObstructed => _obstructed;
 
         private Quaternion TargetRotation() => TargetRotationAt(transform.position);
 
