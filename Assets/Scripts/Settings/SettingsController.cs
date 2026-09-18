@@ -104,11 +104,30 @@ public class SettingsController : MonoBehaviour
             {
                 if (!state || _applying) return;
 
-                // TODO: seated mode. When this lands it should set the rig's camera offset,
-                // and it belongs in AccessibilitySettings so it persists like everything else.
-                Debug.Log($"[Settings] Usage mode: {captured.name}");
+                if (state)
+                {
+                    UsageModeController usageController =
+                        UsageModeController.Instance;
+
+                    if (usageController == null)
+                    {
+                        Debug.LogWarning("UsageModeController was not found.");
+                        return;
+                    }
+
+                    if (toggle.name == "StandingToggle")
+                    {
+                        usageController.SetUsageMode(PlayerUsageMode.Standing);
+                    }
+                    else if (toggle.name == "SittingToggle")
+                    {
+                        usageController.SetUsageMode(PlayerUsageMode.Sitting);
+                    }
+                }
             });
         }
+        // Sync usage mode toggles
+        SyncUsageModeToggles();
 
         foreach (var toggle in handToggles)
         {
@@ -130,6 +149,17 @@ public class SettingsController : MonoBehaviour
             });
         }
 
+        // Sync hand toggles
+        ControllerHandednessManager handednessManager =
+            ControllerHandednessManager.Instance;
+
+        if (handednessManager != null &&
+            handednessManager.HasResolvedHand)
+        {
+            SyncHandToggles(handednessManager.ActiveHand);
+        }
+
+        // Rotation Toggle Setup
         foreach (var toggle in rotationToggles)
         {
             if (toggle == null) continue;
@@ -138,17 +168,46 @@ public class SettingsController : MonoBehaviour
             {
                 if (!state || _applying) return;
 
-                // TODO: rotation mode.
-                //
-                // Before wiring this up, settle what SnapTurnTask does about it. That task
+                // NOTE (from feat/guided-tutorial, still unresolved): SnapTurnTask
                 // detects a single-frame yaw jump, which by design never fires under
-                // continuous rotation - so the moment this setting works, a participant who
-                // chooses continuous reaches the camera step of the tutorial and cannot
-                // complete it. Either make the task mode-aware, or force snap turn for the
-                // tutorial's duration and restore the preference afterwards.
-                Debug.Log($"[Settings] Rotation mode: {captured.name}");
+                // continuous rotation. With this setting live, a participant who
+                // chooses continuous reaches the camera step of the tutorial and
+                // cannot complete it. Either make the task mode-aware, or force snap
+                // turn for the tutorial's duration and restore the preference after.
+                if (state)
+                {
+                    RotationModeController rotationController =
+                        RotationModeController.Instance;
+
+                    if (rotationController == null)
+                    {
+                        Debug.LogWarning("RotationModeController was not found.");
+                        return;
+                    }
+
+                    if (toggle.name == "ContinuousToggle")
+                    {
+                        rotationController.SetRotationMode(
+                            PlayerRotationMode.Continuous
+                        );
+                    }
+                    else if (toggle.name == "SnapToggle")
+                    {
+                        rotationController.SetRotationMode(
+                            PlayerRotationMode.Snap
+                        );
+                    }
+                    else if (toggle.name == "RawToggle")
+                    {
+                        rotationController.SetRotationMode(
+                            PlayerRotationMode.HeadOnly
+                        );
+                    }
+                }
             });
         }
+        // Sync toggles
+        SyncRotationToggles();
     }
 
     /// <summary>
@@ -253,4 +312,102 @@ public class SettingsController : MonoBehaviour
         // a route-rehearsal module.
         _colorAdjustments.postExposure.value = Mathf.Lerp(-1.2f, 1.2f, Mathf.Clamp01(sliderValue));
     }
+
+    // TOGGLE METHODS
+    private static void SetToggleState(
+        List<Toggle> toggles,
+        string toggleName,
+        bool isOn
+    )
+    /**
+        Sets the state of a toggle in the provided list by its name.
+        Needed so that the UI settings are actually synced to the current setup when checking the page again.
+    */
+    {
+        Toggle toggle = toggles.Find(item => item.name == toggleName);
+
+        if (toggle != null)
+        {
+            toggle.SetIsOnWithoutNotify(isOn);
+        }
+    }
+
+    private void SyncRotationToggles()
+    {
+        RotationModeController controller =
+            RotationModeController.Instance;
+
+        if (controller == null)
+        {
+            return;
+        }
+
+        SetToggleState(
+            rotationToggles,
+            "ContinuousToggle",
+            controller.CurrentMode == PlayerRotationMode.Continuous
+        );
+
+        SetToggleState(
+            rotationToggles,
+            "SnapToggle",
+            controller.CurrentMode == PlayerRotationMode.Snap
+        );
+
+        SetToggleState(
+            rotationToggles,
+            "RawToggle",
+            controller.CurrentMode == PlayerRotationMode.HeadOnly
+        );
+    }
+
+    private void SyncHandToggles(ControllerHand activeHand)
+    {
+        SetToggleState(
+            handToggles,
+            "LeftToggle",
+            activeHand == ControllerHand.Left
+        );
+
+        SetToggleState(
+            handToggles,
+            "RightToggle",
+            activeHand == ControllerHand.Right
+        );
+    }
+
+    private void SyncUsageModeToggles()
+    {
+        UsageModeController controller =
+            UsageModeController.Instance;
+
+        if (controller == null)
+        {
+            return;
+        }
+
+        SetToggleState(
+            usageModeToggles,
+            "StandingToggle",
+            controller.CurrentMode == PlayerUsageMode.Standing
+        );
+
+        SetToggleState(
+            usageModeToggles,
+            "SittingToggle",
+            controller.CurrentMode == PlayerUsageMode.Sitting
+        );
+    }
+
+    private void OnEnable()
+    {
+        ControllerHandednessManager.HandChanged += SyncHandToggles;
+    }
+
+    private void OnDisable()
+    {
+        ControllerHandednessManager.HandChanged -= SyncHandToggles;
+    }
 }
+
+
