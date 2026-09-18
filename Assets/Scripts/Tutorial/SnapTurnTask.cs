@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using TMPro;
@@ -12,7 +13,7 @@ namespace VRTutorial
     /// it over many frames and won't cross the threshold. Physical head turning doesn't rotate
     /// the rig root at all, so it can't produce a false positive.
     /// </summary>
-    public class SnapTurnTask : MonoBehaviour
+    public class SnapTurnTask : MonoBehaviour, ITutorialTask
     {
         public enum TurnMode
         {
@@ -100,6 +101,49 @@ namespace VRTutorial
         private float _lastYaw;
         private int _step;   // position in an ordered sequence
 
+        [Header("Replaying")]
+        [Tooltip("Put this step's child objects back to how they were authored whenever the " +
+                 "lesson resets. The turn chevrons are switched on and off by this task's own " +
+                 "events (right turn hides RightArrow and shows LeftArrow), and nothing switched " +
+                 "them back - so replaying the lesson from the pause menu started with the right " +
+                 "chevron already hidden.")]
+        [SerializeField] private bool restoreChildVisibilityOnReset = true;
+
+        private readonly List<KeyValuePair<GameObject, bool>> _authoredVisibility =
+            new List<KeyValuePair<GameObject, bool>>();
+        private bool _visibilityCaptured;
+
+        private void Awake()
+        {
+            CaptureChildVisibility();
+        }
+
+        /// <summary>
+        /// Records every descendant's active state as authored. Runs on the first enable, before
+        /// any turn has been made, so it captures the scene as built - RightArrow on, LeftArrow off.
+        /// </summary>
+        private void CaptureChildVisibility()
+        {
+            if (_visibilityCaptured) return;
+            _visibilityCaptured = true;
+
+            foreach (Transform t in GetComponentsInChildren<Transform>(true))
+            {
+                if (t == transform) continue;
+                _authoredVisibility.Add(new KeyValuePair<GameObject, bool>(t.gameObject, t.gameObject.activeSelf));
+            }
+        }
+
+        private void RestoreChildVisibility()
+        {
+            if (!restoreChildVisibilityOnReset) return;
+            CaptureChildVisibility();
+
+            foreach (KeyValuePair<GameObject, bool> entry in _authoredVisibility)
+                if (entry.Key != null && entry.Key.activeSelf != entry.Value)
+                    entry.Key.SetActive(entry.Value);
+        }
+
         private void OnEnable()
         {
             ResolveOrigin();
@@ -142,6 +186,7 @@ namespace VRTutorial
             TurnCount = 0;
             _step = 0;
             if (xrOrigin != null) _lastYaw = xrOrigin.eulerAngles.y;
+            RestoreChildVisibility();
             SetPrompt(PromptSlot.First);
         }
 

@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 namespace VRTutorial
@@ -56,8 +57,88 @@ namespace VRTutorial
                  "movement. 20 is safely above anything a human neck produces in one frame.")]
         [SerializeField] private float snapYawThreshold = 20f;
 
+        [Header("Obstacle avoidance")]
+        [Tooltip("Pull the panel toward the participant when scenery would otherwise pass through " +
+                 "it - a hedge, a fence, or the ground when they look down.")]
+        [SerializeField] private bool avoidObstacles = true;
+
+        [Tooltip("What counts as scenery. Set this to the environment layers only.\n\n" +
+                 "If the player's own collider is included, the cast hits the body immediately and " +
+                 "the panel sits at Min Distance, drawn on top, permanently - that is the symptom " +
+                 "of this mask being wrong, not of the feature being broken.")]
+        [SerializeField] private LayerMask obstacleLayers = ~0;
+
+        [Tooltip("Half-width of the panel, in metres, used as the cast radius. A thin ray would " +
+                 "let a fence post slide through a corner of the panel while the centre stayed " +
+                 "clear, which looks worse than a panel that simply moved.")]
+        [SerializeField] private float panelRadius = 0.3f;
+
+        [Tooltip("Metres kept between the panel and whatever it found.")]
+        [SerializeField] private float clearance = 0.15f;
+
+        [Tooltip("The panel never comes nearer than this, however tight the space. Keep it only a " +
+                 "little inside the authored distance: a panel that lunges toward the face is " +
+                 "jarring. Scenery nearer than this is handled by drawing the panel on top of it.\n\n" +
+                 "Renamed from Min Distance on purpose, without carrying the old value over: every " +
+                 "panel in Tutorial.unity had 0.55 saved, which would have silently overridden the " +
+                 "new default and left panels lunging exactly as before.")]
+        [SerializeField] private float minPanelDistance = 1.3f;
+
+        [Tooltip("Where the obstacle check starts, in metres from the head. Kept close so scenery " +
+                 "nearer than Min Distance is still found, but far enough out to clear the " +
+                 "participant's own body.")]
+        [SerializeField] private float castStartDistance = 0.55f;
+
+        [Tooltip("When scenery is nearer than Min Distance, draw the panel over it instead of " +
+                 "letting the scenery hide it. Requires the panel to be a world-space Canvas; a " +
+                 "UIDrawOnTop component is added automatically if missing.")]
+        [SerializeField] private bool drawOnTopWhenObstructed = true;
+
+        [Tooltip("Extra metres of clear space needed before drawing on top switches off again. " +
+                 "Stops the panel flickering between the two states at the edge of a hedge.")]
+        [SerializeField] private float obstructedReleaseMargin = 0.1f;
+
+        [Header("Locking while paused")]
+        [Tooltip("Lock this panel in place while the tutorial is paused (pause menu or help " +
+                 "request open). The participant cannot walk or turn then, so a panel that keeps " +
+                 "chasing the head only moves under the pointer - and a head-pitched panel dips " +
+                 "into the ground and gets pulled around by the obstacle check.")]
+        [SerializeField] private bool lockWhilePaused = true;
+
+        [Tooltip("While locked, place the panel from the head's heading only - level, at eye " +
+                 "height - ignoring whether the participant is looking up or down. Keeps a panel " +
+                 "that is opened while looking at the controller clear of the ground.")]
+        [SerializeField] private bool levelWhenLocked = true;
+
+        [Header("Freezing")]
+        [Tooltip("Degrees the head may turn away from where the panel was frozen before it " +
+                 "recentres. A frozen panel is a stable pointer target, which is the whole point, " +
+                 "but one left behind the participant is a panel they cannot find.")]
+        [SerializeField] private float refreezeYawThreshold = 50f;
+
+        [Tooltip("Metres the participant may walk from where the panel was frozen before it " +
+                 "recentres.")]
+        [SerializeField] private float refreezeMoveDistance = 0.8f;
+
+        [Tooltip("Seconds to ease the panel to its new resting place when it recentres. Long " +
+                 "enough to read as the panel following them, not as a teleport.")]
+        [SerializeField] private float refreezeDuration = 0.35f;
+
         private Vector3 _velocity; // used by SmoothDamp
         private float _lastHeadYaw;
+        private float _frozenHeadYaw;
+        private Vector3 _frozenHeadPos;
+        private Coroutine _recentreRoutine;
+
+        private bool _explicitFrozen;   // FreezeAtCurrent / Unfreeze
+        private bool _pauseLocked;      // TutorialPause
+        private bool _referenceValid;   // _frozenHead* captured from a real head pose
+        private Vector3 _placedOffset;
+        private Vector3 _placedRotationOffset;
+
+        private UIDrawOnTop _drawOnTop;
+        private bool _obstructed;
+        private readonly Collider[] _overlapBuffer = new Collider[16];
 
         /// <summary>
         /// Time.unscaledTime of the last snap/teleport reposition. TutorialFlow waits for this
@@ -72,17 +153,73 @@ namespace VRTutorial
             if (Camera.main != null) headTransform = Camera.main.transform;
         }
 
+        private void Awake()
+        {
+            _drawOnTop = GetComponent<UIDrawOnTop>();
+            if (_drawOnTop == null && drawOnTopWhenObstructed)
+                _drawOnTop = gameObject.AddComponent<UIDrawOnTop>();
+        }
+
         private void OnEnable()
         {
             TryResolveHead();
+
+            // The pause may have ended while this panel was disabled and not listening, so the
+            // lock is re-derived from the current state rather than trusted from before.
+            _pauseLocked = false;
+            TutorialPause.Changed += OnPauseChanged;
 
             // Snap to the correct spot immediately on enable, rather than smoothing in from
             // wherever the panel happened to be left in the editor.
             if (headTransform != null)
             {
-                transform.position = TargetPosition();
-                transform.rotation = TargetRotation();
+                Vector3 pos = TargetPosition();
+                transform.position = pos;
+                transform.rotation = TargetRotationAt(pos);
             }
+
+            // Enabling into a session that is already paused - the pause menu itself, which is
+            // activated just after the pause is held - locks straight away.
+            if (TutorialPause.IsPaused) OnPauseChanged(true);
+        }
+
+        private void OnDisable()
+        {
+            TutorialPause.Changed -= OnPauseChanged;
+            StopRecentre();
+            SetObstructed(false);
+        }
+
+        private void OnPauseChanged(bool paused)
+        {
+            if (!lockWhilePaused) return;
+
+            if (paused)
+            {
+                if (_pauseLocked) return;
+                bool wasFrozen = IsFrozen;
+                _pauseLocked = true;
+                if (!wasFrozen) LockInPlace();
+            }
+            else
+            {
+                if (!_pauseLocked) return;
+                _pauseLocked = false;
+                if (!IsFrozen) StopRecentre();
+            }
+        }
+
+        /// <summary>
+        /// Locks where the panel already is. A panel that jumped the moment the menu opened
+        /// would read as the whole view shifting, which is exactly what locking is meant to stop.
+        /// It is only re-placed if something changes its offset, it is snapped, or the
+        /// participant turns well away.
+        /// </summary>
+        private void LockInPlace()
+        {
+            TryResolveHead();
+            CaptureFrozenReference();
+            RememberPlacement();
         }
 
         /// <summary>
@@ -113,6 +250,16 @@ namespace VRTutorial
             float yawDelta = Mathf.DeltaAngle(_lastHeadYaw, yaw);
             _lastHeadYaw = yaw;
 
+            // Frozen: the panel holds its world pose so it can be pointed at. Yaw is still
+            // tracked above, so unfreezing later does not see a huge delta and fire a snap.
+            if (IsFrozen)
+            {
+                if (!_referenceValid) CaptureFrozenReference();
+                FollowPlacementChangesWhileLocked();
+                HandleFrozenDrift(yaw);
+                return;
+            }
+
             if (autoSnapOnLargeTurn && Mathf.Abs(yawDelta) >= snapYawThreshold)
             {
                 SnapToTarget();
@@ -139,16 +286,123 @@ namespace VRTutorial
             }
         }
 
+        private Vector3 _nudge;
+
+        /// <summary>Authored offset plus any temporary nudge.</summary>
+        private Vector3 EffectiveOffset => localOffset + _nudge;
+
         private Vector3 TargetPosition()
         {
-            return headTransform.TransformPoint(localOffset);
+            if (IsFrozen && levelWhenLocked) return LockedTargetPosition();
+
+            Vector3 desired = headTransform.TransformPoint(EffectiveOffset);
+            return AvoidObstacles(headTransform.position, desired);
         }
 
-        private Quaternion TargetRotation()
+        /// <summary>
+        /// Where a locked panel belongs: the authored offset applied to the head pose captured
+        /// when it locked, using that pose's heading only. Measured from the captured pose rather
+        /// than the live head, so looking around while locked never moves it.
+        /// </summary>
+        private Vector3 LockedTargetPosition()
+        {
+            if (!_referenceValid) CaptureFrozenReference();
+
+            Quaternion heading = Quaternion.Euler(0f, _frozenHeadYaw, 0f);
+            Vector3 desired = _frozenHeadPos + heading * EffectiveOffset;
+            return AvoidObstacles(_frozenHeadPos, desired);
+        }
+
+        private Vector3 AvoidObstacles(Vector3 origin, Vector3 desired)
+        {
+            if (!avoidObstacles)
+            {
+                SetObstructed(false);
+                return desired;
+            }
+
+            Vector3 to = desired - origin;
+            float distance = to.magnitude;
+            if (distance < 1e-4f) return desired;
+
+            Vector3 direction = to / distance;
+
+            // Casting from the head itself would start inside the participant's own body and
+            // report an immediate hit, so start a little way out. This is deliberately nearer
+            // than minPanelDistance: scenery between the two must still be found, so the panel can be
+            // drawn over it rather than silently hidden behind it.
+            float start = Mathf.Min(castStartDistance, distance);
+            Vector3 startPoint = origin + direction * start;
+            float free = float.PositiveInfinity;   // how far out the panel could sit, clear of scenery
+
+            // SphereCast ignores anything the sphere already overlaps at its start, so a hedge
+            // right in front of the participant has to be checked for separately.
+            if (OverlapsScenery(startPoint))
+            {
+                free = 0f;
+            }
+            else if (distance - start > 0f &&
+                     Physics.SphereCast(startPoint, panelRadius, direction, out RaycastHit hit,
+                                        distance - start, obstacleLayers,
+                                        QueryTriggerInteraction.Ignore))
+            {
+                free = start + hit.distance - clearance;
+            }
+
+            // A panel authored nearer than minPanelDistance keeps its authored distance.
+            float floor = Mathf.Min(minPanelDistance, distance);
+
+            // Scenery nearer than the floor: stay at the floor and draw over it. Hysteresis so
+            // the state does not flicker while the participant edges along a hedge.
+            SetObstructed(_obstructed ? free < floor + obstructedReleaseMargin : free < floor);
+
+            if (free < distance) return origin + direction * Mathf.Max(floor, free);
+            return desired;
+        }
+
+        /// <summary>
+        /// Like Physics.CheckSphere, but ignoring the participant's own rig.
+        ///
+        /// SphereCast never reported the body, because it skips anything it starts inside. This
+        /// start-point check does not skip it, and the start sphere reaches back toward the head
+        /// - looking down, it sits inside the CharacterController capsule. With Obstacle Layers
+        /// still on Everything that would count as scenery every time the participant looked at
+        /// their feet, and draw the panel on top of their own controllers.
+        /// </summary>
+        private bool OverlapsScenery(Vector3 point)
+        {
+            int count = Physics.OverlapSphereNonAlloc(point, panelRadius, _overlapBuffer,
+                                                      obstacleLayers, QueryTriggerInteraction.Ignore);
+            Transform rig = headTransform != null ? headTransform.root : null;
+
+            for (int i = 0; i < count; i++)
+            {
+                Collider c = _overlapBuffer[i];
+                if (c == null) continue;
+                if (rig != null && c.transform.IsChildOf(rig)) continue;
+                if (c.transform.IsChildOf(transform)) continue;   // the panel's own colliders, if any
+                return true;
+            }
+            return false;
+        }
+
+        private void SetObstructed(bool obstructed)
+        {
+            _obstructed = obstructed;
+            if (_drawOnTop != null) _drawOnTop.OnTop = drawOnTopWhenObstructed && obstructed;
+        }
+
+        /// <summary>True while scenery is nearer than Min Distance and the panel is drawn over it.</summary>
+        public bool IsObstructed => _obstructed;
+
+        private Quaternion TargetRotation() => TargetRotationAt(transform.position);
+
+        private Quaternion TargetRotationAt(Vector3 panelPosition)
         {
             if (!billboardToPlayer) return transform.rotation;
 
-            Vector3 toPlayer = transform.position - headTransform.position;
+            Vector3 eye = IsFrozen && levelWhenLocked ? _frozenHeadPos : headTransform.position;
+            Vector3 toPlayer = panelPosition - eye;
             if (lockUpright) toPlayer.y = 0f;
 
             if (toPlayer.sqrMagnitude < 0.0001f) return transform.rotation;
@@ -172,6 +426,47 @@ namespace VRTutorial
         }
 
         /// <summary>
+        /// A temporary shift added on top of the authored offset, in the same head-local space.
+        ///
+        /// Deliberately separate from LocalOffset rather than something callers assign directly.
+        /// A caller that wrote LocalOffset would have to remember the authored value to put it
+        /// back, and the authored value is a serialised field somebody may well retune in the
+        /// Inspector between the push and the pop. A nudge is additive and always undone by
+        /// clearing it, so the two cannot drift apart.
+        ///
+        /// Not serialised: this is runtime-only state and should never be saved into the scene.
+        /// </summary>
+        public Vector3 Nudge
+        {
+            get => _nudge;
+            set => _nudge = value;
+        }
+
+        /// <summary>
+        /// Shifts the panel vertically. Metres, negative is down.
+        ///
+        /// A float UnityEvent target, so a step or a controller can lower a panel out of the way
+        /// of another one without a glue script - and because assigning the offset only moves the
+        /// SmoothDamp target, the panel slides rather than jumps.
+        /// </summary>
+        public void NudgeY(float metres) => _nudge = new Vector3(_nudge.x, metres, _nudge.z);
+
+        /// <summary>Shifts the panel sideways. Metres, negative is left.</summary>
+        public void NudgeX(float metres) => _nudge = new Vector3(metres, _nudge.y, _nudge.z);
+
+        /// <summary>
+        /// Shifts the panel nearer or further. Metres, positive is further away.
+        ///
+        /// Useful in combination with the other two: pushing a panel back shrinks how much of
+        /// the view it covers, so it needs less sideways or downward travel to clear something.
+        /// The cost is legibility, which for this cohort runs out quickly past about two metres.
+        /// </summary>
+        public void NudgeZ(float metres) => _nudge = new Vector3(_nudge.x, _nudge.y, metres);
+
+        /// <summary>Returns the panel to its authored offset.</summary>
+        public void ClearNudge() => _nudge = Vector3.zero;
+
+        /// <summary>
         /// Extra rotation applied on top of the billboard, in degrees. X pitches (positive
         /// leans the top away from you, for a panel below eye level), Y yaws, Z rolls.
         /// </summary>
@@ -181,12 +476,141 @@ namespace VRTutorial
             set => rotationOffset = value;
         }
 
+        /// <summary>
+        /// True while the panel is holding a fixed world pose instead of following the head -
+        /// either frozen explicitly or locked because the tutorial is paused.
+        /// </summary>
+        public bool IsFrozen => _explicitFrozen || _pauseLocked;
+
+        /// <summary>True while locked specifically because the tutorial is paused.</summary>
+        public bool IsPauseLocked => _pauseLocked;
+
+        /// <summary>
+        /// Places the panel correctly, then leaves it there.
+        ///
+        /// For anything the participant has to aim at. The follow below smooth-damps with a lag
+        /// that is comfortable for reading and wrong for pointing: a button that drifts as the
+        /// head moves is a moving target, and a harder one than it looks for an older participant.
+        /// Use this when a menu opens, and Unfreeze when it closes.
+        /// </summary>
+        public void FreezeAtCurrent()
+        {
+            TryResolveHead();
+            _explicitFrozen = true;
+            SnapToTarget();
+        }
+
+        /// <summary>
+        /// Clears an explicit freeze. A panel that is also locked because the tutorial is paused
+        /// stays locked until the pause ends - this never overrides that.
+        /// </summary>
+        public void Unfreeze()
+        {
+            _explicitFrozen = false;
+            if (!IsFrozen) StopRecentre();
+        }
+
+        private void StopRecentre()
+        {
+            if (_recentreRoutine != null)
+            {
+                StopCoroutine(_recentreRoutine);
+                _recentreRoutine = null;
+            }
+            _velocity = Vector3.zero;
+        }
+
+        private void RememberPlacement()
+        {
+            _placedOffset = EffectiveOffset;
+            _placedRotationOffset = rotationOffset;
+        }
+
+        /// <summary>
+        /// TutorialFlow can still change a locked panel's offset - pulling it in front of the
+        /// menu, or a step's placement easing in. Follow that, measured from the locked pose, so
+        /// the panel moves as authored without starting to track the head again.
+        /// </summary>
+        private void FollowPlacementChangesWhileLocked()
+        {
+            if (_recentreRoutine != null) return;
+            if (EffectiveOffset == _placedOffset && rotationOffset == _placedRotationOffset) return;
+
+            Vector3 pos = TargetPosition();
+            transform.position = pos;
+            transform.rotation = TargetRotationAt(pos);
+            RememberPlacement();
+        }
+
+        private void CaptureFrozenReference()
+        {
+            if (headTransform == null) return;
+            _frozenHeadYaw = headTransform.eulerAngles.y;
+            _frozenHeadPos = headTransform.position;
+            _referenceValid = true;
+        }
+
+        /// <summary>
+        /// A frozen panel still has to come back if the participant turns around or walks off,
+        /// otherwise the menu is simply lost behind them and the only way out is to guess.
+        /// </summary>
+        private void HandleFrozenDrift(float yaw)
+        {
+            if (_recentreRoutine != null) return;
+
+            bool turnedAway = Mathf.Abs(Mathf.DeltaAngle(_frozenHeadYaw, yaw)) > refreezeYawThreshold;
+            bool walkedAway = (headTransform.position - _frozenHeadPos).sqrMagnitude >
+                              refreezeMoveDistance * refreezeMoveDistance;
+
+            if (turnedAway || walkedAway) _recentreRoutine = StartCoroutine(Recentre());
+        }
+
+        private IEnumerator Recentre()
+        {
+            Vector3 fromPos = transform.position;
+            Quaternion fromRot = transform.rotation;
+
+            // Re-anchor to where they are facing now, so the target does not keep sliding while
+            // the head finishes its turn.
+            CaptureFrozenReference();
+
+            float t = 0f;
+            while (t < refreezeDuration)
+            {
+                t += Time.unscaledDeltaTime;
+                float k = Mathf.Clamp01(t / refreezeDuration);
+                k = k * k * (3f - 2f * k);   // smoothstep, no velocity jump at either end
+
+                Vector3 target = TargetPosition();
+                transform.position = Vector3.Lerp(fromPos, target, k);
+                transform.rotation = Quaternion.Slerp(fromRot, TargetRotationAt(target), k);
+                yield return null;
+            }
+
+            transform.position = TargetPosition();
+            transform.rotation = TargetRotation();
+            _velocity = Vector3.zero;
+
+            RememberPlacement();
+            _recentreRoutine = null;
+        }
+
         /// <summary>Call after teleporting the player to avoid a visible slide as the panel catches up.</summary>
         public void SnapToTarget()
         {
             if (headTransform == null) return;
-            transform.position = TargetPosition();
-            transform.rotation = TargetRotation();
+
+            // Snapping a locked panel re-anchors it to the head as it is now - this is how the
+            // pause menu is placed as it opens - and it then stays put.
+            if (IsFrozen)
+            {
+                CaptureFrozenReference();
+            }
+
+            Vector3 pos = TargetPosition();
+            transform.position = pos;
+            transform.rotation = TargetRotationAt(pos);
+            RememberPlacement();
             _velocity = Vector3.zero;
             _lastHeadYaw = headTransform.eulerAngles.y;
             LastSnapTimeUnscaled = Time.unscaledTime;
@@ -197,7 +621,7 @@ namespace VRTutorial
         {
             if (headTransform == null) return;
             Gizmos.color = Color.cyan;
-            Vector3 target = headTransform.TransformPoint(localOffset);
+            Vector3 target = headTransform.TransformPoint(EffectiveOffset);
             Gizmos.DrawLine(headTransform.position, target);
             Gizmos.DrawWireSphere(target, 0.05f);
         }

@@ -3,62 +3,106 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-using UnityEngine.Audio;
-using TMPro;
 
+/// <summary>
+/// The settings menu. This is now a thin front end: it reads the current state, positions its
+/// controls to match, and forwards changes to AccessibilitySettings. It no longer owns any
+/// setting itself.
+///
+/// That split matters because the menu lives in a prefab that is only loaded some of the time,
+/// while the settings have to hold for the whole session and reach scenes the menu has never
+/// met. Anything stored here would be lost the moment the menu closed.
+///
+/// Brightness is the exception and stays here: it drives a VolumeProfile asset directly, which
+/// is already global by nature.
+/// </summary>
 public class SettingsController : MonoBehaviour
 {
+    [Header("Sliders")]
     public Slider brightnessSlider;
     public Slider volumeSlider;
     public Slider fontSizeSlider;
+
+    [Tooltip("Optional extra sliders for the individual audio buses. Leave any of them empty " +
+             "if the menu only offers a single master volume.")]
+    public Slider ambienceVolumeSlider;
+    public Slider uiVolumeSlider;
+    public Slider movementVolumeSlider;
+
+    [Header("Toggles")]
     public List<Toggle> usageModeToggles = new();
     public List<Toggle> handToggles = new();
     public List<Toggle> rotationToggles = new();
+
+    [Header("Brightness")]
+    [Tooltip("Brightness.asset - the dedicated profile on the global Volume in Bootstrap. " +
+             "Note that moving this slider in the editor writes to that asset on disk, so " +
+             "expect it to show up as a local change in git after a play session.")]
     public VolumeProfile brightnessProfile;
-    private ColorAdjustments colorAdjustments;
-    public AudioMixer audioMixer;
-    public List<TMP_Text> textElements = new();
-    private List<float> originalFontSizes = new();
 
-    void Start()
+    [Header("Operator")]
+    [Tooltip("Optional. Restores every accessibility setting to its authored default - for " +
+             "handing the headset to the next participant. Keep it somewhere a participant " +
+             "will not press by accident.")]
+    public Button resetToDefaultsButton;
+
+    private ColorAdjustments _colorAdjustments;
+    private bool _applying;
+
+    private void Start()
     {
-        // Brightness Slider Setup
-        brightnessSlider.onValueChanged.AddListener(value =>
-        {
-            brightnessProfile.TryGet(out colorAdjustments);
-            brightnessSlider.onValueChanged.AddListener(SetBrightness);
-            SetBrightness(brightnessSlider.value);
-            Debug.Log(brightnessSlider.name + " changed value to: " + value);
-        });
+        CacheBrightnessOverride();
+        BindSliders();
+        BindToggles();
 
-        // Volume Slider Setup
-        if (audioMixer == null)
-        {
-            Debug.LogError("Audio Mixer is not assigned.");
-        }
-        else
-        {
-            volumeSlider.onValueChanged.AddListener(SetVolume);
-            SetVolume(volumeSlider.value);
-        }
+        if (resetToDefaultsButton != null)
+            resetToDefaultsButton.onClick.AddListener(OnResetPressed);
 
-        // Font Size Slider Setup
-        originalFontSizes.Clear();
+        SyncControlsToCurrentState();
+    }
 
-        foreach (TMP_Text textElement in textElements)
-        {
-            originalFontSizes.Add(textElement.fontSize);
-        }
+    private void OnDestroy()
+    {
+        // Removing what we added keeps this safe if the menu prefab is ever pooled or
+        // re-opened rather than recreated.
+        if (brightnessSlider != null) brightnessSlider.onValueChanged.RemoveListener(SetBrightness);
+        if (volumeSlider != null) volumeSlider.onValueChanged.RemoveListener(OnMasterVolumeChanged);
+        if (fontSizeSlider != null) fontSizeSlider.onValueChanged.RemoveListener(OnFontSizeChanged);
+        if (ambienceVolumeSlider != null) ambienceVolumeSlider.onValueChanged.RemoveListener(OnAmbienceChanged);
+        if (uiVolumeSlider != null) uiVolumeSlider.onValueChanged.RemoveListener(OnUiVolumeChanged);
+        if (movementVolumeSlider != null) movementVolumeSlider.onValueChanged.RemoveListener(OnMovementVolumeChanged);
+        if (resetToDefaultsButton != null) resetToDefaultsButton.onClick.RemoveListener(OnResetPressed);
+    }
 
-        fontSizeSlider.onValueChanged.AddListener(SetFontSize);
-        SetFontSize(fontSizeSlider.value);
+    // ------------------------------------------------------------------ binding
 
-        // Usage Mode Toggle Setup
+    /// <summary>
+    /// Each listener is registered exactly once, here.
+    ///
+    /// The previous version registered SetBrightness from *inside* the brightness slider's own
+    /// value-changed callback, so every movement of the slider added another permanent
+    /// listener - one drag registered dozens, and they were never removed. It also mutated the
+    /// event's invocation list while that event was being invoked.
+    /// </summary>
+    private void BindSliders()
+    {
+        if (brightnessSlider != null) brightnessSlider.onValueChanged.AddListener(SetBrightness);
+        if (volumeSlider != null) volumeSlider.onValueChanged.AddListener(OnMasterVolumeChanged);
+        if (fontSizeSlider != null) fontSizeSlider.onValueChanged.AddListener(OnFontSizeChanged);
+        if (ambienceVolumeSlider != null) ambienceVolumeSlider.onValueChanged.AddListener(OnAmbienceChanged);
+        if (uiVolumeSlider != null) uiVolumeSlider.onValueChanged.AddListener(OnUiVolumeChanged);
+        if (movementVolumeSlider != null) movementVolumeSlider.onValueChanged.AddListener(OnMovementVolumeChanged);
+    }
+
+    private void BindToggles()
+    {
         foreach (var toggle in usageModeToggles)
         {
-            toggle.onValueChanged.AddListener(state =>
+            if (toggle == null) continue;
+            Toggle captured = toggle;
+            captured.onValueChanged.AddListener(state =>
             {
-                Debug.Log(toggle.name + " changed to: " + state);
+                if (!state || _applying) return;
 
                 if (state)
                 {
@@ -85,36 +129,23 @@ public class SettingsController : MonoBehaviour
         // Sync usage mode toggles
         SyncUsageModeToggles();
 
-        // Hand Toggle Setup
         foreach (var toggle in handToggles)
         {
-            toggle.onValueChanged.AddListener(state =>
+            if (toggle == null) continue;
+            Toggle captured = toggle;
+            captured.onValueChanged.AddListener(state =>
             {
-                Debug.Log(toggle.name + " changed to: " + state);
+                if (!state || _applying) return;
 
-                if (state)
-                    {
-                        ControllerHandednessManager handednessManager =
-                            ControllerHandednessManager.Instance;
+                var manager = ControllerHandednessManager.Instance;
+                if (manager == null)
+                {
+                    Debug.LogWarning("[Settings] ControllerHandednessManager was not found.");
+                    return;
+                }
 
-                        if (handednessManager == null)
-                        {
-                            Debug.LogWarning(
-                                "ControllerHandednessManager was not found."
-                            );
-
-                            return;
-                        }
-
-                        if (toggle.name == "LeftToggle")
-                        {
-                            handednessManager.SelectHand(ControllerHand.Left);
-                        }
-                        else if (toggle.name == "RightToggle")
-                        {
-                            handednessManager.SelectHand(ControllerHand.Right);
-                        }
-                    }
+                if (captured.name == "LeftToggle") manager.SelectHand(ControllerHand.Left);
+                else if (captured.name == "RightToggle") manager.SelectHand(ControllerHand.Right);
             });
         }
 
@@ -131,10 +162,18 @@ public class SettingsController : MonoBehaviour
         // Rotation Toggle Setup
         foreach (var toggle in rotationToggles)
         {
-            toggle.onValueChanged.AddListener(state =>
+            if (toggle == null) continue;
+            Toggle captured = toggle;
+            captured.onValueChanged.AddListener(state =>
             {
-                Debug.Log(toggle.name + " changed to: " + state);
+                if (!state || _applying) return;
 
+                // NOTE (from feat/guided-tutorial, still unresolved): SnapTurnTask
+                // detects a single-frame yaw jump, which by design never fires under
+                // continuous rotation. With this setting live, a participant who
+                // chooses continuous reaches the camera step of the tutorial and
+                // cannot complete it. Either make the task mode-aware, or force snap
+                // turn for the tutorial's duration and restore the preference after.
                 if (state)
                 {
                     RotationModeController rotationController =
@@ -171,32 +210,108 @@ public class SettingsController : MonoBehaviour
         SyncRotationToggles();
     }
 
-    void SetBrightness(float sliderValue)
+    /// <summary>
+    /// Moves the controls to match the settings that were restored at startup, without those
+    /// moves being read as the participant changing anything. Set a slider's value and Unity
+    /// raises onValueChanged, so without the guard flag this would immediately write the
+    /// control's default straight back over the restored value.
+    /// </summary>
+    private void SyncControlsToCurrentState()
     {
-        float exposure = Mathf.Lerp(-2f, 2f, sliderValue);
-        colorAdjustments.postExposure.value = exposure;
-    }
+        var settings = AccessibilitySettings.Instance;
+        if (settings == null) return;
 
-    void SetVolume(float sliderValue)
-    {
-        float decibels = Mathf.Lerp(-20f, 0f, sliderValue);
-        audioMixer.SetFloat("MasterVolume", decibels);
-    }
+        _applying = true;
 
-    void SetFontSize(float sliderValue)
-    {
-        float sizeMultiplier = Mathf.Lerp(0.8f, 1.4f, sliderValue);
+        if (volumeSlider != null) volumeSlider.value = settings.MasterVolume01;
+        if (ambienceVolumeSlider != null) ambienceVolumeSlider.value = settings.AmbienceVolume01;
+        if (uiVolumeSlider != null) uiVolumeSlider.value = settings.UiVolume01;
+        if (movementVolumeSlider != null) movementVolumeSlider.value = settings.MovementVolume01;
+        if (fontSizeSlider != null) fontSizeSlider.value = settings.FontScaleAsSlider01();
 
-        for (int index = 0; index < textElements.Count; index++)
+        foreach (var toggle in handToggles)
         {
-            if (textElements[index] != null)
-            {
-                textElements[index].fontSize =
-                    originalFontSizes[index] * sizeMultiplier;
-            }
+            if (toggle == null) continue;
+            bool isLeft = toggle.name == "LeftToggle";
+            bool handIsLeft = ControllerHandednessManager.CurrentOrDefault(ControllerHand.Right)
+                              == ControllerHand.Left;
+            toggle.isOn = isLeft == handIsLeft;
+        }
+
+        _applying = false;
+    }
+
+    // ------------------------------------------------------------------ handlers
+
+    private void OnFontSizeChanged(float t)
+    {
+        if (_applying) return;
+        if (AccessibilitySettings.Instance != null)
+            AccessibilitySettings.Instance.SetFontScaleFromSlider01(t);
+    }
+
+    private void OnMasterVolumeChanged(float v)
+    {
+        if (_applying) return;
+        if (AccessibilitySettings.Instance != null)
+            AccessibilitySettings.Instance.SetMasterVolume01(v);
+    }
+
+    private void OnAmbienceChanged(float v)
+    {
+        if (_applying) return;
+        if (AccessibilitySettings.Instance != null)
+            AccessibilitySettings.Instance.SetAmbienceVolume01(v);
+    }
+
+    private void OnUiVolumeChanged(float v)
+    {
+        if (_applying) return;
+        if (AccessibilitySettings.Instance != null)
+            AccessibilitySettings.Instance.SetUiVolume01(v);
+    }
+
+    private void OnMovementVolumeChanged(float v)
+    {
+        if (_applying) return;
+        if (AccessibilitySettings.Instance != null)
+            AccessibilitySettings.Instance.SetMovementVolume01(v);
+    }
+
+    private void OnResetPressed()
+    {
+        if (AccessibilitySettings.Instance == null) return;
+        AccessibilitySettings.Instance.ResetToDefaults();
+        SyncControlsToCurrentState();
+    }
+
+    // ------------------------------------------------------------------ brightness
+
+    private void CacheBrightnessOverride()
+    {
+        if (brightnessProfile == null)
+        {
+            Debug.LogWarning("[Settings] No brightness profile assigned.", this);
+            return;
+        }
+
+        if (!brightnessProfile.TryGet(out _colorAdjustments))
+        {
+            Debug.LogWarning("[Settings] Brightness profile has no ColorAdjustments override, " +
+                             "so the brightness slider will do nothing.", this);
         }
     }
 
+    private void SetBrightness(float sliderValue)
+    {
+        if (_applying || _colorAdjustments == null) return;
+
+        // Exposure in EV. The range is deliberately narrower than +/-2: at the extremes the
+        // baked lighting in the tutorial scene is either washed out or crushed to the point
+        // that kerbs and path edges stop being readable, which is a safety-relevant detail in
+        // a route-rehearsal module.
+        _colorAdjustments.postExposure.value = Mathf.Lerp(-1.2f, 1.2f, Mathf.Clamp01(sliderValue));
+    }
 
     // TOGGLE METHODS
     private static void SetToggleState(
