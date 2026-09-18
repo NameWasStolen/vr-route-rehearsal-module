@@ -16,10 +16,21 @@ public class TriggerController : MonoBehaviour
     public TimerController timerController;
     public WrongTurnController wrongTurnController;
 
+    private void Start()
+    {
+        Debug.Log(
+            $"Trigger '{name}' ready. Type: {triggerType}, " +
+            $"Timer assigned: {timerController != null}.",
+            this
+        );
+    }
+
     private void OnTriggerExit(Collider other)
     {
         if (isPlayer(other))
         {
+            Debug.Log($"Player collider left trigger '{name}'.", this);
+
             // Start Trigger
             if (isPlayer(other) && triggerType == TriggerType.START)
             {
@@ -43,6 +54,8 @@ public class TriggerController : MonoBehaviour
     {
         if (isPlayer(other))
         {
+            Debug.Log($"Player collider entered trigger '{name}'.", this);
+
             // End Trigger
             if (triggerType == TriggerType.END)
             {
