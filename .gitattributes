@@ -1,25 +1,16 @@
-# Unity YAML assets: merge with Unity's SmartMerge (UnityYAMLMerge) instead of
-# git's line-based text merge. Git diffs these as lines, so moving an object
-# within a scene reads as a huge conflict; SmartMerge parses them into Unity's
-# object graph and merges per-object, so reordering stops mattering.
+# Unity SmartMerge (UnityYAMLMerge) is TEMPORARILY DISABLED.
 #
-# Deliberately limited to scenes and prefabs. Do NOT widen this to *.asset or
-# *.meta: git hands merge drivers extensionless temp files, so UnityYAMLMerge
-# cannot match its own extension rules and always falls through to the tool list
-# in mergespecfile.txt. If none of those tools is installed, it aborts the WHOLE
-# merge with an opaque error rather than leaving conflict markers. Settings and
-# .meta files are simple key/value YAML that git merges fine on its own, and a
-# visible conflict there beats a fatal one.
+# Why: git hands merge drivers extensionless temp files, so UnityYAMLMerge cannot
+# match its own extension rules in mergespecfile.txt. It therefore falls through to
+# the "*" fallback tool list, and if none of those third-party tools is installed it
+# aborts the ENTIRE merge with an opaque error naming only a temp filename - it never
+# says which repo file it choked on. That makes conflicts impossible to diagnose.
 #
-# The driver is defined per-machine, since the path to UnityYAMLMerge.exe differs
-# per install. Each developer needs this in their own .git/config:
+# With these lines commented out, git uses its built-in text merge and writes normal
+# conflict markers. Messier to read, but it names the files and shows the hunks.
 #
-#   [merge "unityyamlmerge"]
-#       name = Unity SmartMerge
-#       driver = '<path-to>/UnityYAMLMerge.exe' merge -p %O %B %A %A
+# To re-enable once a fallback merge tool is configured in mergespecfile.txt,
+# uncomment the two lines below. Do NOT widen beyond scenes and prefabs.
 #
-# Without it, git warns the driver is undefined and falls back to the normal
-# text merge - no breakage, just no benefit.
-
-*.unity   merge=unityyamlmerge
-*.prefab  merge=unityyamlmerge
+# *.unity   merge=unityyamlmerge
+# *.prefab  merge=unityyamlmerge
