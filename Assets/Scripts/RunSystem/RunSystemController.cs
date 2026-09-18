@@ -10,15 +10,24 @@ public class RunSystemController : MonoBehaviour
 	[SerializeField] private Transform runStartPoint;
 
 	private TimerController timerController;
+	private PlayerPositionTracker positionTracker;
+	private XROrigin xrOrigin;
 	private bool isEndingRun;
+	private string runType = "run";
 
 	private void OnEnable()
 	{
 		Debug.Log($"RunSystemController enabled in scene '{gameObject.scene.name}'.", this);
 		timerController = FindFirstObjectByType<TimerController>();
+		positionTracker = GetComponent<PlayerPositionTracker>();
+		if (positionTracker == null)
+			positionTracker = gameObject.AddComponent<PlayerPositionTracker>();
 
 		if (timerController != null)
+		{
+			timerController.RunStarted += HandleRunStarted;
 			timerController.RunEnded += HandleRunEnded;
+		}
 		else
 			Debug.LogError("RunSystemController could not find TimerController.", this);
 	}
@@ -26,12 +35,23 @@ public class RunSystemController : MonoBehaviour
 	private void OnDisable()
 	{
 		if (timerController != null)
+		{
+			timerController.RunStarted -= HandleRunStarted;
 			timerController.RunEnded -= HandleRunEnded;
+		}
 	}
 
 	public void StartRun()
 	{
-		XROrigin xrOrigin = FindFirstObjectByType<XROrigin>();
+		StartRun("run");
+	}
+
+	public void StartRun(string selectedRunType)
+	{
+		runType = string.IsNullOrWhiteSpace(selectedRunType)
+			? "run"
+			: selectedRunType;
+		xrOrigin = FindFirstObjectByType<XROrigin>();
 
 		if (xrOrigin == null)
 		{
@@ -52,6 +72,25 @@ public class RunSystemController : MonoBehaviour
 		);
 	}
 
+	private void HandleRunStarted()
+	{
+		if (positionTracker == null || xrOrigin == null)
+			return;
+
+		if (xrOrigin.Camera == null)
+		{
+			Debug.LogError("RunSystemController could not find the XR camera.", this);
+			return;
+		}
+
+		SettingsController settingsController =
+			FindFirstObjectByType<SettingsController>(FindObjectsInactive.Include);
+		RunSettingsSnapshot settings =
+			RunSettingsSnapshot.Capture(settingsController);
+
+		positionTracker.StartTracking(xrOrigin.Camera.transform, settings, runType);
+	}
+
 	private void HandleRunEnded(float elapsedTime)
 	{
 		if (!isEndingRun)
@@ -61,6 +100,7 @@ public class RunSystemController : MonoBehaviour
 	private IEnumerator ReturnToMainMenu(float elapsedTime)
 	{
 		isEndingRun = true;
+		positionTracker?.StopTracking();
 		Debug.Log($"Returning to main menu after a {elapsedTime:F2} second run.");
 
 		MenuController menuController =

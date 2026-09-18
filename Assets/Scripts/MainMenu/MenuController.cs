@@ -35,7 +35,7 @@ public class MenuController : MonoBehaviour
         if (!isLoadingRunSystem)
         {
             Debug.Log("Guided Button Clicked");
-            StartCoroutine(LoadRunSystem());
+            StartCoroutine(LoadRunSystem("guided"));
         }
     }
 
@@ -44,7 +44,7 @@ public class MenuController : MonoBehaviour
         if (!isLoadingRunSystem)
         {
             Debug.Log("Unguided Button Clicked");
-            StartCoroutine(LoadRunSystem());
+            StartCoroutine(LoadRunSystem("unguided"));
         }
     }
 
@@ -71,7 +71,7 @@ public class MenuController : MonoBehaviour
         }
     }
 
-    private IEnumerator LoadRunSystem()
+    private IEnumerator LoadRunSystem(string runType)
     {
         Debug.Log("Loading Run System.", this);
         isLoadingRunSystem = true;
@@ -99,7 +99,7 @@ public class MenuController : MonoBehaviour
             yield break;
         }
 
-        runSystemController.StartRun();
+        runSystemController.StartRun(runType);
 
         if (mainMenuRoot != null)
             mainMenuRoot.SetActive(false);
