@@ -1,0 +1,25 @@
+# Unity YAML assets: merge with Unity's SmartMerge (UnityYAMLMerge) instead of
+# git's line-based text merge. Git diffs these files as lines, so simply moving
+# an object within a scene reads as a huge conflict; SmartMerge parses them into
+# Unity's object graph and merges per-object, so reordering stops mattering.
+#
+# This file is shared, but the driver itself is defined per-machine, because the
+# path to UnityYAMLMerge.exe differs per install. Each developer needs a matching
+# section in their own .git/config:
+#
+#   [merge "unityyamlmerge"]
+#       name = Unity SmartMerge
+#       driver = '<path-to>/UnityYAMLMerge.exe' merge -p %O %B %A %A
+#
+# Without that section git warns the driver is undefined and falls back to the
+# normal text merge - no breakage, just no benefit.
+
+*.unity           merge=unityyamlmerge
+*.prefab          merge=unityyamlmerge
+*.asset           merge=unityyamlmerge
+*.mat             merge=unityyamlmerge
+*.anim            merge=unityyamlmerge
+*.controller      merge=unityyamlmerge
+*.overrideController merge=unityyamlmerge
+*.physicMaterial  merge=unityyamlmerge
+*.meta            merge=unityyamlmerge
