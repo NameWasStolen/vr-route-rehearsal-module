@@ -1,25 +1,25 @@
 # Unity YAML assets: merge with Unity's SmartMerge (UnityYAMLMerge) instead of
-# git's line-based text merge. Git diffs these files as lines, so simply moving
-# an object within a scene reads as a huge conflict; SmartMerge parses them into
-# Unity's object graph and merges per-object, so reordering stops mattering.
+# git's line-based text merge. Git diffs these as lines, so moving an object
+# within a scene reads as a huge conflict; SmartMerge parses them into Unity's
+# object graph and merges per-object, so reordering stops mattering.
 #
-# This file is shared, but the driver itself is defined per-machine, because the
-# path to UnityYAMLMerge.exe differs per install. Each developer needs a matching
-# section in their own .git/config:
+# Deliberately limited to scenes and prefabs. Do NOT widen this to *.asset or
+# *.meta: git hands merge drivers extensionless temp files, so UnityYAMLMerge
+# cannot match its own extension rules and always falls through to the tool list
+# in mergespecfile.txt. If none of those tools is installed, it aborts the WHOLE
+# merge with an opaque error rather than leaving conflict markers. Settings and
+# .meta files are simple key/value YAML that git merges fine on its own, and a
+# visible conflict there beats a fatal one.
+#
+# The driver is defined per-machine, since the path to UnityYAMLMerge.exe differs
+# per install. Each developer needs this in their own .git/config:
 #
 #   [merge "unityyamlmerge"]
 #       name = Unity SmartMerge
 #       driver = '<path-to>/UnityYAMLMerge.exe' merge -p %O %B %A %A
 #
-# Without that section git warns the driver is undefined and falls back to the
-# normal text merge - no breakage, just no benefit.
+# Without it, git warns the driver is undefined and falls back to the normal
+# text merge - no breakage, just no benefit.
 
-*.unity           merge=unityyamlmerge
-*.prefab          merge=unityyamlmerge
-*.asset           merge=unityyamlmerge
-*.mat             merge=unityyamlmerge
-*.anim            merge=unityyamlmerge
-*.controller      merge=unityyamlmerge
-*.overrideController merge=unityyamlmerge
-*.physicMaterial  merge=unityyamlmerge
-*.meta            merge=unityyamlmerge
+*.unity   merge=unityyamlmerge
+*.prefab  merge=unityyamlmerge
