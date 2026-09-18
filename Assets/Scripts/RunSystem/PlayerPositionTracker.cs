@@ -22,11 +22,16 @@ public class PlayerPositionTracker : MonoBehaviour
     private Transform playerTransform;
     private float runStartTime;
     private float nextSampleTime;
+    private RunSettingsSnapshot runSettings;
+    private string runType;
 
     public bool IsTracking { get; private set; }
     public IReadOnlyList<PlayerPositionSample> Samples => samples;
 
-    public void StartTracking(Transform player)
+    public void StartTracking(
+        Transform player,
+        RunSettingsSnapshot settings,
+        string selectedRunType)
     {
         if (player == null)
         {
@@ -35,6 +40,8 @@ public class PlayerPositionTracker : MonoBehaviour
         }
 
         playerTransform = player;
+        runSettings = settings;
+        runType = selectedRunType;
         samples.Clear();
         runStartTime = Time.time;
         nextSampleTime = runStartTime;
@@ -49,6 +56,7 @@ public class PlayerPositionTracker : MonoBehaviour
 
         CaptureSample();
         IsTracking = false;
+        RunCsvLogger.Write(samples, runSettings, runType);
         Debug.Log($"Player position tracking ended with {samples.Count} samples.", this);
     }
 

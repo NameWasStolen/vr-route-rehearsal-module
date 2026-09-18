@@ -13,6 +13,7 @@ public class RunSystemController : MonoBehaviour
 	private PlayerPositionTracker positionTracker;
 	private XROrigin xrOrigin;
 	private bool isEndingRun;
+	private string runType = "run";
 
 	private void OnEnable()
 	{
@@ -42,6 +43,14 @@ public class RunSystemController : MonoBehaviour
 
 	public void StartRun()
 	{
+		StartRun("run");
+	}
+
+	public void StartRun(string selectedRunType)
+	{
+		runType = string.IsNullOrWhiteSpace(selectedRunType)
+			? "run"
+			: selectedRunType;
 		xrOrigin = FindFirstObjectByType<XROrigin>();
 
 		if (xrOrigin == null)
@@ -74,7 +83,12 @@ public class RunSystemController : MonoBehaviour
 			return;
 		}
 
-		positionTracker.StartTracking(xrOrigin.Camera.transform);
+		SettingsController settingsController =
+			FindFirstObjectByType<SettingsController>(FindObjectsInactive.Include);
+		RunSettingsSnapshot settings =
+			RunSettingsSnapshot.Capture(settingsController);
+
+		positionTracker.StartTracking(xrOrigin.Camera.transform, settings, runType);
 	}
 
 	private void HandleRunEnded(float elapsedTime)
