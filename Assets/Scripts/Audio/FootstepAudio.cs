@@ -46,6 +46,19 @@ public class FootstepAudio : MonoBehaviour
              "producing a slow drip of footsteps while the participant stands and reads.")]
     [SerializeField] private float minSpeed = 0.15f;
 
+    [Tooltip("Speed ceiling, in m/s. A frame that moves the rig faster than this was not " +
+             "walking - it was a teleport to a spawn point, a recentre, or a frame hitch - so " +
+             "its distance is discarded rather than banked. Without this the metres jumped on " +
+             "a scene reload sit in the accumulator until the participant next moves, then " +
+             "drain as a burst of steps on one frame each. 3 m/s is a fast walk and is well " +
+             "clear of anything XRI produces here.")]
+    [SerializeField] private float maxSpeed = 3f;
+
+    [Tooltip("Shortest gap, in seconds, between two footsteps. A hard floor under the stride " +
+             "rhythm: even if something else banks distance, steps come out as steps rather " +
+             "than as a rattle. 0.2 s is about twice the fastest plausible stride.")]
+    [SerializeField] private float minStepInterval = 0.2f;
+
     [Tooltip("Only play steps while the CharacterController reports it is grounded. Off by " +
              "default, and deliberately so: CharacterController.isGrounded is only refreshed " +
              "by a Move() that actually pushes down into the ground, and XRI's body " +
@@ -79,6 +92,7 @@ public class FootstepAudio : MonoBehaviour
     private CharacterController _controller;
     private Vector3 _lastPosition;
     private float _accumulated;
+    private float _lastStepTime = float.NegativeInfinity;
     private int _lastClipIndex = -1;
     private readonly System.Collections.Generic.HashSet<SurfaceKind> _warnedSurfaces =
         new System.Collections.Generic.HashSet<SurfaceKind>();
@@ -102,8 +116,24 @@ public class FootstepAudio : MonoBehaviour
     {
         // Reset on enable so a scene transition does not bank a large phantom distance and
         // fire a burst of steps on the first frame back.
+        ResetStride();
+    }
+
+    /// <summary>
+    /// Forget where the rig was and how far it had travelled since the last step. Call this
+    /// immediately after moving the rig by anything other than walking - a spawn-point
+    /// placement, a teleport, a recentre.
+    ///
+    /// The rig persists across scene loads and this component is never disabled with it, so
+    /// OnEnable does not fire on a repeat run. Without an explicit reset the jump from wherever
+    /// the participant had walked to back to the spawn pad is measured as travel, banked, and
+    /// then spent one step per frame the moment they next move.
+    /// </summary>
+    public void ResetStride()
+    {
         _lastPosition = transform.position;
         _accumulated = 0f;
+        _lastStepTime = Time.time;
     }
 
     private void Update()
@@ -118,7 +148,18 @@ public class FootstepAudio : MonoBehaviour
         if (dt <= 0f) return;
 
         float distance = delta.magnitude;
-        if (distance / dt < minSpeed) return;
+        float speed = distance / dt;
+        if (speed < minSpeed) return;
+
+        // Anything above a fast walk is not a stride. Discard the frame outright instead of
+        // banking it: a teleport or a hitch otherwise contributes metres that have to come back
+        // out as footsteps later. The position is already re-synced above, so the next frame
+        // measures from where the rig actually is.
+        if (maxSpeed > 0f && speed > maxSpeed)
+        {
+            _accumulated = 0f;
+            return;
+        }
 
         // Only count travel while actually on the ground, where there is a surface to hear.
         // Opt-in: see requireGrounded for why this is not the default.
@@ -127,9 +168,15 @@ public class FootstepAudio : MonoBehaviour
         _accumulated += distance;
         if (_accumulated < strideLength) return;
 
-        // Subtract rather than zero, so a fast frame does not silently swallow travel and
-        // gradually drift the step rhythm short.
-        _accumulated -= strideLength;
+        // Never let more than one step be owed. Subtracting a single stride keeps the rhythm
+        // honest on a fast frame, but leaves any surplus banked - and a large surplus is what
+        // turns into a burst. Clamp what is carried forward to less than one stride.
+        _accumulated = Mathf.Min(_accumulated - strideLength, strideLength * 0.999f);
+
+        // Last line of defence on cadence, whatever fed the accumulator.
+        if (Time.time - _lastStepTime < minStepInterval) return;
+
+        _lastStepTime = Time.time;
         PlayStep();
     }
 

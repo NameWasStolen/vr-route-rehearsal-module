@@ -35,6 +35,11 @@ public class SceneTransitionController : MonoBehaviour
              "otherwise fight the teleport and drag the player back.")]
     [SerializeField] private CharacterController characterController;
 
+    [Tooltip("Told to forget its accumulated stride distance whenever the rig is placed at a " +
+             "spawn point, so the jump is not heard as footsteps. Leave empty to find it on " +
+             "the rig automatically.")]
+    [SerializeField] private FootstepAudio footstepAudio;
+
     [Header("Input during the transition")]
     [Tooltip("Locomotion providers to switch off while the view is dark. Without this a held " +
              "thumbstick walks the player around blind, and they can arrive facing a fence.")]
@@ -92,6 +97,12 @@ public class SceneTransitionController : MonoBehaviour
         if (characterController == null && rigRoot != null)
         {
             characterController = rigRoot.GetComponent<CharacterController>();
+        }
+
+        if (footstepAudio == null && rigRoot != null)
+        {
+            // May sit on the rig root or on a child (MovementAudio); either is supported.
+            footstepAudio = rigRoot.GetComponentInChildren<FootstepAudio>(true);
         }
     }
 
@@ -277,6 +288,11 @@ public class SceneTransitionController : MonoBehaviour
         rigRoot.position += delta;
 
         if (hadController) characterController.enabled = true;
+
+        // The rig persists across scene loads, so FootstepAudio is never disabled and never
+        // re-syncs itself. Left alone it measures this jump as travel and spends it as a burst
+        // of footsteps the moment the participant next moves - the "repeat run" rattle.
+        if (footstepAudio != null) footstepAudio.ResetStride();
     }
 
     private void SetLocomotionEnabled(bool enabled)
