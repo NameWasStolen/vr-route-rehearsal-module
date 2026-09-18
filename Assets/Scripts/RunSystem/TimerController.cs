@@ -2,6 +2,7 @@ using UnityEngine;
 
 public class TimerController : MonoBehaviour
 {
+    public event System.Action RunStarted;
     public event System.Action<float> RunEnded;
 
     public bool IsRunning { get; private set; }
@@ -26,6 +27,7 @@ public class TimerController : MonoBehaviour
         ElapsedTime = 0f;
         IsRunning = true;
         Debug.Log("Run Timer started");
+        RunStarted?.Invoke();
     }
 
     public void endTimer()
