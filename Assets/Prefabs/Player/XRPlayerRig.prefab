@@ -98,7 +98,6 @@ Transform:
   m_Children:
   - {fileID: 6328703922829209767}
   - {fileID: 3103783340650822647}
-  - {fileID: 3628771890104076412}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &508270736697098478
@@ -349,6 +348,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ControllerHandednessManager
   _locomotionActions: {fileID: -944628639613478452, guid: 4a19fe7c97b39ca4cb7c04bcc214ffef, type: 3}
   _defaultHand: 1
+  _leftRayInteractor: {fileID: 697473909955369854}
+  _rightRayInteractor: {fileID: 3487334817570787231}
 --- !u!1 &5140507344334807640
 GameObject:
   m_ObjectHideFlags: 0
@@ -563,7 +564,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6270634829803137786}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -571,7 +572,7 @@ Transform:
   - {fileID: 9057380166705821250}
   - {fileID: 5854648061113019493}
   - {fileID: 2507301308330355609}
-  m_Father: {fileID: 478551867801170501}
+  m_Father: {fileID: 6328703922829209767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &6701793553958683552
 GameObject:
@@ -1060,6 +1061,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5080413276867534474}
+  - {fileID: 3628771890104076412}
   m_Father: {fileID: 478551867801170501}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1252003223097547023
@@ -1143,6 +1145,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: ad818c36731146e994540a1896ad8f24, type: 3}
+--- !u!1 &697473909955369854 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1787346994484839025, guid: ad818c36731146e994540a1896ad8f24, type: 3}
+  m_PrefabInstance: {fileID: 1252003223097547023}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &4672795371586291647 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5888765399538998960, guid: ad818c36731146e994540a1896ad8f24, type: 3}
@@ -1225,6 +1232,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: ad818c36731146e994540a1896ad8f24, type: 3}
+--- !u!1 &3487334817570787231 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1787346994484839025, guid: ad818c36731146e994540a1896ad8f24, type: 3}
+  m_PrefabInstance: {fileID: 2929712594590174702}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &8723884775005950814 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5888765399538998960, guid: ad818c36731146e994540a1896ad8f24, type: 3}
@@ -1329,11 +1341,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.ControllerButtonHighlight
   hand: 1
+  button: 0
   targetRenderer: {fileID: 0}
   colourProperty: _BaseColor
   highlightColour: {r: 0.4, g: 0.8, b: 1, a: 1}
   pulsePeriod: 1.8
   pulseDepth: 0.55
+  markedDepth: 0.3
   flashDuration: 0.35
 --- !u!1001 &5559426873517743226
 PrefabInstance:
@@ -1429,11 +1443,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.ControllerButtonHighlight
   hand: 0
+  button: 0
   targetRenderer: {fileID: 0}
   colourProperty: _BaseColor
   highlightColour: {r: 0.4, g: 0.8, b: 1, a: 1}
   pulsePeriod: 1.8
   pulseDepth: 0.55
+  markedDepth: 0.3
   flashDuration: 0.35
 --- !u!4 &4602949500594811797 stripped
 Transform:

@@ -30,6 +30,14 @@ public class ControllerHandednessManager : MonoBehaviour
     [SerializeField] private InputActionAsset _locomotionActions; // Contains the action maps for both left and right hand locomotion
     [SerializeField] private ControllerHand _defaultHand = ControllerHand.Right;
 
+    [Header("Interactors")]
+    [Tooltip("The Ray Interactor under Controller > Left Hand. Hidden while the right hand " +
+             "is active, so only the chosen controller shows a ray.")]
+    [SerializeField] private GameObject _leftRayInteractor;
+
+    [Tooltip("The Ray Interactor under Controller > Right Hand.")]
+    [SerializeField] private GameObject _rightRayInteractor;
+
     private InputActionMap _leftHandActions;
     private InputActionMap _rightHandActions;
 
@@ -74,12 +82,31 @@ public class ControllerHandednessManager : MonoBehaviour
             SetMapEnabled(_rightHandActions, !useLeftHand);
         }
 
+        // Deliberately outside the suspension branch above: which hand owns the ray is a
+        // setting, but the pause menu still has to be clickable while locomotion is off.
+        ApplyInteractorVisibility();
+
         Debug.Log($"Active controller: {selectedHand}");
 
         // Fired last, so every listener sees a fully-applied state (maps already switched).
         // Deliberately fires even when the hand did not actually change - a listener that has
         // only just enabled relies on this to sync, and re-applying the same hand is harmless.
         HandChanged?.Invoke(selectedHand);
+    }
+
+    /// <summary>
+    /// Shows the ray on the chosen controller only.
+    ///
+    /// Disabling the GameObject rather than just the line visual is deliberate: a hidden
+    /// interactor still hovers and selects, so a participant could click a menu item with
+    /// the hand they are not using and never see what did it.
+    /// </summary>
+    private void ApplyInteractorVisibility()
+    {
+        bool useLeftHand = ActiveHand == ControllerHand.Left;
+
+        if (_leftRayInteractor != null) _leftRayInteractor.SetActive(useLeftHand);
+        if (_rightRayInteractor != null) _rightRayInteractor.SetActive(!useLeftHand);
     }
 
     /// <summary>True while anything holds locomotion off, e.g. the pause menu is open.</summary>
