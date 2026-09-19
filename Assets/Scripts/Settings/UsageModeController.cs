@@ -39,12 +39,20 @@ public class UsageModeController : MonoBehaviour
         {
             _xrOrigin.RequestedTrackingOriginMode =
                 XROrigin.TrackingOriginMode.Floor;
+
+            // Floor tracking reports real head height, so no virtual offset is wanted.
+            // Clearing it matters if the platform cannot provide Floor and quietly falls
+            // back to Device - otherwise the seated offset stays applied while standing.
+            _xrOrigin.CameraYOffset = 0f;
         }
         else
         {
-            _xrOrigin.CameraYOffset = _sittingCameraHeight;
+            // Mode first: changing it re-runs XROrigin's camera setup, so the offset is
+            // applied against the mode that will actually be in effect.
             _xrOrigin.RequestedTrackingOriginMode =
                 XROrigin.TrackingOriginMode.Device;
+
+            _xrOrigin.CameraYOffset = _sittingCameraHeight;
         }
 
         CurrentMode = mode;

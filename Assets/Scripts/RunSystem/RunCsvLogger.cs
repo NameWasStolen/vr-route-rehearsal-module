@@ -12,8 +12,9 @@ public static class RunCsvLogger
         RunSettingsSnapshot settings,
         string runType)
     {
-        string directory = Path.Combine(Application.dataPath, "Data", "RunData");
-        Directory.CreateDirectory(directory);
+        // persistentDataPath, not dataPath: on Android/Quest dataPath points inside the
+        // APK and is read-only, so the write throws on device while working in the Editor.
+        string directory = Path.Combine(Application.persistentDataPath, "Data", "RunData");
 
         string filePath = Path.Combine(
             directory,
@@ -47,7 +48,19 @@ public static class RunCsvLogger
             csv.AppendLine();
         }
 
-        File.WriteAllText(filePath, csv.ToString(), Encoding.UTF8);
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(filePath, csv.ToString(), Encoding.UTF8);
+        }
+        catch (Exception exception)
+        {
+            // A failed write must not take the run down with it - the participant is still
+            // in the headset and StopTracking has more to do after this.
+            Debug.LogError($"Run CSV could not be written to {filePath}: {exception.Message}");
+            return null;
+        }
+
         Debug.Log($"Run CSV saved to: {filePath}");
         return filePath;
     }
