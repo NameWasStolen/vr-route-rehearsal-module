@@ -168,12 +168,15 @@ public class SettingsController : MonoBehaviour
             {
                 if (!state || _applying) return;
 
-                // NOTE (from feat/guided-tutorial, still unresolved): SnapTurnTask
-                // detects a single-frame yaw jump, which by design never fires under
-                // continuous rotation. With this setting live, a participant who
-                // chooses continuous reaches the camera step of the tutorial and
-                // cannot complete it. Either make the task mode-aware, or force snap
-                // turn for the tutorial's duration and restore the preference after.
+                // RESOLVED (was: SnapTurnTask could only be completed under snap
+                // turn, so choosing continuous left the tutorial's camera step
+                // uncompletable). TurnTask replaces it and reads the mode below to
+                // decide which of the three lessons to teach and how to detect it.
+                //
+                // TurnTask resolves the mode when its step starts, not live, so a
+                // change made here while that lesson is on screen does not take
+                // effect until the step is re-entered - which "Practise turning" in
+                // the pause menu does.
                 if (state)
                 {
                     RotationModeController rotationController =
