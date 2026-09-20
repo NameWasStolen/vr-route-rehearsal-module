@@ -19,6 +19,11 @@ namespace VRTutorial
     /// wobbles across the deadzone reads as a fault, where an easing one reads as effort being
     /// accumulated. Completion overrides the smoothing so the bar is definitely full at the
     /// moment the lesson says it is.
+    ///
+    /// Hide When Complete takes that a step further and fades the whole indicator away a beat
+    /// after completion, so the panel holding the congratulation is not still fronted by a
+    /// finished gauge. Off by default - an indicator never told to hide keeps whatever alpha it
+    /// was authored with, exactly as before.
     /// </summary>
     [DisallowMultipleComponent]
     public class TaskProgressIndicator : MonoBehaviour
@@ -51,12 +56,33 @@ namespace VRTutorial
         [Tooltip("Seconds to fade the indicator in once progress begins.")]
         [SerializeField] private float appearDuration = 0.2f;
 
+        [Tooltip("Fade the indicator out shortly after the lesson completes, so the panel that " +
+                 "holds the congratulation is not still fronted by a finished gauge. The bar has " +
+                 "said everything it has to say by then - the prompt underneath is the thing to " +
+                 "read. Needs SetComplete to be wired; progress reaching 1 on its own is not " +
+                 "enough, because that is a value, not an ending.")]
+        [SerializeField] private bool hideWhenComplete = false;
+
+        [Tooltip("Seconds to wait after completion before starting to fade. Not zero on purpose: " +
+                 "the bar turning its complete colour is one of the three signals that the lesson " +
+                 "is done, alongside the length and the prompt changing. Whipping it away " +
+                 "instantly spends that signal without anyone seeing it.")]
+        [SerializeField] private float hideDelay = 0.8f;
+
+        [Tooltip("Seconds to fade out over.")]
+        [SerializeField] private float hideDuration = 0.35f;
+
         private CanvasGroup _group;
         private float _target;
         private float _shown;
         private float _velocity;
         private bool _complete;
         private float _colourBlend;
+        private float _completeAt;
+        private bool _warnedNoGroup;
+
+        /// <summary>True when this component owns the CanvasGroup's alpha rather than leaving it alone.</summary>
+        private bool DrivesAlpha => hideUntilStarted || hideWhenComplete;
 
         private void Awake()
         {
@@ -70,7 +96,25 @@ namespace VRTutorial
             }
 
             Apply(0f, instant: true);
-            if (_group != null && hideUntilStarted) _group.alpha = 0f;
+            ApplyRestingAlpha();
+
+            if (_group == null && DrivesAlpha && !_warnedNoGroup)
+            {
+                _warnedNoGroup = true;
+                Debug.LogWarning($"[TaskProgressIndicator] '{name}' is set to hide itself but has " +
+                                 "no CanvasGroup, so it has no way to. Add one.", this);
+            }
+        }
+
+        /// <summary>
+        /// The alpha this indicator rests at when nothing is in progress. Visible unless Hide
+        /// Until Started says otherwise - and only touched at all when one of the hide options is
+        /// on, so an indicator using neither keeps whatever alpha it was authored with.
+        /// </summary>
+        private void ApplyRestingAlpha()
+        {
+            if (_group == null || !DrivesAlpha) return;
+            _group.alpha = hideUntilStarted ? 0f : 1f;
         }
 
         /// <summary>Float UnityEvent target. Wire MovementTask.onProgressChanged straight to this.</summary>
@@ -84,6 +128,7 @@ namespace VRTutorial
         public void SetComplete()
         {
             _complete = true;
+            _completeAt = Time.unscaledTime;
             _target = 1f;
             Apply(1f, instant: true);
         }
@@ -94,8 +139,13 @@ namespace VRTutorial
             _complete = false;
             _target = 0f;
             _colourBlend = 0f;
+            _completeAt = 0f;
             Apply(0f, instant: true);
-            if (_group != null && hideUntilStarted) _group.alpha = 0f;
+
+            // Snapped, not faded. A lesson replayed from the pause menu should open with the bar
+            // simply there, not creeping back in from the fade-out that ended the last attempt -
+            // that reads as the previous run still finishing.
+            ApplyRestingAlpha();
         }
 
         private void Update()
@@ -123,11 +173,26 @@ namespace VRTutorial
             if (fillImage != null)
                 fillImage.color = Color.Lerp(progressColour, completeColour, _colourBlend);
 
-            if (_group != null && hideUntilStarted)
+            // One place decides the alpha, because two would fight. Left alone entirely when
+            // neither hide option is on, so existing indicators behave exactly as before.
+            if (_group != null && DrivesAlpha)
             {
-                float alphaGoal = (_target > 0f || _complete) ? 1f : 0f;
-                _group.alpha = appearDuration > 0f
-                    ? Mathf.MoveTowards(_group.alpha, alphaGoal, dt / appearDuration)
+                float alphaGoal = 1f;
+                float rate = appearDuration;
+
+                if (hideWhenComplete && _complete && Time.unscaledTime >= _completeAt + hideDelay)
+                {
+                    alphaGoal = 0f;
+                    rate = hideDuration;
+                }
+                else if (hideUntilStarted && _target <= 0f && !_complete)
+                {
+                    alphaGoal = 0f;
+                    rate = appearDuration;
+                }
+
+                _group.alpha = rate > 0f
+                    ? Mathf.MoveTowards(_group.alpha, alphaGoal, dt / rate)
                     : alphaGoal;
             }
         }
