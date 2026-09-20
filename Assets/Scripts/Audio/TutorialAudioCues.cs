@@ -12,6 +12,11 @@ namespace VRTutorial
     /// lesson that is added later gets its sounds for free as long as it is one of the task types
     /// below, and the Inspector bindings that already exist on those events are left untouched.
     ///
+    /// The flip side, and the thing to remember: a task is hooked BY TYPE. Replacing a lesson's
+    /// component with a new one - as TurnTask replaced SnapTurnTask - silently takes its sounds
+    /// away until the new type is added to the list below. Nothing warns; the lesson simply goes
+    /// quiet, which is precisely the failure this class was written to prevent for hand-wiring.
+    ///
     /// What plays when:
     ///   - Action accepted (soft tick): a correct turn, the grip squeezed (and squeezed again
     ///     after letting go), the menu opened, the help button held, a practice request placed.
@@ -66,6 +71,17 @@ namespace VRTutorial
 
                 // Belt and braces, in case the flow enabled first anyway.
                 if (flow.CurrentIndex >= 0) _sawFirstStep = true;
+            }
+
+            // The turning lesson. TurnTask is the live one - it teaches whichever of the three
+            // turning modes the participant has selected. SnapTurnTask is its predecessor and is
+            // kept here only so the rollback path stays audible; the two are never both on a
+            // step, so this cannot double a cue.
+            foreach (var t in FindAllInScene<TurnTask>())
+            {
+                Hook(t.onTurnRegistered, Action);
+                Hook(t.onWrongDirection, Retry);
+                Hook(t.onCompleted, Complete);
             }
 
             foreach (var t in FindAllInScene<SnapTurnTask>())

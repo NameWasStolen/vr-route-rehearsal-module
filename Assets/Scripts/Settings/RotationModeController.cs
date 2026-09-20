@@ -19,6 +19,19 @@ public class RotationModeController : MonoBehaviour
 
     public PlayerRotationMode CurrentMode { get; private set; }
 
+    /// <summary>
+    /// The turning mode in force, or <paramref name="fallback"/> when no controller exists -
+    /// i.e. when a scene is opened standalone for testing without Bootstrap.
+    ///
+    /// Mirrors ControllerHandednessManager.CurrentOrDefault, and exists for the same reason: a
+    /// lesson in an additively-loaded scene needs the current setting without holding a scene
+    /// reference across scenes, which does not serialise.
+    /// </summary>
+    public static PlayerRotationMode CurrentOrDefault(PlayerRotationMode fallback)
+    {
+        return Instance != null ? Instance.CurrentMode : fallback;
+    }
+
     private void Awake()
     {
         Instance = this;
