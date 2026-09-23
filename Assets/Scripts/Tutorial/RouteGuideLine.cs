@@ -1,5 +1,9 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.XR;
 
 namespace VRTutorial
 {
@@ -27,6 +31,16 @@ namespace VRTutorial
     ///
     /// TUTORIAL SCENE ONLY. The line gives away the right turn at the intersection, so it must
     /// not be placed in a study scene where wrong turns are measured.
+    ///
+    /// MODES
+    ///
+    ///   Always    - the original behaviour: Show() draws the line and it stays until Hide().
+    ///   OnRequest - the reduced form (default). Show() only ARMS the guide; nothing is drawn
+    ///               until the participant asks (a quick tap of A/X -> RequestShow, which draws
+    ///               it for requestSeconds) or goes the wrong way at the intersection (3 m down
+    ///               a wrong arm -> a controller buzz, onWrongTurn for the panel, and the line
+    ///               back until they return). Helping only on request or after a mistake keeps
+    ///               the route decision theirs (Parush et al. 2007; Brugger et al. 2019).
     ///
     /// Wiring (see route-guide-line.md in the project):
     ///   StepGoToExit -> TutorialStep.onStepEnter        -> RouteGuideLine.Show
@@ -88,8 +102,11 @@ namespace VRTutorial
         [SerializeField] private Material material;
         [SerializeField] private float width = 0.40f;
 
-        [Tooltip("Height above the ground surface. Enough to clear the paving without z-fighting.")]
-        [SerializeField] private float lift = 0.02f;
+        [Tooltip("Height above the surface the ground raycast hits. The paving COLLIDER tops out at " +
+                 "about 0.8 cm, but the visible slabs laid over it reach about 4 cm (3 cm thick, " +
+                 "randomly lifted up to 6 mm), so anything under ~0.04 disappears beneath the tiles " +
+                 "and only shows in the joints. 0.05 clears the tallest slab by about a centimetre.")]
+        [SerializeField] private float lift = 0.05f;
 
         [Tooltip("Radius used to round the corners, in metres.")]
         [SerializeField] private float cornerRadius = 0.6f;
@@ -126,12 +143,81 @@ namespace VRTutorial
                  "route hedge and the 1.2 m fence, above the 5 cm kerbs.")]
         [SerializeField] private float sightHeight = 0.4f;
 
+        // ------------------------------------------------------------------ reduced guidance
+        public enum GuideMode { Always, OnRequest }
+
+        [Header("Mode")]
+        [Tooltip("Always: Show() draws the line until Hide().\n" +
+                 "OnRequest: Show() only arms the guide. The line appears when the participant " +
+                 "taps A/X (RequestShow) or goes the wrong way, and retracts afterwards.")]
+        [SerializeField] private GuideMode mode = GuideMode.OnRequest;
+
+        [Header("On request")]
+        [Tooltip("How long the line stays after a tap of A/X, in seconds. Another tap restarts it.")]
+        [SerializeField] private float requestSeconds = 8f;
+
+        [Tooltip("Session log event for a tap. How often and where people ask is worth having.")]
+        [SerializeField] private string requestLogEvent = "tutorial_route_requested";
+
+        [Header("Wrong turn")]
+        [Tooltip("The wrong arms of the intersection, in world X/Z. A wrong turn fires once the " +
+                 "participant is Trigger Distance along an arm from its Entry and within Half " +
+                 "Width of its centreline (wide enough to include the grass beside it). It re-arms " +
+                 "when they come back to the intersection.")]
+        [SerializeField] private WrongArm[] wrongArms =
+        {
+            new WrongArm { name = "West",  entry = new Vector2(-1f, 24f), direction = new Vector2(-1f, 0f) },
+            new WrongArm { name = "North", entry = new Vector2( 0f, 25f), direction = new Vector2( 0f, 1f) },
+        };
+
+        [Tooltip("After they come back to the intersection, keep the line up this long so they " +
+                 "see which way to go next.")]
+        [SerializeField] private float lingerSeconds = 4f;
+
+        [Tooltip("Strength of the controller buzz on a wrong turn, 0-1.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float hapticAmplitude = 0.6f;
+
+        [Tooltip("Length of each buzz, in seconds.")]
+        [SerializeField] private float hapticPulseSeconds = 0.15f;
+
+        [Tooltip("Number of buzzes. Two short ones read as 'attention' rather than a collision.")]
+        [SerializeField] private int hapticPulses = 2;
+
+        [Tooltip("Session log event for a wrong turn; the arm name is the detail.")]
+        [SerializeField] private string wrongTurnLogEvent = "tutorial_wrong_turn";
+
+        [Tooltip("Fires on a wrong turn. Wire to TutorialFlow.RevealStep(\"WrongWay\") for the panel.")]
+        public UnityEvent onWrongTurn;
+
+        [Tooltip("Fires when they come back to the intersection after a wrong turn.")]
+        public UnityEvent onBackOnRoute;
+
+        [Serializable]
+        public class WrongArm
+        {
+            public string name = "Arm";
+            public Vector2 entry;
+            public Vector2 direction = Vector2.left;
+            [Tooltip("Metres along the arm, from Entry, before it counts as a wrong turn.")]
+            public float triggerDistance = 3f;
+            [Tooltip("Metres either side of the arm's centreline that still count as being in it.")]
+            public float halfWidth = 4f;
+            [NonSerialized] public bool fired;
+        }
+
         [Header("Debug")]
         [SerializeField] private bool logStateChanges = false;
 
         /// <summary>True while the participant is on the paving along the route.</summary>
         public bool IsOnPath { get; private set; } = true;
         public bool IsShown { get; private set; }
+
+        /// <summary>OnRequest mode: armed by Show() at the "All done" step, disarmed by Hide().</summary>
+        public bool IsArmed { get; private set; }
+
+        /// <summary>True while the line is on screen (drawing, drawn or retracting).</summary>
+        public bool IsVisible => _visible;
 
         // ------------------------------------------------------------------ internals
         private const float SampleSpacing = 0.5f;   // centreline samples for the rejoin search
@@ -162,6 +248,14 @@ namespace VRTutorial
         private float _nextRejoinSearch;
         private float _scroll;
 
+        private bool _visible;
+        private bool _retracting;
+        private float _drawnLength;
+        private float _requestUntil = -1f;
+        private float _lingerUntil = -1f;
+        private WrongArm _correctingArm;
+        private Coroutine _haptics;
+
         // ================================================================== lifecycle
         private void Awake()
         {
@@ -186,8 +280,8 @@ namespace VRTutorial
 
             PrepareRoute();
 
-            if (showOnStart) ShowImmediate();
-            else SetHidden();
+            SetHidden();
+            if (showOnStart) Show();
         }
 
         private void OnDestroy()
@@ -199,7 +293,8 @@ namespace VRTutorial
 
         private void LateUpdate()
         {
-            if (!IsShown) return;
+            bool active = mode == GuideMode.Always ? IsShown : IsArmed;
+            if (!active) return;
             if (!ResolvePlayer(out Vector2 foot, out float floorY)) return;
 
             if (Vector2.Distance(foot, routePoints[routePoints.Length - 1]) < arriveDistance)
@@ -208,15 +303,42 @@ namespace VRTutorial
                 return;
             }
 
-            bool revealing = _revealed < float.PositiveInfinity;
-            if (revealing)
+            if (mode == GuideMode.OnRequest) CheckWrongArms(foot);
+
+            float now = Time.unscaledTime;
+            bool want = mode == GuideMode.Always
+                        || now < _requestUntil
+                        || _correctingArm != null
+                        || now < _lingerUntil;
+
+            if (want && !_visible) BeginDraw();
+            else if (want && _retracting) _retracting = false;         // asked again mid-retract
+            else if (!want && _visible && !_retracting) _retracting = true;
+
+            if (!_visible) return;
+
+            float dt = Time.unscaledDeltaTime;
+            bool animating;
+            if (_retracting)
             {
-                _revealed += revealSpeed * Time.unscaledDeltaTime;
-                if (_revealed > _totalLength + 50f) _revealed = float.PositiveInfinity;
+                // Pull the line back in toward the feet rather than popping it off.
+                if (float.IsPositiveInfinity(_revealed)) _revealed = _drawnLength;
+                _revealed -= revealSpeed * dt;
+                if (_revealed <= 0f) { EndDraw(); return; }
+                animating = true;
+            }
+            else
+            {
+                animating = _revealed < float.PositiveInfinity;
+                if (animating)
+                {
+                    _revealed += revealSpeed * dt;
+                    if (_revealed > _totalLength + 50f) _revealed = float.PositiveInfinity;
+                }
             }
 
             bool moved = float.IsNaN(_lastFoot.x) || (foot - _lastFoot).sqrMagnitude > 0.0004f;
-            if (moved || revealing)
+            if (moved || animating)
             {
                 BuildLine(foot, floorY);
                 _lastFoot = foot;
@@ -226,34 +348,65 @@ namespace VRTutorial
             {
                 // Texture v increases toward the destination; moving the offset down makes the
                 // pattern travel toward it.
-                _scroll = Mathf.Repeat(_scroll - scrollSpeed / chevronSpacing * Time.unscaledDeltaTime, 1f);
+                _scroll = Mathf.Repeat(_scroll - scrollSpeed / chevronSpacing * dt, 1f);
                 _runtimeMaterial.mainTextureOffset = new Vector2(0f, _scroll);
             }
         }
 
         // ================================================================== public API
-        /// <summary>Shows the line, drawing it out from the participant's feet.</summary>
+        /// <summary>
+        /// Always mode: shows the line, drawing it out from the feet, until Hide().
+        /// OnRequest mode: arms the guide - taps and wrong turns work from now on, but nothing is
+        /// drawn yet. Wired to the "All done" step either way, so switching mode needs no rewiring.
+        /// </summary>
         public void Show()
         {
+            if (mode == GuideMode.OnRequest) { Arm(); return; }
             if (IsShown) return;
             IsShown = true;
-            _revealed = 0f;
-            _lastFoot = new Vector2(float.NaN, float.NaN);
-            _renderer.enabled = true;
             if (logStateChanges) Debug.Log("[RouteGuideLine] shown", this);
         }
 
-        /// <summary>Shows the full line at once, with no draw-out.</summary>
+        /// <summary>Shows the full line at once, with no draw-out (Always mode).</summary>
         public void ShowImmediate()
         {
             Show();
-            _revealed = float.PositiveInfinity;
+            if (mode == GuideMode.Always)
+            {
+                BeginDraw();
+                _revealed = float.PositiveInfinity;
+            }
         }
 
-        /// <summary>Hides the line. Wire to the end-zone trigger.</summary>
+        /// <summary>OnRequest mode: taps and wrong-turn detection become live.</summary>
+        public void Arm()
+        {
+            if (IsArmed) return;
+            IsArmed = true;
+            foreach (WrongArm arm in wrongArms) arm.fired = false;
+            if (logStateChanges) Debug.Log("[RouteGuideLine] armed", this);
+        }
+
+        /// <summary>
+        /// Draws the line for requestSeconds. Wire to AssistanceController.onTapped (a quick tap
+        /// of A/X). Ignored before the guide is armed, so a tap during the lessons does nothing.
+        /// </summary>
+        public void RequestShow()
+        {
+            if (mode == GuideMode.Always) return;
+            if (!IsArmed)
+            {
+                if (logStateChanges) Debug.Log("[RouteGuideLine] tap ignored - not armed yet", this);
+                return;
+            }
+            _requestUntil = Time.unscaledTime + requestSeconds;
+            SessionLog.Record(requestLogEvent);
+        }
+
+        /// <summary>Hides the line and disarms. Wire to the end-zone trigger.</summary>
         public void Hide()
         {
-            if (!IsShown) return;
+            if (!IsShown && !IsArmed && !_visible) return;
             SetHidden();
             if (logStateChanges) Debug.Log("[RouteGuideLine] hidden", this);
         }
@@ -261,8 +414,95 @@ namespace VRTutorial
         private void SetHidden()
         {
             IsShown = false;
+            IsArmed = false;
+            _requestUntil = -1f;
+            _lingerUntil = -1f;
+            _correctingArm = null;
+            EndDraw();
+        }
+
+        private void BeginDraw()
+        {
+            _visible = true;
+            _retracting = false;
+            _revealed = 0f;
+            _lastFoot = new Vector2(float.NaN, float.NaN);
+            if (_renderer != null) _renderer.enabled = true;
+        }
+
+        private void EndDraw()
+        {
+            _visible = false;
+            _retracting = false;
             if (_renderer != null) _renderer.enabled = false;
             if (_mesh != null) _mesh.Clear();
+        }
+
+        // ================================================================== wrong turns
+        private void CheckWrongArms(Vector2 foot)
+        {
+            foreach (WrongArm arm in wrongArms)
+            {
+                Vector2 dir = arm.direction.sqrMagnitude > 1e-6f ? arm.direction.normalized : Vector2.left;
+                Vector2 rel = foot - arm.entry;
+                float along = Vector2.Dot(rel, dir);
+                float lateral = Mathf.Abs(rel.x * dir.y - rel.y * dir.x);
+
+                if (!arm.fired && along >= arm.triggerDistance && lateral <= arm.halfWidth)
+                {
+                    arm.fired = true;
+                    _correctingArm = arm;
+                    OnWrongTurn(arm);
+                }
+                else if (arm.fired && along < 0.5f)
+                {
+                    // Back at the intersection: re-arm this arm, and keep the line up a little
+                    // longer so the next thing they see is which way to go.
+                    arm.fired = false;
+                    if (_correctingArm == arm)
+                    {
+                        _correctingArm = null;
+                        _lingerUntil = Time.unscaledTime + lingerSeconds;
+                        onBackOnRoute?.Invoke();
+                        if (logStateChanges) Debug.Log("[RouteGuideLine] back at the intersection", this);
+                    }
+                }
+            }
+        }
+
+        private void OnWrongTurn(WrongArm arm)
+        {
+            if (logStateChanges) Debug.Log($"[RouteGuideLine] wrong turn: {arm.name}", this);
+            SessionLog.Record(wrongTurnLogEvent, arm.name);
+
+            if (_haptics != null) StopCoroutine(_haptics);
+            _haptics = StartCoroutine(Buzz());
+
+            onWrongTurn?.Invoke();
+        }
+
+        /// <summary>
+        /// Buzzes BOTH controllers - someone who has forgotten which hand they nominated should
+        /// still feel it. Goes through UnityEngine.XR directly so it needs no references to the
+        /// rig in Bootstrap.
+        /// </summary>
+        private IEnumerator Buzz()
+        {
+            for (int i = 0; i < hapticPulses; i++)
+            {
+                Impulse(XRNode.LeftHand);
+                Impulse(XRNode.RightHand);
+                yield return new WaitForSecondsRealtime(hapticPulseSeconds * 2f);
+            }
+            _haptics = null;
+        }
+
+        private void Impulse(XRNode node)
+        {
+            UnityEngine.XR.InputDevice device = InputDevices.GetDeviceAtXRNode(node);
+            if (!device.isValid) return;
+            if (device.TryGetHapticCapabilities(out HapticCapabilities caps) && caps.supportsImpulse)
+                device.SendHapticImpulse(0u, hapticAmplitude, hapticPulseSeconds);
         }
 
         // ================================================================== route
@@ -470,6 +710,7 @@ namespace VRTutorial
                 walked += usable;
                 if (walked >= limit) break;
             }
+            _drawnLength = walked;
         }
 
         private void AddPoint(Vector2 xz, float sFromEnd, float floorY)
@@ -613,6 +854,18 @@ namespace VRTutorial
                 Vector3 b = new Vector3(routePoints[i].x, 0.1f, routePoints[i].y);
                 Gizmos.DrawLine(a, b);
                 Gizmos.DrawSphere(b, 0.12f);
+            }
+
+            if (wrongArms == null) return;
+            Gizmos.color = new Color(1f, 0.35f, 0.2f, 1f);
+            foreach (WrongArm arm in wrongArms)
+            {
+                Vector2 d = arm.direction.sqrMagnitude > 1e-6f ? arm.direction.normalized : Vector2.left;
+                Vector2 side = new Vector2(-d.y, d.x) * arm.halfWidth;
+                Vector2 near = arm.entry + d * arm.triggerDistance;
+                Vector3 a = new Vector3(near.x + side.x, 0.1f, near.y + side.y);
+                Vector3 b = new Vector3(near.x - side.x, 0.1f, near.y - side.y);
+                Gizmos.DrawLine(a, b);   // the trigger line across each wrong arm
             }
         }
 

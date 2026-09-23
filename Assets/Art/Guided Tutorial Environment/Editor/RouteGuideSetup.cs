@@ -1,7 +1,9 @@
+using TMPro;
 using UnityEditor;
 using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.SceneManagement;
 
 namespace VRTutorial.EditorTools
@@ -13,6 +15,9 @@ namespace VRTutorial.EditorTools
     /// holds TutorialFlow, and wires:
     ///   StepGoToExit  TutorialStep.onStepEnter          -> RouteGuideLine.Show
     ///   end zone      TutorialZoneTrigger.onPlayerEntered -> RouteGuideLine.Hide
+    ///   A/X tap       AssistanceController.onTapped       -> RouteGuideLine.RequestShow
+    ///   wrong turn    RouteGuideLine.onWrongTurn          -> TutorialFlow.RevealStep("WrongWay")
+    /// and creates StepWrongWay (a copy of StepGoToExit with the wrong-way wording) if missing.
     /// Re-running it is safe: it reuses the existing object and never adds a listener twice.
     /// Anything it cannot find is reported in the Console for wiring by hand.
     ///
@@ -23,6 +28,13 @@ namespace VRTutorial.EditorTools
         private const string MaterialPath = "Assets/VRTutorial/Materials/M_RouteGuide.mat";
         private const string ObjectName   = "RouteGuide";
         private const string ExitStepName = "GoToExit";
+        private const string WrongStepName = "WrongWay";
+        private const float  WrongStepSeconds = 6f;
+
+        // Short, plain, and naming the line by what they can see. Participant-facing, so keep it
+        // in step with the rest of the module's wording if that changes.
+        private const string WrongTitle = "Not this way";
+        private const string WrongBody  = "Please turn around. Follow the blue line.";
 
         [MenuItem("Tools/VR Tutorial/Route Guide/Add To Tutorial Scene", false, 50)]
         public static void AddToScene()
@@ -54,6 +66,8 @@ namespace VRTutorial.EditorTools
 
             WireShow(guide);
             WireHide(guide);
+            WireTap(guide);
+            WireWrongWay(guide, flow);
 
             EditorSceneManager.MarkSceneDirty(scene);
             Selection.activeGameObject = guide.gameObject;
@@ -146,6 +160,122 @@ namespace VRTutorial.EditorTools
             }
             string n = zone.name.ToLowerInvariant();
             return n.Contains("endzone") || n.Contains("end zone") || n.Contains("end_zone");
+        }
+
+        private static void WireTap(RouteGuideLine guide)
+        {
+            var assistance = Object.FindAnyObjectByType<AssistanceController>(FindObjectsInactive.Include);
+            if (assistance == null)
+            {
+                Debug.LogWarning("[RouteGuide] No AssistanceController found. Wire a tap by hand: " +
+                                 "AssistanceController.onTapped -> RouteGuideLine.RequestShow.");
+                return;
+            }
+            if (HasListener(assistance.onTapped, guide, nameof(RouteGuideLine.RequestShow))) return;
+            Undo.RecordObject(assistance, "Wire Route Guide Tap");
+            UnityEventTools.AddPersistentListener(assistance.onTapped, guide.RequestShow);
+            EditorUtility.SetDirty(assistance);
+            Debug.Log("[RouteGuide] Wired AssistanceController.onTapped -> RouteGuideLine.RequestShow", assistance);
+        }
+
+        private static void WireWrongWay(RouteGuideLine guide, TutorialFlow flow)
+        {
+            TutorialStep wrong = FindStep(WrongStepName);
+            if (wrong == null) wrong = CreateWrongWayStep(flow);
+            if (wrong == null) return;
+
+            if (HasListener(guide.onWrongTurn, flow, nameof(TutorialFlow.RevealStep))) return;
+            Undo.RecordObject(guide, "Wire Route Guide Wrong Turn");
+            UnityEventTools.AddStringPersistentListener(guide.onWrongTurn,
+                new UnityAction<string>(flow.RevealStep), WrongStepName);
+            EditorUtility.SetDirty(guide);
+            Debug.Log("[RouteGuide] Wired RouteGuideLine.onWrongTurn -> TutorialFlow.RevealStep(\"" +
+                      WrongStepName + "\")", guide);
+        }
+
+        /// <summary>
+        /// Copies StepGoToExit - already the right shape: a message with no controls and no task -
+        /// and gives it the wrong-way wording and its own timed dismissal. Inserted straight after
+        /// StepGoToExit in the hierarchy and in TutorialFlow.steps. It has no ITutorialTask, so
+        /// review-return logic never lands on it.
+        /// </summary>
+        private static TutorialStep CreateWrongWayStep(TutorialFlow flow)
+        {
+            TutorialStep exit = FindStep(ExitStepName);
+            if (exit == null)
+            {
+                Debug.LogWarning("[RouteGuide] Cannot create StepWrongWay: no \"" + ExitStepName +
+                                 "\" step to copy. Build that first (go-to-exit-step.md).");
+                return null;
+            }
+
+            GameObject go = Object.Instantiate(exit.gameObject, exit.transform.parent);
+            go.name = "StepWrongWay";
+            Undo.RegisterCreatedObjectUndo(go, "Create StepWrongWay");
+            go.transform.SetSiblingIndex(exit.transform.GetSiblingIndex() + 1);
+
+            TutorialStep step = go.GetComponent<TutorialStep>();
+            var so = new SerializedObject(step);
+            so.FindProperty("stepName").stringValue = WrongStepName;
+            // The copy inherits GoToExit's listeners (RouteGuideLine.Show, the 8 s dismissal).
+            // Neither belongs here.
+            so.FindProperty("onStepEnter.m_PersistentCalls.m_Calls").ClearArray();
+            so.FindProperty("onStepExit.m_PersistentCalls.m_Calls").ClearArray();
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            UnityEventTools.AddFloatPersistentListener(step.onStepEnter, flow.FinishAndDismissAfter,
+                                                       WrongStepSeconds);
+
+            SetText(go.transform, "TitleText", WrongTitle);
+            SetText(go.transform, "BodyText", WrongBody);
+
+            // Insert into the flow right after GoToExit, so indices of later steps stay in order.
+            var flowSo = new SerializedObject(flow);
+            SerializedProperty steps = flowSo.FindProperty("steps");
+            int at = steps.arraySize;
+            for (int i = 0; i < steps.arraySize; i++)
+                if (steps.GetArrayElementAtIndex(i).objectReferenceValue == exit) { at = i + 1; break; }
+            steps.InsertArrayElementAtIndex(at);
+            steps.GetArrayElementAtIndex(at).objectReferenceValue = step;
+            flowSo.ApplyModifiedProperties();
+
+            EditorUtility.SetDirty(step);
+            Debug.Log("[RouteGuide] Created StepWrongWay after StepGoToExit. Check its wording and " +
+                      "panel size in the Inspector.", go);
+            return step;
+        }
+
+        private static void SetText(Transform root, string child, string text)
+        {
+            Transform t = FindDeep(root, child);
+            TMP_Text label = t != null ? t.GetComponent<TMP_Text>() : null;
+            if (label == null)
+            {
+                Debug.LogWarning("[RouteGuide] StepWrongWay has no " + child + " - set its wording by hand.", root);
+                return;
+            }
+            Undo.RecordObject(label, "Set Wrong Way Text");
+            label.text = text;
+            EditorUtility.SetDirty(label);
+        }
+
+        private static Transform FindDeep(Transform root, string name)
+        {
+            if (root.name == name) return root;
+            foreach (Transform c in root)
+            {
+                Transform hit = FindDeep(c, name);
+                if (hit != null) return hit;
+            }
+            return null;
+        }
+
+        private static TutorialStep FindStep(string stepName)
+        {
+            foreach (TutorialStep s in Object.FindObjectsByType<TutorialStep>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (s.StepName == stepName) return s;
+            return null;
         }
 
         private static bool HasListener(UnityEngine.Events.UnityEventBase evt, Object target, string method)
