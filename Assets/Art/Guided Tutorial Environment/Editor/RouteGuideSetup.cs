@@ -18,6 +18,12 @@ namespace VRTutorial.EditorTools
     ///   A/X tap       AssistanceController.onTapped       -> RouteGuideLine.RequestShow
     ///   wrong turn    RouteGuideLine.onWrongTurn          -> TutorialFlow.RevealStep("WrongWay")
     /// and creates StepWrongWay (a copy of StepGoToExit with the wrong-way wording) if missing.
+    ///
+    /// Also builds the "tap to see the way" lesson, StepShowWay, if missing: a copy of
+    /// StepAssistance with its AssistanceTask swapped for a ShowWayTask, inserted between
+    /// StepAssistance and StepGoToExit. AssistanceTask.onCompleted -> Begin already advances one
+    /// step, so it now lands on this lesson; ShowWayTask.onCompleted -> Begin moves on to
+    /// "All done".
     /// Re-running it is safe: it reuses the existing object and never adds a listener twice.
     /// Anything it cannot find is reported in the Console for wiring by hand.
     ///
@@ -29,6 +35,9 @@ namespace VRTutorial.EditorTools
         private const string ObjectName   = "RouteGuide";
         private const string ExitStepName = "GoToExit";
         private const string WrongStepName = "WrongWay";
+        private const string AssistStepName = "Assistance";
+        private const string ShowWayStepName = "ShowWay";
+        private const string ShowWayTitle = "Finding the way";
         private const float  WrongStepSeconds = 6f;
 
         // Short, plain, and naming the line by what they can see. Participant-facing, so keep it
@@ -68,6 +77,7 @@ namespace VRTutorial.EditorTools
             WireHide(guide);
             WireTap(guide);
             WireWrongWay(guide, flow);
+            CreateShowWayStep(guide, flow);
 
             EditorSceneManager.MarkSceneDirty(scene);
             Selection.activeGameObject = guide.gameObject;
@@ -243,6 +253,99 @@ namespace VRTutorial.EditorTools
             Debug.Log("[RouteGuide] Created StepWrongWay after StepGoToExit. Check its wording and " +
                       "panel size in the Inspector.", go);
             return step;
+        }
+
+        private static void CreateShowWayStep(RouteGuideLine guide, TutorialFlow flow)
+        {
+            if (FindStep(ShowWayStepName) != null)
+            {
+                Debug.Log("[RouteGuide] StepShowWay already exists.");
+                return;
+            }
+
+            TutorialStep assist = FindStep(AssistStepName);
+            if (assist == null)
+            {
+                Debug.LogWarning("[RouteGuide] Cannot create StepShowWay: no step named \"" +
+                                 AssistStepName + "\" to copy. (Check StepAssistance's Step Name - " +
+                                 "it was once left as \"Pause\".)");
+                return;
+            }
+
+            var assistance = Object.FindAnyObjectByType<AssistanceController>(FindObjectsInactive.Include);
+
+            // Copy the assistance lesson: same panel, font, placement, banner, and the A-button
+            // pulse on enter / stop on exit - all of which suit this lesson too.
+            GameObject go = Object.Instantiate(assist.gameObject, assist.transform.parent);
+            go.name = "StepShowWay";
+            Undo.RegisterCreatedObjectUndo(go, "Create StepShowWay");
+            go.transform.SetSiblingIndex(assist.transform.GetSiblingIndex() + 1);
+
+            TutorialStep step = go.GetComponent<TutorialStep>();
+            var stepSo = new SerializedObject(step);
+            stepSo.FindProperty("stepName").stringValue = ShowWayStepName;
+            stepSo.ApplyModifiedPropertiesWithoutUndo();
+
+            // Swap the task. Instantiate remaps references inside the copied hierarchy, so the old
+            // task's prompt label already points at the copy's own BodyText.
+            TMP_Text prompt = null;
+            AssistanceTask oldTask = go.GetComponent<AssistanceTask>();
+            if (oldTask != null)
+            {
+                prompt = new SerializedObject(oldTask).FindProperty("promptLabel").objectReferenceValue as TMP_Text;
+                Object.DestroyImmediate(oldTask);
+            }
+            if (prompt == null)
+            {
+                Transform body = FindDeep(go.transform, "BodyText");
+                if (body != null) prompt = body.GetComponent<TMP_Text>();
+            }
+
+            // No progress bar in this lesson - it is one tap.
+            foreach (TaskProgressIndicator bar in go.GetComponentsInChildren<TaskProgressIndicator>(true))
+                bar.gameObject.SetActive(false);
+
+            ShowWayTask task = go.AddComponent<ShowWayTask>();
+            var taskSo = new SerializedObject(task);
+            taskSo.FindProperty("controller").objectReferenceValue = assistance;
+            taskSo.FindProperty("guide").objectReferenceValue = guide;
+            taskSo.FindProperty("promptLabel").objectReferenceValue = prompt;
+            taskSo.ApplyModifiedPropertiesWithoutUndo();
+
+            UnityEventTools.AddPersistentListener(task.onCompleted, flow.Begin);
+
+            ControllerHighlightRelay relay = FindRelay("ControllerHighlightRelay_Primary");
+            if (relay != null)
+            {
+                UnityEventTools.AddPersistentListener(task.onTapped, relay.StopPulsing);
+                UnityEventTools.AddPersistentListener(task.onTapped, relay.Flash);
+            }
+
+            SetText(go.transform, "TitleText", ShowWayTitle);
+
+            // Into the flow straight after the assistance lesson, ahead of "All done".
+            var flowSo = new SerializedObject(flow);
+            SerializedProperty steps = flowSo.FindProperty("steps");
+            int at = steps.arraySize;
+            for (int i = 0; i < steps.arraySize; i++)
+                if (steps.GetArrayElementAtIndex(i).objectReferenceValue == assist) { at = i + 1; break; }
+            steps.InsertArrayElementAtIndex(at);
+            steps.GetArrayElementAtIndex(at).objectReferenceValue = step;
+            flowSo.ApplyModifiedProperties();
+
+            EditorUtility.SetDirty(step);
+            EditorUtility.SetDirty(task);
+            Debug.Log("[RouteGuide] Created StepShowWay after StepAssistance" +
+                      (assistance == null ? " - but found no AssistanceController; assign it on ShowWayTask." : "."),
+                      go);
+        }
+
+        private static ControllerHighlightRelay FindRelay(string name)
+        {
+            foreach (ControllerHighlightRelay r in Object.FindObjectsByType<ControllerHighlightRelay>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (r.name == name) return r;
+            return null;
         }
 
         private static void SetText(Transform root, string child, string text)

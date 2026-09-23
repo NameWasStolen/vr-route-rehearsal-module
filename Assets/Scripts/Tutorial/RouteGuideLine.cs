@@ -216,6 +216,12 @@ namespace VRTutorial
         /// <summary>OnRequest mode: armed by Show() at the "All done" step, disarmed by Hide().</summary>
         public bool IsArmed { get; private set; }
 
+        /// <summary>
+        /// Set by ShowWayTask while the lesson runs, so practice taps are not logged as real
+        /// "show me the way" requests.
+        /// </summary>
+        public bool SuppressLogging { get; set; }
+
         /// <summary>True while the line is on screen (drawing, drawn or retracting).</summary>
         public bool IsVisible => _visible;
 
@@ -400,7 +406,7 @@ namespace VRTutorial
                 return;
             }
             _requestUntil = Time.unscaledTime + requestSeconds;
-            SessionLog.Record(requestLogEvent);
+            if (!SuppressLogging) SessionLog.Record(requestLogEvent);
         }
 
         /// <summary>Hides the line and disarms. Wire to the end-zone trigger.</summary>
