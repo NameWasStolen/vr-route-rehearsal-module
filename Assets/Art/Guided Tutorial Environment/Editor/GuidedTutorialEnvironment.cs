@@ -312,6 +312,69 @@ namespace VRTutorial.EditorTools
             Undo.DestroyObjectImmediate(existing);
         }
 
+        /// <summary>
+        /// Rebuilds ONLY the Scatter group (trees, shrubs, flowers, rocks, tufts) under the
+        /// existing root, leaving everything else alone. Use this instead of a full build when
+        /// only the planting has changed: a full build destroys and recreates the whole root,
+        /// which drops the route barriers, anything added by hand under it (the end-zone
+        /// trigger on CP_EndZone), and resets the root's position - Tutorial.unity has it at
+        /// z = 4, and the route guide's points assume that.
+        ///
+        /// Same seed as the full build, so trees, rocks and tufts land exactly where they were.
+        /// </summary>
+        [MenuItem("Tools/VR Tutorial/Rebuild Scatter Only (planting)", false, 2)]
+        public static void RebuildScatterOnly()
+        {
+            var root = GameObject.Find(RootName);
+            if (root == null)
+            {
+                EditorUtility.DisplayDialog("Rebuild Scatter",
+                    "No '" + RootName + "' in the open scene. Run a full build first.", "OK");
+                return;
+            }
+
+            EnsureFolder(MaterialFolder);
+            EnsureFolder(GeneratedFolder);
+
+            Transform old = root.transform.Find("Scatter");
+            if (old != null) Undo.DestroyObjectImmediate(old.gameObject);
+
+            // Existing material assets are reused; passing no textures leaves the ones already
+            // assigned in place.
+            Material   barkMat     = GetOrCreateMaterial("M_Bark",      new Color(0.34f, 0.26f, 0.19f), 0.05f);
+            Material[] foliageMats = Variants("M_Foliage", new Color(0.20f, 0.38f, 0.18f), 0.05f, 3, 0.055f);
+            Material   tuftMat     = GetOrCreateMaterial("M_GrassTuft", new Color(0.26f, 0.46f, 0.20f), 0.05f);
+            Material   rockMat     = GetOrCreateMaterial("M_Rock",      new Color(0.52f, 0.51f, 0.50f), 0.15f);
+
+            BuildScatter(root.transform, barkMat, foliageMats, tuftMat, rockMat, FlowerMaterials());
+
+            Transform rebuilt = root.transform.Find("Scatter");
+            if (rebuilt != null) Undo.RegisterCreatedObjectUndo(rebuilt.gameObject, "Rebuild Scatter");
+
+            AssetDatabase.SaveAssets();
+            EditorSceneManager.MarkSceneDirty(root.scene);
+            Debug.Log("[VRTutorial] Scatter rebuilt under the existing root. Nothing else touched.");
+        }
+
+        /// <summary>
+        /// Flower colours. One colour per shrub, like a real plant. Soft rather than saturated so
+        /// they read as garden, not as signage - and no blue, so nothing competes with the blue
+        /// route guide line. M_Flower keeps its original name so existing references still hold.
+        /// </summary>
+        private static Material[] FlowerMaterials()
+        {
+            return new[]
+            {
+                GetOrCreateMaterial("M_Flower",       new Color(0.86f, 0.80f, 0.42f), 0.08f),  // soft yellow
+                GetOrCreateMaterial("M_Flower_White", new Color(0.93f, 0.92f, 0.88f), 0.08f),
+                GetOrCreateMaterial("M_Flower_Pink",  new Color(0.90f, 0.56f, 0.68f), 0.08f),
+                GetOrCreateMaterial("M_Flower_Lilac", new Color(0.66f, 0.57f, 0.85f), 0.08f),
+                GetOrCreateMaterial("M_Flower_Coral", new Color(0.86f, 0.40f, 0.31f), 0.08f),
+            };
+        }
+
+        private static readonly string[] FlowerBatchNames = { "", "_White", "_Pink", "_Lilac", "_Coral" };
+
         // ----------------------------------------------------------------- build
         private static void Build()
         {
@@ -340,7 +403,7 @@ namespace VRTutorial.EditorTools
             Material   metalMat   = GetOrCreateMaterial("M_FenceMetal", new Color(0.42f, 0.44f, 0.47f), 0.65f);
             Material   kerbMat    = GetOrCreateMaterial("M_PathEdge",   new Color(0.55f, 0.54f, 0.51f), 0.12f, concA, concN);
             Material[] foliageMats = Variants("M_Foliage", new Color(0.20f, 0.38f, 0.18f), 0.05f, 3, 0.055f, foliA, null);
-            Material   flowerMat  = GetOrCreateMaterial("M_Flower",     new Color(0.86f, 0.80f, 0.42f), 0.08f);
+            Material[] flowerMats = FlowerMaterials();
             Material   stripeMat  = GetOrCreateMaterial("M_GrassStripe",new Color(0.35f, 0.53f, 0.25f), 0.05f, grassA, grassN);
             Material   tuftMat    = GetOrCreateMaterial("M_GrassTuft",  new Color(0.26f, 0.46f, 0.20f), 0.05f, foliA, null);
             Material   barkMat    = GetOrCreateMaterial("M_Bark",       new Color(0.34f, 0.26f, 0.19f), 0.05f, timbA, null);
@@ -372,7 +435,7 @@ namespace VRTutorial.EditorTools
             BuildParkedCars(root.transform, carMats, glassMat);
             BuildStreetTrees(root.transform, barkMat, foliageMats[1]);
             BuildLawnStripes(root.transform, stripeMat);
-            BuildScatter(root.transform, barkMat, foliageMats, tuftMat, rockMat, flowerMat);
+            BuildScatter(root.transform, barkMat, foliageMats, tuftMat, rockMat, flowerMats);
 
             if (IncludeLandmarks)
                 BuildLandmarks(root.transform, metalMat, timberMat, glassMat, postboxMat, lineMat);
@@ -1276,7 +1339,7 @@ namespace VRTutorial.EditorTools
 
         // --------------------------------------------------------------- scatter
         private static void BuildScatter(Transform root, Material bark, Material[] foliages,
-                                         Material tuft, Material rock, Material flowerMat)
+                                         Material tuft, Material rock, Material[] flowerMats)
         {
             var group = NewGroup("Scatter", root);
 
@@ -1286,7 +1349,8 @@ namespace VRTutorial.EditorTools
             var barkBatch = BeginBatch(group);
             var foliageBatches = new Transform[foliages.Length];
             for (int i = 0; i < foliages.Length; i++) foliageBatches[i] = BeginBatch(group);
-            var flowerBatch = BeginBatch(group);
+            var flowerBatches = new Transform[flowerMats.Length];
+            for (int i = 0; i < flowerMats.Length; i++) flowerBatches[i] = BeginBatch(group);
             var tuftBatch    = BeginBatch(group);
             var rockBatch    = BeginBatch(group);
             var trunkColliders = NewGroup("Tree_Colliders", group);
@@ -1312,52 +1376,110 @@ namespace VRTutorial.EditorTools
                 treeIndex++;
             }
 
-            // Shrubs - a mound of overlapping spheres of falling size, drawn from three
-            // greens so a bed does not read as one moulded lump. Roughly one in six flowers.
+            // Shrubs - a mound of overlapping spheres, drawn from three greens so a bed does not
+            // read as one moulded lump. Roughly one in six flowers.
+            //
+            // Every lobe is GROUNDED or SUPPORTED, so none can float:
+            //   - lobe 0 is the base: the widest, centred, and sunk ~45% into the lawn;
+            //   - the last lobe is the crown: small, centred, its centre inside the base, so it
+            //     always sits in the base's top rather than above it;
+            //   - the rest are side lobes whose bottoms are always below ground level.
+            // The earlier version stacked lobes by index with a free sideways offset, so a small
+            // low lobe could leave a larger one hanging in mid-air.
+            //
+            // The Random calls per lobe (size, offset, squash, yaw) are unchanged in number and
+            // order, so everything scattered after the shrubs lands exactly where it did before.
             foreach (Vector2 p in ScatterPoints(ShrubDensity, 0.6f, 0.5f))
             {
                 Transform bush = foliageBatches[Random.Range(0, foliageBatches.Length)];
                 float scaleBase = Random.Range(0.75f, 1.35f);
                 int lobes = Random.Range(4, 7);
 
-                // Remember each lobe, so flowers can be planted on an actual surface rather
-                // than at a guessed height. Guessing is what left them hanging in mid-air.
+                // Remember each lobe, so flowers can be planted on an actual surface.
                 var lobeAt = new List<Vector3>();
-                var lobeR = new List<float>();
+                var lobeR = new List<float>();     // horizontal radius
+                var lobeRV = new List<float>();    // vertical radius (lobes are squashed)
+
+                float baseY = 0f, baseRV = 0f;
 
                 for (int i = 0; i < lobes; i++)
                 {
-                    float drop = 1f - (i / (float)lobes) * 0.45f;      // smaller toward the top
-                    float s = Random.Range(0.34f, 0.62f) * scaleBase * drop;
-                    Vector2 offset = Random.insideUnitCircle * 0.30f * scaleBase;
-                    float y = (0.16f + (i / (float)lobes) * 0.42f) * scaleBase;
+                    float rawSize = Random.Range(0.34f, 0.62f);
+                    Vector2 unit  = Random.insideUnitCircle;
+                    float squash  = Random.Range(0.75f, 0.95f);
+                    float yaw     = Random.Range(0f, 360f);
+
+                    float sizeT   = Mathf.InverseLerp(0.34f, 0.62f, rawSize);
+                    float squashT = Mathf.InverseLerp(0.75f, 0.95f, squash);
+
+                    float s, y;
+                    Vector2 offset;
+
+                    if (i == 0)
+                    {
+                        // Base: widest, centred, sunk into the lawn.
+                        s = Mathf.Lerp(0.58f, 0.72f, sizeT) * scaleBase;
+                        offset = unit * 0.06f * scaleBase;
+                        float rv = s * squash * 0.5f;
+                        y = rv * 0.55f;
+                        baseY = y;
+                        baseRV = rv;
+                    }
+                    else if (i == lobes - 1)
+                    {
+                        // Crown: centre inside the base, so it rests in the top of it.
+                        s = Mathf.Lerp(0.30f, 0.44f, sizeT) * scaleBase;
+                        offset = unit * 0.10f * scaleBase;
+                        y = baseY + baseRV * Mathf.Lerp(0.35f, 0.65f, squashT);
+                    }
+                    else
+                    {
+                        // Side lobes: smaller toward the end, bottoms always below ground.
+                        float drop = 1f - (i / (float)lobes) * 0.45f;
+                        s = rawSize * scaleBase * drop;
+                        offset = unit * 0.32f * scaleBase;
+                        float rv = s * squash * 0.5f;
+                        y = rv * Mathf.Lerp(0.35f, 0.8f, squashT);
+                    }
 
                     Vector3 at = new Vector3(p.x + offset.x, y, p.y + offset.y);
                     AddPrimitive(bush, PrimitiveType.Sphere, at,
-                                 new Vector3(s, s * Random.Range(0.75f, 0.95f), s),
-                                 Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+                                 new Vector3(s, s * squash, s),
+                                 Quaternion.Euler(0f, yaw, 0f));
 
                     lobeAt.Add(at);
-                    lobeR.Add(s * 0.5f);           // primitive sphere scale is diameter
+                    lobeR.Add(s * 0.5f);             // primitive sphere scale is diameter
+                    lobeRV.Add(s * squash * 0.5f);
                 }
 
                 if (Random.Range(0f, 1f) < 0.17f)
                 {
+                    // One colour per shrub, picked from its position rather than from Random, so
+                    // adding colours does not shift anything scattered afterwards.
+                    int h = HashInt(Mathf.RoundToInt(p.x * 100f), Mathf.RoundToInt(p.y * 100f), 91);
+                    Transform flowerBatch = flowerBatches[(h & 0x7fffffff) % flowerBatches.Length];
+
                     int flowers = Random.Range(5, 10);
                     for (int i = 0; i < flowers; i++)
                     {
                         int k = Random.Range(0, lobeAt.Count);
 
-                        // Outward and upward, then pulled in to 80% of the lobe radius so the
-                        // bloom is bedded into the foliage instead of floating off it.
                         float ang = Random.Range(0f, 360f) * Mathf.Deg2Rad;
                         float up = Random.Range(0.25f, 0.95f);
                         float flat = 1f - up;
                         Vector3 dir = new Vector3(Mathf.Sin(ang) * flat, up,
                                                   Mathf.Cos(ang) * flat).normalized;
 
+                        // Distance to the lobe's surface along dir - the lobe is an ellipsoid
+                        // (squashed vertically), so using the horizontal radius for an upward
+                        // direction put blooms slightly ABOVE the foliage. 85% beds each bloom
+                        // into the surface.
+                        float a = lobeR[k], b = lobeRV[k];
+                        float horiz2 = dir.x * dir.x + dir.z * dir.z;
+                        float surface = 1f / Mathf.Sqrt(horiz2 / (a * a) + (dir.y * dir.y) / (b * b));
+
                         AddPrimitive(flowerBatch, PrimitiveType.Sphere,
-                                     lobeAt[k] + dir * (lobeR[k] * 0.80f),
+                                     lobeAt[k] + dir * (surface * 0.85f),
                                      Vector3.one * Random.Range(0.07f, 0.12f), Quaternion.identity);
                     }
                 }
@@ -1397,7 +1519,9 @@ namespace VRTutorial.EditorTools
             EndBatch(barkBatch, group, "Tree_Trunks", "TreeTrunkMesh", bark);
             for (int i = 0; i < foliageBatches.Length; i++)
                 EndBatch(foliageBatches[i], group, "Foliage_" + i, "FoliageMesh_" + i, foliages[i], 1.5f);
-            EndBatch(flowerBatch, group, "Flowers",    "FlowerMesh",    flowerMat);
+            for (int i = 0; i < flowerBatches.Length; i++)
+                EndBatch(flowerBatches[i], group, "Flowers" + FlowerBatchNames[i],
+                         "FlowerMesh" + FlowerBatchNames[i], flowerMats[i]);
             EndBatch(tuftBatch,   group, "GrassTufts", "GrassTuftMesh", tuft);
             EndBatch(rockBatch,   group, "Rocks",      "RockMesh",      rock);
         }

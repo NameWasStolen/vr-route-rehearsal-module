@@ -28,6 +28,11 @@ namespace VRTutorial
     /// already taught hold-the-control-and-watch-the-bar. Letting go is a cancel that needs no
     /// words in any language.
     ///
+    /// A quick TAP of the same button does something else: it fires onTapped, which the tutorial
+    /// wires to RouteGuideLine.RequestShow ("show me the way"). The confirmation panel waits
+    /// tapThreshold seconds before appearing, so a tap never flashes it and never gets near
+    /// calling anyone. Anything longer than a tap is the hold, exactly as before.
+    ///
     /// Note the contrast with MovementTask, which is cumulative with grace. That timer measures
     /// practice, where a pause for breath should not be punished. This one is a safety gate,
     /// where releasing genuinely means no - so it resets.
@@ -52,6 +57,12 @@ namespace VRTutorial
         [Tooltip("Seconds the button must be held before the request is placed.")]
         [Range(0.5f, 5f)]
         [SerializeField] private float holdDuration = 2f;
+
+        [Tooltip("A press released within this many seconds is a TAP (fires onTapped) instead of " +
+                 "the start of a hold. The confirmation panel only appears once a press outlasts " +
+                 "it, so a tap never flashes the panel. 0 turns taps off entirely.")]
+        [Range(0f, 0.6f)]
+        [SerializeField] private float tapThreshold = 0.3f;
 
         [Header("Availability")]
         [Tooltip("Whether the button works before the lesson has taught it. Left on deliberately, " +
@@ -116,6 +127,10 @@ namespace VRTutorial
         [Tooltip("Fires when the button is released before the bar fills.")]
         public UnityEvent onHoldCancelled;
 
+        [Tooltip("Fires on a quick tap (released within Tap Threshold). Nothing is logged and nobody " +
+                 "is called. In the tutorial: RouteGuideLine.RequestShow.")]
+        public UnityEvent onTapped;
+
         [Tooltip("Fires when a request is placed, drill or real.")]
         public UnityEvent onRequested;
 
@@ -142,6 +157,9 @@ namespace VRTutorial
         private Coroutine _requestedFade;
 
         private float _held;
+        private bool _pressed;            // button currently down, tap or hold not yet decided
+        private float _pressTime;         // how long the current press has lasted
+        private bool _ignoreUntilRelease; // press that carried over from the requested panel
         private bool _pauseWasAvailable = true;
         private bool _warnedNoAction;
 
@@ -157,7 +175,7 @@ namespace VRTutorial
 
             // The hold must not be able to finish before the panel has finished appearing, or the
             // bar the gesture is explained by is never actually seen.
-            if (holdDuration < fadeDuration + 0.3f)
+            if (holdDuration < tapThreshold + fadeDuration + 0.3f)
             {
                 Debug.LogWarning($"[AssistanceController] Hold Duration ({holdDuration:0.00}s) is " +
                                  $"close to Fade Duration ({fadeDuration:0.00}s); the bar may fill " +
@@ -183,6 +201,8 @@ namespace VRTutorial
             }
             AssistanceRequest.ResetState();
             _held = 0f;
+            _pressed = false;
+            _ignoreUntilRelease = false;
         }
 
         /// <summary>
@@ -223,20 +243,54 @@ namespace VRTutorial
 
         private void Update()
         {
-            if (!IsAvailable) return;
-            if (AssistanceRequest.State == AssistanceState.Requested) return;
+            if (!IsAvailable) { _pressed = false; return; }
 
             bool held = ReadHeld();
 
-            if (!held)
+            // While the requested panel is up the button does nothing - and a press that is still
+            // down when they Resume must not turn into a tap or a fresh hold on the way out.
+            if (AssistanceRequest.State == AssistanceState.Requested)
             {
-                if (AssistanceRequest.State == AssistanceState.Confirming) CancelHold();
+                _pressed = false;
+                _ignoreUntilRelease = held;
+                return;
+            }
+            if (_ignoreUntilRelease)
+            {
+                if (!held) _ignoreUntilRelease = false;
                 return;
             }
 
-            if (AssistanceRequest.State == AssistanceState.Idle) BeginHold();
+            if (!held)
+            {
+                if (_pressed)
+                {
+                    _pressed = false;
+                    if (AssistanceRequest.State == AssistanceState.Confirming) CancelHold();
+                    else if (tapThreshold > 0f && _pressTime < tapThreshold) onTapped?.Invoke();
+                }
+                return;
+            }
 
-            _held += Time.unscaledDeltaTime;
+            if (!_pressed)
+            {
+                _pressed = true;
+                _pressTime = 0f;
+            }
+            _pressTime += Time.unscaledDeltaTime;
+
+            // Undecided: could still be a tap. Show nothing yet.
+            if (AssistanceRequest.State == AssistanceState.Idle)
+            {
+                if (_pressTime < tapThreshold) return;
+                BeginHold();
+                _held = _pressTime;   // the hold is timed from the press, not from the panel
+            }
+            else
+            {
+                _held += Time.unscaledDeltaTime;
+            }
+
             float progress = holdDuration > 0f ? Mathf.Clamp01(_held / holdDuration) : 1f;
             if (confirmProgress != null) confirmProgress.SetProgress(progress);
 
