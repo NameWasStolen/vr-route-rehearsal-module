@@ -196,7 +196,7 @@ namespace VRTutorial
         private float _motionStart = -1f;   // start of the current burst of movement
         private float _lastMotion = -999f;
 
-        private enum HoldLevel { None, BackingOnly, Solid }
+        private enum HoldLevel { None, BarLesson, Solid }
 
         // Current multipliers for each layer. 1 = as authored. Each eases toward its own target, so
         // switching between a full fade and a backing-only fade never pops.
@@ -276,7 +276,7 @@ namespace VRTutorial
             if (IsMoving && !panelHidden)
             {
                 if (hold == HoldLevel.None) { backingGoal = backingAlpha; contentGoal = contentAlpha; }
-                else if (hold == HoldLevel.BackingOnly) { backingGoal = barBackingAlpha; contentGoal = barContentAlpha; }
+                else if (hold == HoldLevel.BarLesson) { backingGoal = barBackingAlpha; contentGoal = barContentAlpha; }
             }
             UpdateStatus(hold, panelHidden);
 
@@ -395,10 +395,9 @@ namespace VRTutorial
         /// <summary>
         /// How much of the panel has to stay while moving.
         ///   Solid       - nothing fades.
-        ///   BackingOnly - a lesson's bar is filling: the words, diagrams and bar stay, the backing
-        ///                 clears. Also wins over a read window, because a bar that is filling means
-        ///                 they have already read the instruction and are doing it - the words are
-        ///                 still fully visible, just without the backing.
+        ///   BarLesson   - a lesson's bar is filling: everything but the bar fades to the Bar alphas.
+        ///                 Wins over a read window, because a bar that is filling means they have
+        ///                 already read the instruction and are carrying it out.
         ///   None        - normal fade.
         /// </summary>
         private HoldLevel EvaluateHold(float now)
@@ -416,7 +415,7 @@ namespace VRTutorial
                 }
             }
 
-            if (BarActive(now)) return HoldLevel.BackingOnly;
+            if (BarActive(now)) return HoldLevel.BarLesson;
 
             if (now < _readUntil)
             {
@@ -462,7 +461,7 @@ namespace VRTutorial
             string state;
             if (headTransform == null) state = "no head camera found (Camera.main is null)";
             else if (panelHidden) state = "panel dismissed - nothing to fade";
-            else if (hold == HoldLevel.BackingOnly) state = (IsMoving ? "fading all but bar: " : "would fade all but bar: ") + _holdReason;
+            else if (hold == HoldLevel.BarLesson) state = (IsMoving ? "fading all but bar: " : "would fade all but bar: ") + _holdReason;
             else if (!string.IsNullOrEmpty(_holdReason)) state = "held solid: " + _holdReason;
             else state = IsMoving ? "fading" : "solid (not moving)";
 

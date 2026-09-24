@@ -202,15 +202,41 @@ public class SettingsController : MonoBehaviour
                     }
                     else if (toggle.name == "RawToggle")
                     {
+                        // Greyed out while seated, so this is normally unreachable then.
+                        // If it is reached anyway, the controller refuses Raw and applies
+                        // Snap; the sync below puts the toggles back to what is really set.
                         rotationController.SetRotationMode(
                             PlayerRotationMode.HeadOnly
                         );
                     }
+
+                    SyncRotationToggles();
                 }
             });
         }
         // Sync toggles
         SyncRotationToggles();
+        UpdateRawAvailability();
+    }
+
+    /// <summary>
+    /// Raw turning (turn your own body) is not a choice while seated. The toggle stays in place
+    /// but cannot be pressed and shows its disabled colour, so the layout does not shift
+    /// between seated and standing.
+    /// </summary>
+    private void UpdateRawAvailability()
+    {
+        Toggle raw = rotationToggles.Find(item => item != null && item.name == "RawToggle");
+        if (raw != null) raw.interactable = RotationModeController.IsAllowed(PlayerRotationMode.HeadOnly);
+    }
+
+    private void OnRotationModeChanged(PlayerRotationMode _) => SyncRotationToggles();
+
+    private void OnUsageModeChanged(PlayerUsageMode _)
+    {
+        SyncUsageModeToggles();
+        SyncRotationToggles();   // sitting may just have moved them from Raw to Snap
+        UpdateRawAvailability();
     }
 
     /// <summary>
@@ -327,7 +353,7 @@ public class SettingsController : MonoBehaviour
         Needed so that the UI settings are actually synced to the current setup when checking the page again.
     */
     {
-        Toggle toggle = toggles.Find(item => item.name == toggleName);
+        Toggle toggle = toggles.Find(item => item != null && item.name == toggleName);
 
         if (toggle != null)
         {
@@ -405,11 +431,20 @@ public class SettingsController : MonoBehaviour
     private void OnEnable()
     {
         ControllerHandednessManager.HandChanged += SyncHandToggles;
+        RotationModeController.ModeChanged += OnRotationModeChanged;
+        UsageModeController.ModeChanged += OnUsageModeChanged;
+
+        // The menu may have been closed while a mode changed elsewhere.
+        SyncRotationToggles();
+        SyncUsageModeToggles();
+        UpdateRawAvailability();
     }
 
     private void OnDisable()
     {
         ControllerHandednessManager.HandChanged -= SyncHandToggles;
+        RotationModeController.ModeChanged -= OnRotationModeChanged;
+        UsageModeController.ModeChanged -= OnUsageModeChanged;
     }
 }
 

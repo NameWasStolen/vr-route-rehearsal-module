@@ -728,7 +728,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RotationModeController
   _snapTurnProvider: {fileID: 6058213117400630254}
   _continuousTurnProvider: {fileID: 4782942654377277037}
-  _defaultMode: 0
+  _defaultMode: 1
 --- !u!1 &7319071527481605398
 GameObject:
   m_ObjectHideFlags: 0
