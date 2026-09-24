@@ -12275,6 +12275,9 @@ PrefabInstance:
       addedObject: {fileID: 1244802975}
     - targetCorrespondingSourceObject: {fileID: 7875907656543634160, guid: 43ff4fecf38b8524f9af8bebae1afbe0, type: 3}
       insertIndex: -1
+      addedObject: {fileID: 1244802976}
+    - targetCorrespondingSourceObject: {fileID: 7875907656543634160, guid: 43ff4fecf38b8524f9af8bebae1afbe0, type: 3}
+      insertIndex: -1
       addedObject: {fileID: 0}
   m_SourcePrefab: {fileID: 100100000, guid: 43ff4fecf38b8524f9af8bebae1afbe0, type: 3}
 --- !u!114 &1244802962 stripped
@@ -12391,6 +12394,38 @@ MonoBehaviour:
   advanceCues: 1
   cueInitialStep: 1
   logCues: 1
+--- !u!114 &1244802976
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1049090089}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fbf1ab964fcb0314aaa5c63f112ff4b6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.PanelMotionFade
+  headTransform: {fileID: 0}
+  rigTransform: {fileID: 0}
+  flow: {fileID: 1244802963}
+  moveSpeedThreshold: 0.25
+  turnSpeedThreshold: 30
+  includePhysicalWalking: 1
+  physicalWalkThreshold: 0.45
+  includeHeadTurning: 1
+  headTurnThreshold: 60
+  moveOnsetDelay: 0.4
+  stillDelay: 0.5
+  backingAlpha: 0.2
+  contentAlpha: 0.5
+  fadeOutDuration: 0.6
+  fadeInDuration: 0.3
+  readWindowSeconds: 5
+  promptChangeReadSeconds: 3
+  holdAfterCompleteSeconds: 2.5
+  status: 
+  logChanges: 1
 --- !u!1 &1247144345
 GameObject:
   m_ObjectHideFlags: 0
@@ -17541,6 +17576,7 @@ GameObject:
   - component: {fileID: 1724917985}
   - component: {fileID: 1724917984}
   - component: {fileID: 1724917987}
+  - component: {fileID: 1724917988}
   m_Layer: 5
   m_Name: StepCamera
   m_TagString: Untagged
@@ -17823,6 +17859,19 @@ MonoBehaviour:
           m_BoolArgument: 0
         m_CallState: 2
   restoreChildVisibilityOnReset: 1
+--- !u!114 &1724917988
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1724917983}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cff8f4b553c77340acdd15961277572, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRTutorial.MotionFadeRule
+  mode: 1
 --- !u!1 &1729269831
 GameObject:
   m_ObjectHideFlags: 0
@@ -20903,7 +20952,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 54}
-  m_SizeDelta: {x: 600, y: 100}
+  m_SizeDelta: {x: 550, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2035587042
 MonoBehaviour:
