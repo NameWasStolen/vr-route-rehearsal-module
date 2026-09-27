@@ -1,8 +1,10 @@
 using UnityEngine;
 using UnityEngine.Serialization;
 using Unity.XR.CoreUtils;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using System.Collections;
+using VRTutorial;
 
 public class RunSystemController : MonoBehaviour
 {
@@ -11,6 +13,7 @@ public class RunSystemController : MonoBehaviour
 
 	private TimerController timerController;
 	private PlayerPositionTracker positionTracker;
+	private AssistanceController assistanceController;
 	private XROrigin xrOrigin;
 	private bool isEndingRun;
 	private string runType = "run";
@@ -22,6 +25,10 @@ public class RunSystemController : MonoBehaviour
 		positionTracker = GetComponent<PlayerPositionTracker>();
 		if (positionTracker == null)
 			positionTracker = gameObject.AddComponent<PlayerPositionTracker>();
+
+		assistanceController = FindFirstObjectByType<AssistanceController>(FindObjectsInactive.Include);
+		if (assistanceController != null)
+			assistanceController.onRequested.AddListener(HandleAssistanceRequested);
 
 		if (timerController != null)
 		{
@@ -39,6 +46,9 @@ public class RunSystemController : MonoBehaviour
 			timerController.RunStarted -= HandleRunStarted;
 			timerController.RunEnded -= HandleRunEnded;
 		}
+
+		if (assistanceController != null)
+			assistanceController.onRequested.RemoveListener(HandleAssistanceRequested);
 	}
 
 	public void StartRun()
@@ -91,10 +101,28 @@ public class RunSystemController : MonoBehaviour
 		positionTracker.StartTracking(xrOrigin.Camera.transform, settings, runType);
 	}
 
+	private void Update()
+	{
+		if (Keyboard.current == null)
+			return;
+
+		if (Keyboard.current[Key.Digit1].wasPressedThisFrame)
+		{
+			if (assistanceController != null)
+				assistanceController.Request();
+			HandleAssistanceRequested();
+		}
+	}
+
 	private void HandleRunEnded(float elapsedTime)
 	{
 		if (!isEndingRun)
 			StartCoroutine(ReturnToMainMenu(elapsedTime));
+	}
+
+	private void HandleAssistanceRequested()
+	{
+		positionTracker?.RecordAssistance();
 	}
 
 	private IEnumerator ReturnToMainMenu(float elapsedTime)
