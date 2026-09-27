@@ -4,18 +4,25 @@ using UnityEngine;
 
 public readonly struct PlayerPositionSample
 {
-    public PlayerPositionSample(float elapsedTime, Vector3 position, int pause, int assistance)
+    public PlayerPositionSample(
+        float elapsedTime,
+        Vector3 position,
+        int pause,
+        int assistance,
+        int error)
     {
         ElapsedTime = elapsedTime;
         Position = position;
         Pause = pause;
         Assistance = assistance;
+        Error = error;
     }
 
     public float ElapsedTime { get; }
     public Vector3 Position { get; }
     public int Pause { get; }
     public int Assistance { get; }
+    public int Error { get; }
 }
 
 public class PlayerPositionTracker : MonoBehaviour
@@ -31,6 +38,7 @@ public class PlayerPositionTracker : MonoBehaviour
     private float stationaryDuration;
     private Vector3? previousPosition;
     private bool assistanceCalled;
+    private bool errorMade;
     private RunSettingsSnapshot runSettings;
     private string runType;
 
@@ -55,6 +63,7 @@ public class PlayerPositionTracker : MonoBehaviour
         previousPosition = null;
         stationaryDuration = 0f;
         assistanceCalled = false;
+        errorMade = false;
         runStartTime = Time.time;
         nextSampleTime = runStartTime;
         IsTracking = true;
@@ -86,6 +95,11 @@ public class PlayerPositionTracker : MonoBehaviour
         assistanceCalled = true;
     }
 
+    public void RecordError()
+    {
+        errorMade = true;
+    }
+
     private void CaptureSample()
     {
         Vector3 currentPosition = playerTransform.position;
@@ -106,13 +120,21 @@ public class PlayerPositionTracker : MonoBehaviour
 
         int pauseValue = stationaryDuration > pauseDurationSeconds ? 1 : 0;
         int assistanceValue = assistanceCalled ? 1 : 0;
-    assistanceCalled = false;
+        int errorValue = errorMade ? 1 : 0;
+        assistanceCalled = false;
+        errorMade = false;
         previousPosition = currentPosition;
 
-        samples.Add(new PlayerPositionSample(elapsedTime, currentPosition, pauseValue, assistanceValue));
+        samples.Add(new PlayerPositionSample(
+            elapsedTime,
+            currentPosition,
+            pauseValue,
+            assistanceValue,
+            errorValue));
         Debug.Log(
             $"Player position at {elapsedTime:F2}s: " +
-            $"x={currentPosition.x:F2}, y={currentPosition.y:F2}, z={currentPosition.z:F2}, pause={pauseValue}, assistance={assistanceValue}",
+            $"x={currentPosition.x:F2}, y={currentPosition.y:F2}, z={currentPosition.z:F2}, " +
+            $"pause={pauseValue}, assistance={assistanceValue}, error={errorValue}",
             this
         );
     }

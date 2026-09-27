@@ -14,6 +14,7 @@ public class RunSystemController : MonoBehaviour
 	private TimerController timerController;
 	private PlayerPositionTracker positionTracker;
 	private AssistanceController assistanceController;
+	private WrongTurnController wrongTurnController;
 	private XROrigin xrOrigin;
 	private bool isEndingRun;
 	private string runType = "run";
@@ -29,6 +30,10 @@ public class RunSystemController : MonoBehaviour
 		assistanceController = FindFirstObjectByType<AssistanceController>(FindObjectsInactive.Include);
 		if (assistanceController != null)
 			assistanceController.onRequested.AddListener(HandleAssistanceRequested);
+
+		wrongTurnController = FindFirstObjectByType<WrongTurnController>(FindObjectsInactive.Include);
+		if (wrongTurnController != null)
+			wrongTurnController.WrongTurnRecorded += HandleWrongTurnRecorded;
 
 		if (timerController != null)
 		{
@@ -49,6 +54,9 @@ public class RunSystemController : MonoBehaviour
 
 		if (assistanceController != null)
 			assistanceController.onRequested.RemoveListener(HandleAssistanceRequested);
+
+		if (wrongTurnController != null)
+			wrongTurnController.WrongTurnRecorded -= HandleWrongTurnRecorded;
 	}
 
 	public void StartRun()
@@ -123,6 +131,11 @@ public class RunSystemController : MonoBehaviour
 	private void HandleAssistanceRequested()
 	{
 		positionTracker?.RecordAssistance();
+	}
+
+	private void HandleWrongTurnRecorded()
+	{
+		positionTracker?.RecordError();
 	}
 
 	private IEnumerator ReturnToMainMenu(float elapsedTime)
