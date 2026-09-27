@@ -1,3 +1,4 @@
+using System;
 using Unity.XR.CoreUtils;
 using UnityEngine;
 
@@ -10,6 +11,12 @@ public enum PlayerUsageMode
 public class UsageModeController : MonoBehaviour
 {
     public static UsageModeController Instance { get; private set; }
+
+    /// <summary>
+    /// Raised when the usage mode changes. The settings menu listens to grey the Raw turning
+    /// option out while seated, and back in when standing.
+    /// </summary>
+    public static event Action<PlayerUsageMode> ModeChanged;
 
     [SerializeField] private XROrigin _xrOrigin;
 
@@ -55,8 +62,19 @@ public class UsageModeController : MonoBehaviour
             _xrOrigin.CameraYOffset = _sittingCameraHeight;
         }
 
+        bool changed = mode != CurrentMode || !_announcedOnce;
+        _announcedOnce = true;
         CurrentMode = mode;
+
+        // Raw turning (turn your own body) is not offered while seated. Someone on Raw who
+        // sits down is moved to Snap here, so it holds whichever caller changed the mode.
+        if (mode == PlayerUsageMode.Sitting && RotationModeController.Instance != null)
+            RotationModeController.Instance.EnforceSeatedRules();
+
+        if (changed) ModeChanged?.Invoke(mode);
     }
+
+    private bool _announcedOnce;
 
     private void OnDestroy()
     {
@@ -65,4 +83,4 @@ public class UsageModeController : MonoBehaviour
             Instance = null;
         }
     }
-}
+}

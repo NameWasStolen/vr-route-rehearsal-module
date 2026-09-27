@@ -84,6 +84,19 @@ namespace VRTutorial
         /// <summary>True when this component owns the CanvasGroup's alpha rather than leaving it alone.</summary>
         private bool DrivesAlpha => hideUntilStarted || hideWhenComplete;
 
+        /// <summary>
+        /// Some progress has been made and the task is not finished yet. PanelMotionFade keeps the
+        /// panel solid while this is true, because a bar that is filling means the instruction
+        /// beside it is still being followed.
+        /// </summary>
+        public bool IsInProgress => !_complete && _target > 0f;
+
+        /// <summary>SetComplete has been called since the last reset.</summary>
+        public bool IsComplete => _complete;
+
+        /// <summary>Time.unscaledTime at which SetComplete was last called.</summary>
+        public float CompletedAtUnscaled => _completeAt;
+
         private void Awake()
         {
             if (fillImage == null) fillImage = GetComponent<Image>();
