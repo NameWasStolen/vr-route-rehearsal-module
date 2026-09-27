@@ -22,7 +22,7 @@ public static class RunCsvLogger
 
         StringBuilder csv = new();
         csv.AppendLine(
-            "elapsed_seconds,x,y,z,brightness,volume,font_size,usage_mode,handedness,rotation_mode");
+            "elapsed_seconds,x,y,z,pause,brightness,volume,font_size,usage_mode,handedness,rotation_mode");
 
         foreach (PlayerPositionSample sample in samples)
         {
@@ -33,6 +33,8 @@ public static class RunCsvLogger
             csv.Append(sample.Position.y.ToString("F3", CultureInfo.InvariantCulture));
             csv.Append(',');
             csv.Append(sample.Position.z.ToString("F3", CultureInfo.InvariantCulture));
+            csv.Append(',');
+            csv.Append(sample.Pause.ToString(CultureInfo.InvariantCulture));
             csv.Append(',');
             csv.Append(settings.Brightness.ToString("F3", CultureInfo.InvariantCulture));
             csv.Append(',');
