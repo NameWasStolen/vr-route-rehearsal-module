@@ -172,7 +172,10 @@ namespace VRTutorial.EditorTools
                 public Material[] Stone, Grass, Foliage, Cars, Walls, Roofs, Flowers;
                 public Material HeritageGreen, Gold, SpecialWall, SpecialRoof, PalmFrond, Letterbox,
                                 Brick, SchoolFence, ShopWall, ShopAccent, ShopGlassDark, Softfall,
-                                PlayRed, PlayYellow, Planter, SignShopWide, SignShopTall, SignSchool, SignBus;
+                                PlayRed, PlayYellow, Planter, SignShopWide, SignShopTall, SignSchool, SignBus,
+                                Tactile, SignCrossing, SignChildren, Globe, FlagOrange, PoleDark,
+                                CarGlass, CarTrim, CarRim, CarHeadlight, CarTaillight, CarIndicator, CarPlate, CarPlateText;
+                public Material[] CarPaint;
             }
 
             /// <summary>A tutorial material, loaded as-is. Created with the tutorial's own values
@@ -236,7 +239,7 @@ namespace VRTutorial.EditorTools
                 var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
                 if (tex == null)
                     Debug.LogWarning("[FullRoute] Sign texture missing: " + path + " - the sign will be a plain panel.");
-                return FRMat(name, tex != null ? Color.white : new Color(0.2f, 0.4f, 0.5f), 0.25f, tex, null, 0.35f);
+                return FRMat(name, tex != null ? Color.white : new Color(0.2f, 0.4f, 0.5f), 0.25f, tex, null, 0.2f);
             }
 
             static Mats LoadMaterials()
@@ -329,6 +332,43 @@ namespace VRTutorial.EditorTools
                 m.SignShopTall  = SignMat("M_FR_Sign_ShoppingTall", "T_FR_Sign_Shopping_Tall.png");
                 m.SignSchool    = SignMat("M_FR_Sign_School",       "T_FR_Sign_School.png");
                 m.SignBus       = SignMat("M_FR_Sign_Bus",          "T_FR_Sign_Bus.png");
+                m.SignCrossing  = SignMat("M_FR_Sign_Crossing",     "T_FR_Sign_Crossing.png");
+                m.SignChildren  = SignMat("M_FR_Sign_ChildrenCrossing", "T_FR_Sign_ChildrenCrossing.png");
+                // Tactile pads: the texture tiles (dome grid), unlike the sign faces.
+                var tactileTex = AssetDatabase.LoadAssetAtPath<Texture2D>(FRTextures + "/T_FR_Tactile.png");
+                // Tinted down from the raw texture: still strong contrast against the grey paving, but
+                // no longer glaring in full sun. Matte, like real polymer pads.
+                m.Tactile       = FRMat("M_FR_Tactile", tactileTex != null ? new Color(0.84f, 0.82f, 0.78f) : new Color(0.80f, 0.62f, 0.10f), 0.12f, tactileTex);
+                m.Globe         = FRMat("M_FR_CrossingGlobe", new Color(1.00f, 0.55f, 0.10f), 0.60f);
+                if (m.Globe.HasProperty("_EmissionColor"))
+                {
+                    m.Globe.SetColor("_EmissionColor", new Color(1.00f, 0.45f, 0.05f) * 0.45f);
+                    m.Globe.EnableKeyword("_EMISSION");
+                }
+                m.FlagOrange    = FRMat("M_FR_FlagOrange", new Color(0.98f, 0.45f, 0.08f), 0.15f);
+
+                // Cars: glossy paint in the colours of a real Australian street - white, silver,
+                // grey and black first, then muted blue, red and bronze. Order matches the
+                // weights in BuildCarsFR.
+                m.CarPaint = new[]
+                {
+                    FRMat("M_FR_CarPaint_White",  new Color(0.90f, 0.90f, 0.89f), 0.70f),
+                    FRMat("M_FR_CarPaint_Silver", new Color(0.66f, 0.67f, 0.69f), 0.75f),
+                    FRMat("M_FR_CarPaint_Grey",   new Color(0.36f, 0.37f, 0.39f), 0.72f),
+                    FRMat("M_FR_CarPaint_Black",  new Color(0.06f, 0.06f, 0.07f), 0.78f),
+                    FRMat("M_FR_CarPaint_Blue",   new Color(0.13f, 0.22f, 0.40f), 0.72f),
+                    FRMat("M_FR_CarPaint_Red",    new Color(0.52f, 0.08f, 0.07f), 0.72f),
+                    FRMat("M_FR_CarPaint_Bronze", new Color(0.45f, 0.38f, 0.29f), 0.70f),
+                };
+                m.CarGlass      = FRMat("M_FR_CarGlass",     new Color(0.07f, 0.09f, 0.11f), 0.92f);
+                m.CarTrim       = FRMat("M_FR_CarTrim",      new Color(0.09f, 0.09f, 0.10f), 0.25f);
+                m.CarRim        = FRMat("M_FR_CarRim",       new Color(0.72f, 0.73f, 0.75f), 0.80f);
+                m.CarHeadlight  = FRMat("M_FR_CarHeadlight", new Color(0.86f, 0.88f, 0.90f), 0.92f);
+                m.CarTaillight  = FRMat("M_FR_CarTaillight", new Color(0.62f, 0.06f, 0.06f), 0.85f);
+                m.CarIndicator  = FRMat("M_FR_CarIndicator", new Color(0.90f, 0.52f, 0.10f), 0.85f);
+                m.CarPlate      = FRMat("M_FR_CarPlate",     new Color(0.93f, 0.93f, 0.91f), 0.35f);
+                m.CarPlateText  = FRMat("M_FR_CarPlateText", new Color(0.08f, 0.12f, 0.32f), 0.30f);
+                m.PoleDark      = FRMat("M_FR_PoleDark",   new Color(0.08f, 0.08f, 0.09f), 0.40f);
                 return m;
             }
 
@@ -499,6 +539,37 @@ namespace VRTutorial.EditorTools
                 Quad(a, c + hz - hx - hy, c + hz - hx + hy, c + hz + hx + hy, c + hz + hx - hy, fwd);
             }
 
+            /// <summary>
+            /// A slab on a plan quad. Its top rises from 'topLow' along the edge nearest the
+            /// road (the lowest corners along 'up', which points away from the road) to
+            /// 'topHigh' along the far edge; pass up = zero for a level top at topHigh.
+            /// </summary>
+            static void Prism(Accum a, Quad4 q, Vector2 up, float topLow, float topHigh, float thickness)
+            {
+                var c = q.Corners();
+                float[] h = new float[4];
+                if (up.sqrMagnitude > 1e-6f)
+                {
+                    float lo = float.MaxValue, hi = float.MinValue;
+                    for (int i = 0; i < 4; i++) { float d = Vector2.Dot(c[i], up); lo = Mathf.Min(lo, d); hi = Mathf.Max(hi, d); }
+                    for (int i = 0; i < 4; i++)
+                    {
+                        float t = hi - lo > 1e-4f ? (Vector2.Dot(c[i], up) - lo) / (hi - lo) : 1f;
+                        h[i] = Mathf.Lerp(topLow, topHigh, t);
+                    }
+                }
+                else for (int i = 0; i < 4; i++) h[i] = topHigh;
+                float bot = Mathf.Min(Mathf.Min(h[0], h[1]), Mathf.Min(h[2], h[3])) - thickness;
+                Quad(a, W(c[0], h[0]), W(c[1], h[1]), W(c[2], h[2]), W(c[3], h[3]), Vector3.up);
+                Vector2 centre = q.Centre;
+                for (int i = 0; i < 4; i++)
+                {
+                    int j = (i + 1) % 4;
+                    Vector2 mid = (c[i] + c[j]) * 0.5f;
+                    Quad(a, W(c[i], bot), W(c[j], bot), W(c[j], h[j]), W(c[i], h[i]), W3(mid - centre));
+                }
+            }
+
             static Vector3 W(Vector2 p, float y) { return new Vector3(p.x, y, p.y); }
             static Vector3 W3(Vector2 d) { return new Vector3(d.x, 0f, d.y); }
 
@@ -557,6 +628,8 @@ namespace VRTutorial.EditorTools
                 BuildWorldSettings();       // the tutorial's sky, ambient and fog
                 BuildBaseGround(root.transform, plan, m);
                 BuildStreetSurfaces(b, plan, m, rng);
+                BuildCourts(b, plan, m, rng);
+                BuildCrossings(b, root.transform, plan, m);
                 BuildFences(b, root.transform, plan, m, landmarks, rng);
                 BuildClosures(b, root.transform, plan, m);
                 BuildEndCaps(b, root.transform, plan, m);
@@ -584,11 +657,14 @@ namespace VRTutorial.EditorTools
 
                 Debug.Log(string.Format(
                     "[FullRoute] Built in {0:0.0} s: {1} meshes, {2} houses, {3} street lights, {4} landmark lamps, " +
-                    "{5} side streets with a soft end. Route bus stop -> shopping centre is {6:0} m, about {7:0.0} min " +
-                    "at 1.5 m/s. Landmarks {8}. Bake lighting for the intended look.",
+                    "{5} cul-de-sac dead ends, {6} planter closures, {7} zebra crossings, {8} kerb ramps. " +
+                    "Route bus stop -> shopping centre is {9:0} m, about {10:0.0} min at 1.5 m/s. Landmarks {11}. " +
+                    "Bake lighting for the intended look.",
                     sw.Elapsed.TotalSeconds, meshes, plan.Houses.Count, plan.Lamps.Count, plan.LandmarkLamps.Count,
-                    plan.Closures.Count, FullRouteLayout.RouteLength, FullRouteLayout.RouteLength / 1.5f / 60f,
+                    plan.Courts.Count, plan.Closures.Count, plan.Zebras.Count, plan.Openings.Count,
+                    FullRouteLayout.RouteLength, FullRouteLayout.RouteLength / 1.5f / 60f,
                     landmarks ? "INCLUDED" : "OMITTED"));
+                foreach (var w in plan.Warnings) Debug.LogWarning("[FullRoute] " + w);
                 return root;
             }
 
@@ -745,6 +821,146 @@ namespace VRTutorial.EditorTools
                 }
             }
 
+            // -------------------------------------------------------------- courts
+            /// <summary>An annular slab (or disk, with r0 = 0) between angles a0 and a1.</summary>
+            static void Ring(Accum acc, Vector2 c, float r0, float r1, float a0, float a1, float top, float thickness)
+            {
+                if (a1 - a0 < 1e-3f) return;
+                int n = Mathf.Max(2, Mathf.CeilToInt((a1 - a0) / (4f * Mathf.Deg2Rad)));
+                float bot = top - thickness;
+                System.Func<float, float, Vector2> at = (r, a) => c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
+                for (int i = 0; i < n; i++)
+                {
+                    float t0 = Mathf.Lerp(a0, a1, i / (float)n), t1 = Mathf.Lerp(a0, a1, (i + 1) / (float)n);
+                    Vector2 i0 = at(r0, t0), i1 = at(r0, t1), o0 = at(r1, t0), o1 = at(r1, t1);
+                    Quad(acc, W(i0, top), W(i1, top), W(o1, top), W(o0, top), Vector3.up);
+                    Vector3 outN = W3(at(1f, (t0 + t1) * 0.5f) - c);
+                    Quad(acc, W(o0, bot), W(o0, top), W(o1, top), W(o1, bot), outN);
+                    if (r0 > 0.05f) Quad(acc, W(i0, bot), W(i0, top), W(i1, top), W(i1, bot), -outN);
+                }
+                bool full = a1 - a0 > 2f * Mathf.PI - 1e-3f;
+                if (!full)
+                {
+                    Vector3 s0 = W3(at(1f, a0 - Mathf.PI * 0.5f) - c), s1 = W3(at(1f, a1 + Mathf.PI * 0.5f) - c);
+                    Quad(acc, W(at(r0, a0), bot), W(at(r0, a0), top), W(at(r1, a0), top), W(at(r1, a0), bot), s0);
+                    Quad(acc, W(at(r0, a1), bot), W(at(r0, a1), top), W(at(r1, a1), top), W(at(r1, a1), bot), s1);
+                }
+            }
+
+            /// <summary>
+            /// The cul-de-sacs: an asphalt turning circle, kerb, nature strip and a footpath all
+            /// the way round, laid in slabs like every other footpath. Same layers, heights,
+            /// materials and surface markers as the streets, so footsteps sound the same.
+            /// </summary>
+            static void BuildCourts(Batcher b, FullRoutePlan plan, Mats m, System.Random rng)
+            {
+                const string G = "Streets";
+                const float pitch = 1.6f, joint = 0.018f;
+                foreach (var r in plan.Rings)
+                {
+                    var court = plan.Courts[r.Court];
+                    Vector2 c = court.C;
+                    Vector3 at = W(c, 0f);
+                    int st = court.Street;
+                    switch (r.Kind)
+                    {
+                        case BandKind.Road:
+                            Ring(b.Get(G, "Road", m.Asphalt, at, 3f, true, SurfAsphalt), c, r.R0, r.R1, r.A0, r.A1, FullRouteLayout.RoadTop, 0.12f);
+                            break;
+                        case BandKind.Nature:
+                            Ring(b.Get(G, "NatureStrip_" + (st % 3), m.Grass[st % 3], at, 3f, true, SurfGrass), c, r.R0, r.R1, r.A0, r.A1, FullRouteLayout.NatureTop, 0.10f);
+                            break;
+                        case BandKind.Kerb:
+                            Ring(b.Get(G, "Kerb", m.Kerb, at, 1f), c, r.R0, r.R1, r.A0, r.A1, FullRouteLayout.KerbTop, 0.20f);
+                            break;
+                        case BandKind.Footpath:
+                            Ring(b.Get(G, "FootpathBody", m.Kerb, at, 1.2f, true, SurfPaving), c, r.R0, r.R1, r.A0, r.A1, FullRouteLayout.FootBodyTop, 0.10f);
+                            float mid = (r.R0 + r.R1) * 0.5f;
+                            float step = pitch / mid, gapA = joint / mid;
+                            for (float a = r.A0; a < r.A1 - 0.01f; a += step)
+                            {
+                                int v = rng.Next(0, m.Stone.Length);
+                                Ring(b.Get(G, "FootpathSlabs_" + v, m.Stone[v], at, 1.2f), c, r.R0 + joint, r.R1 - joint,
+                                     a + gapA * 0.5f, Mathf.Min(a + step, r.A1) - gapA * 0.5f, FullRouteLayout.FootSlabTop, 0.012f);
+                            }
+                            break;
+                    }
+                }
+            }
+
+            // ------------------------------------------------------------ crossings
+            /// <summary>
+            /// Kerb ramps (paving from the road edge through the nature strip), yellow tactile
+            /// pads at the top of every ramp and at every footpath end that meets a road, zebra
+            /// stripes, and a post each side of each zebra with an orange globe and a pictogram
+            /// sign - children crossing outside the school, the pedestrian symbol elsewhere.
+            /// </summary>
+            static void BuildCrossings(Batcher b, Transform root, FullRoutePlan plan, Mats m)
+            {
+                const string G = "Crossings";
+                // Ramps: the slope rises from just above the asphalt to footpath height a
+                // little past the kerb line, so there is no lip at the road edge. The flat part
+                // sits 3 mm under the footpath slabs, so where they overlap the footpath wins
+                // cleanly instead of flickering.
+                const float roadTop = FullRouteLayout.RoadTop, body = FullRouteLayout.FootBodyTop;
+                const float slabTop = FullRouteLayout.FootSlabTop - 0.003f;
+                foreach (var o in plan.Openings)
+                {
+                    Vector3 at = W(o.Flat.Centre, 0f);
+                    var bodyAcc = b.Get("Streets", "FootpathBody", m.Kerb, at, 1.2f, true, SurfPaving);
+                    var slabAcc = b.Get("Streets", "FootpathSlabs_1", m.Stone[1], at, 1.2f);
+                    Prism(bodyAcc, o.Slope, o.Out, roadTop + 0.001f, body, 0.10f);
+                    Prism(bodyAcc, o.Flat,  o.Out, body, body, 0.10f);
+                    Prism(slabAcc, o.Slope, o.Out, roadTop + 0.0015f, slabTop, 0.012f);
+                    Prism(slabAcc, o.Flat,  o.Out, slabTop, slabTop, 0.012f);
+                }
+
+                // Pads sit on the flat, 6 mm proud: enough to read as a raised mat without
+                // becoming a trip edge. One pad per ramp, none overlapping.
+                foreach (var t in plan.Tactiles)
+                    Prism(b.Get(G, "Tactile", m.Tactile, W(t.Centre, 0f), 0.3f), t, Vector2.zero,
+                          slabTop + 0.006f, slabTop + 0.006f, 0.02f);
+
+                foreach (var z in plan.ZebraStripes)
+                    Box(b.Get(G, "ZebraStripes", m.RoadLine, W(z.C, 0f)),
+                        W(z.C, FullRouteLayout.RoadTop + 0.003f), new Vector3(z.HV * 2f, 0.008f, z.HU * 2f), W3(z.U));
+
+                var group = NewGroup("CrossingSigns", root);
+                int i = 0;
+                foreach (var post in plan.CrossingPosts)
+                {
+                    Vector3 bp = W(post.Pos, FullRouteLayout.NatureTop);
+                    const float H = 2.9f;
+                    var dark = b.GetGO(G, "CrossingPoleDark", m.PoleDark, bp);
+                    var light = b.GetGO(G, "CrossingPoleLight", m.PicketWhite, bp);
+                    // Banded pole, so it reads as a crossing post from down the street.
+                    int bands = 7;
+                    for (int k = 0; k < bands; k++)
+                    {
+                        float h0 = k * (H / bands);
+                        AddPrimitive(k % 2 == 0 ? dark : light, PrimitiveType.Cylinder, bp + Vector3.up * (h0 + H / bands * 0.5f),
+                                     new Vector3(0.09f, H / bands * 0.5f, 0.09f), Quaternion.identity);
+                    }
+                    AddPrimitive(b.GetGO(G, "CrossingGlobe", m.Globe, bp), PrimitiveType.Sphere, bp + Vector3.up * (H + 0.18f),
+                                 Vector3.one * 0.36f, Quaternion.identity);
+                    SignFace(group, "CrossingSign_" + i, post.School ? m.SignChildren : m.SignCrossing,
+                             bp + Vector3.up * 2.15f, W3(post.RoadDir), 0.6f, 0.6f, true);
+                    AddPrimitive(dark, PrimitiveType.Cube, bp + Vector3.up * 2.15f, new Vector3(0.64f, 0.64f, 0.05f),
+                                 Quaternion.LookRotation(W3(post.RoadDir), Vector3.up));
+                    if (post.School)
+                    {
+                        // Orange flags on a short arm, the school-crossing signal.
+                        Vector3 side = Vector3.Cross(Vector3.up, W3(post.RoadDir));
+                        var flag = b.GetGO(G, "CrossingFlags", m.FlagOrange, bp);
+                        AddPrimitive(dark, PrimitiveType.Cube, bp + Vector3.up * 2.62f + side * 0.2f, new Vector3(0.03f, 0.03f, 0.5f),
+                                     Quaternion.LookRotation(side, Vector3.up));
+                        AddPrimitive(flag, PrimitiveType.Cube, bp + Vector3.up * 2.4f + side * 0.42f, new Vector3(0.02f, 0.40f, 0.55f),
+                                     Quaternion.LookRotation(W3(post.RoadDir), Vector3.up));
+                    }
+                    LampCollider(group, "CrossingPost_" + (i++), bp, H, 0.12f);
+                }
+            }
+
             // -------------------------------------------------------------- fences
             enum FrontKind { Picket, Wall, Hedge, Paling }
 
@@ -798,6 +1014,7 @@ namespace VRTutorial.EditorTools
                     case FenceStyle.School:   return 1.8f;
                     case FenceStyle.ParkBack: return 1.8f;
                     case FenceStyle.Hedge:    return 1.5f;
+                    case FenceStyle.Screen:   return 2.2f;
                     default:                  return 1.1f;
                 }
             }
@@ -839,6 +1056,10 @@ namespace VRTutorial.EditorTools
                         break;
                     case FenceStyle.Hedge:
                         HedgeRun(b.Get(G, "Hedge", m.Hedge, at, 1.5f), a, c, 1.5f);
+                        break;
+                    case FenceStyle.Screen:
+                        // Inside corner of a dead end's bend: tall enough to block eye level.
+                        HedgeRun(b.Get(G, "Hedge", m.Hedge, at, 1.5f), a, c, 2.2f);
                         break;
                     default:
                         switch (kind)
@@ -1295,33 +1516,437 @@ namespace VRTutorial.EditorTools
             }
 
             // ---------------------------------------------------------------- cars
+            // ---------------------------------------------------------------- cars
+            // Parked cars, built from raw quads so they batch with everything else (about 1.5k
+            // triangles each). Four body types - sedan, hatchback, SUV and dual-cab ute - so
+            // the street reads as a real Australian suburb. Every car has a clear front (grille,
+            // headlights, plate, bonnet sloping down, windscreen raked back) and back (red tail
+            // lights, boot or tailgate), so the way it faces is obvious at a glance.
+            //
+            // Local car space: +z is the front of the car, +x its right, y up from the road.
+            // The plan's CarSpot.Dir already obeys Road Rule 208 (parked facing the way traffic
+            // on that side of the road travels, kerb on the car's left), and the car is rotated
+            // so +z = Dir.
+
+            enum CarType { Sedan, Hatch, Suv, Ute }
+
+            /// <summary>One cross-section of the lower body: z along the car, half width, sill and top.</summary>
+            struct CarStation
+            {
+                public float Z, HW, Y0, Y1;
+                public CarStation(float z, float hw, float y0, float y1) { Z = z; HW = hw; Y0 = y0; Y1 = y1; }
+            }
+
+            /// <summary>Dimensions and profile of one body type.</summary>
+            class CarSpec
+            {
+                public CarType Type;
+                public float Length, HalfWidth, Roof, WheelR, AxleF, AxleR;
+                public CarStation[] Body;          // front to rear is not required - sorted by Z
+                // Cabin (greenhouse): windscreen base z, windscreen top z, roof end z, rear glass
+                // base z; belt and roof heights; half widths at belt and roof (tumblehome).
+                public float CabF0, CabF1, CabR1, CabR0, Belt, CabHWBelt, CabHWRoof;
+                public float BPillar;              // z of the B pillar, splitting the side glass
+                public bool RoofRails, Tub;        // SUV rails; ute tray
+            }
+
+            static readonly CarSpec[] CarSpecs =
+            {
+                // Sedan - a family sedan, 4.6 m. Long bonnet, separate boot.
+                new CarSpec
+                {
+                    Type = CarType.Sedan, Length = 4.60f, HalfWidth = 0.90f, Roof = 1.44f, WheelR = 0.31f, AxleF = 1.36f, AxleR = -1.38f,
+                    Body = new[]
+                    {
+                        new CarStation(-2.30f, 0.78f, 0.36f, 0.84f), new CarStation(-2.17f, 0.88f, 0.28f, 0.98f),
+                        new CarStation(-1.10f, 0.90f, 0.26f, 0.98f), new CarStation( 1.05f, 0.90f, 0.26f, 0.98f),
+                        new CarStation( 2.12f, 0.87f, 0.28f, 0.80f), new CarStation( 2.30f, 0.74f, 0.36f, 0.66f),
+                    },
+                    CabF0 = 1.05f, CabF1 = 0.22f, CabR1 = -0.55f, CabR0 = -1.10f, Belt = 0.98f, CabHWBelt = 0.80f, CabHWRoof = 0.64f,
+                    BPillar = -0.05f,
+                },
+                // Hatchback - a small city car, 4.05 m. Short nose, steep rear hatch.
+                new CarSpec
+                {
+                    Type = CarType.Hatch, Length = 4.05f, HalfWidth = 0.87f, Roof = 1.47f, WheelR = 0.30f, AxleF = 1.25f, AxleR = -1.30f,
+                    Body = new[]
+                    {
+                        new CarStation(-2.025f, 0.76f, 0.36f, 0.84f), new CarStation(-1.93f, 0.85f, 0.28f, 0.95f),
+                        new CarStation( 0.95f, 0.87f, 0.26f, 0.95f), new CarStation( 1.82f, 0.84f, 0.28f, 0.79f),
+                        new CarStation( 2.025f, 0.72f, 0.36f, 0.64f),
+                    },
+                    CabF0 = 0.95f, CabF1 = 0.15f, CabR1 = -1.30f, CabR0 = -1.93f, Belt = 0.95f, CabHWBelt = 0.77f, CabHWRoof = 0.62f,
+                    BPillar = -0.20f,
+                },
+                // SUV / wagon - 4.6 m, tall, square back, roof rails.
+                new CarSpec
+                {
+                    Type = CarType.Suv, Length = 4.60f, HalfWidth = 0.93f, Roof = 1.70f, WheelR = 0.36f, AxleF = 1.34f, AxleR = -1.34f,
+                    Body = new[]
+                    {
+                        new CarStation(-2.30f, 0.84f, 0.44f, 0.96f), new CarStation(-2.20f, 0.92f, 0.36f, 1.06f),
+                        new CarStation( 1.10f, 0.93f, 0.34f, 1.06f), new CarStation( 2.10f, 0.90f, 0.36f, 0.94f),
+                        new CarStation( 2.30f, 0.78f, 0.44f, 0.82f),
+                    },
+                    CabF0 = 1.10f, CabF1 = 0.30f, CabR1 = -2.05f, CabR0 = -2.20f, Belt = 1.06f, CabHWBelt = 0.83f, CabHWRoof = 0.70f,
+                    BPillar = -0.20f, RoofRails = true,
+                },
+                // Dual-cab ute - 5.3 m, tall cab and a tub with a flat tonneau cover.
+                new CarSpec
+                {
+                    Type = CarType.Ute, Length = 5.30f, HalfWidth = 0.93f, Roof = 1.80f, WheelR = 0.37f, AxleF = 1.62f, AxleR = -1.48f,
+                    Body = new[]
+                    {
+                        new CarStation(-0.30f, 0.93f, 0.40f, 1.18f), new CarStation( 1.40f, 0.93f, 0.40f, 1.18f),
+                        new CarStation( 2.42f, 0.90f, 0.42f, 1.05f), new CarStation( 2.65f, 0.78f, 0.48f, 0.92f),
+                    },
+                    CabF0 = 1.40f, CabF1 = 0.62f, CabR1 = -0.22f, CabR0 = -0.30f, Belt = 1.18f, CabHWBelt = 0.83f, CabHWRoof = 0.72f,
+                    BPillar = 0.30f, Tub = true,
+                },
+            };
+
+            const float UteTubTop = 1.24f;   // top of the tub sides, a little above the cab's belt
+
+            /// <summary>Car-local to world: yaw only.</summary>
+            struct CarFrame
+            {
+                public Vector3 O; public Quaternion R;
+                public Vector3 P(float x, float y, float z) { return O + R * new Vector3(x, y, z); }
+                public Vector3 D(float x, float y, float z) { return R * new Vector3(x, y, z); }
+            }
+
+            /// <summary>Convex polygon, fan triangulated, wound to face 'outward'.</summary>
+            static void Poly(Accum a, IList<Vector3> pts, Vector3 outward)
+            {
+                Vector3 n = Vector3.zero;
+                for (int i = 0; i < pts.Count; i++)
+                {
+                    Vector3 p = pts[i], q = pts[(i + 1) % pts.Count];
+                    n.x += (p.y - q.y) * (p.z + q.z); n.y += (p.z - q.z) * (p.x + q.x); n.z += (p.x - q.x) * (p.y + q.y);
+                }
+                bool flip = Vector3.Dot(n, outward) < 0f;
+                int b = a.V.Count;
+                foreach (var p in pts) a.V.Add(p);
+                for (int i = 1; i + 1 < pts.Count; i++)
+                {
+                    a.T.Add(b);
+                    if (flip) { a.T.Add(b + i + 1); a.T.Add(b + i); }
+                    else      { a.T.Add(b + i);     a.T.Add(b + i + 1); }
+                }
+            }
+
+            /// <summary>Box in car space: centre and full size in car axes.</summary>
+            static void CarBox(Accum a, CarFrame f, float cx, float cy, float cz, float sx, float sy, float sz)
+            {
+                Box(a, f.P(cx, cy, cz), new Vector3(sx, sy, sz), f.D(0f, 0f, 1f));
+            }
+
+            /// <summary>Cylinder whose axis is car-space x: tread plus both faces.</summary>
+            static void CarCyl(Accum a, CarFrame f, float cx, float cy, float cz, float r, float width, int sides)
+            {
+                var inner = new Vector3[sides];
+                var outer = new Vector3[sides];
+                for (int i = 0; i < sides; i++)
+                {
+                    float t = (i + 0.5f) / sides * Mathf.PI * 2f;
+                    float y = cy + Mathf.Sin(t) * r, z = cz + Mathf.Cos(t) * r;
+                    inner[i] = f.P(cx - width * 0.5f, y, z);
+                    outer[i] = f.P(cx + width * 0.5f, y, z);
+                }
+                Vector3 axis = f.D(1f, 0f, 0f), centre = f.P(cx, cy, cz);
+                for (int i = 0; i < sides; i++)
+                {
+                    int j = (i + 1) % sides;
+                    Vector3 mid = (inner[i] + inner[j] + outer[i] + outer[j]) * 0.25f;
+                    Quad(a, inner[i], inner[j], outer[j], outer[i], mid - (centre + axis * Vector3.Dot(mid - centre, axis)));
+                }
+                Poly(a, outer, axis);
+                Poly(a, inner, -axis);
+            }
+
+            /// <summary>Eight-point lower-body section at one station, chamfered top and bottom.</summary>
+            static Vector3[] CarSection(CarFrame f, CarStation s)
+            {
+                float h = s.Y1 - s.Y0;
+                float cb = Mathf.Min(0.06f, h * 0.2f), ct = Mathf.Min(0.10f, h * 0.3f);
+                return new[]
+                {
+                    f.P(-s.HW + cb, s.Y0, s.Z), f.P(s.HW - cb, s.Y0, s.Z), f.P(s.HW, s.Y0 + cb, s.Z), f.P(s.HW, s.Y1 - ct, s.Z),
+                    f.P(s.HW - ct, s.Y1, s.Z), f.P(-s.HW + ct, s.Y1, s.Z), f.P(-s.HW, s.Y1 - ct, s.Z), f.P(-s.HW, s.Y0 + cb, s.Z),
+                };
+            }
+
+            /// <summary>A closed loft through the stations (sorted by z).</summary>
+            static void CarLoft(Accum a, CarFrame f, CarStation[] st)
+            {
+                var secs = new Vector3[st.Length][];
+                for (int i = 0; i < st.Length; i++) secs[i] = CarSection(f, st[i]);
+                for (int i = 0; i + 1 < st.Length; i++)
+                {
+                    Vector3 axis = f.P(0f, (st[i].Y0 + st[i].Y1 + st[i + 1].Y0 + st[i + 1].Y1) * 0.25f, (st[i].Z + st[i + 1].Z) * 0.5f);
+                    for (int k = 0; k < 8; k++)
+                    {
+                        int l = (k + 1) % 8;
+                        Vector3 p0 = secs[i][k], p1 = secs[i][l], p2 = secs[i + 1][l], p3 = secs[i + 1][k];
+                        Quad(a, p0, p1, p2, p3, (p0 + p1 + p2 + p3) * 0.25f - axis);
+                    }
+                }
+                Poly(a, secs[0], f.D(0f, 0f, -1f));
+                Poly(a, secs[st.Length - 1], f.D(0f, 0f, 1f));
+            }
+
+            /// <summary>The lower-body section interpolated at z (for placing arches and wheels).</summary>
+            static CarStation CarStationAt(CarStation[] st, float z)
+            {
+                if (z <= st[0].Z) return st[0];
+                for (int i = 0; i + 1 < st.Length; i++)
+                    if (z <= st[i + 1].Z)
+                    {
+                        float t = (z - st[i].Z) / (st[i + 1].Z - st[i].Z);
+                        return new CarStation(z, Mathf.Lerp(st[i].HW, st[i + 1].HW, t),
+                                              Mathf.Lerp(st[i].Y0, st[i + 1].Y0, t), Mathf.Lerp(st[i].Y1, st[i + 1].Y1, t));
+                    }
+                return st[st.Length - 1];
+            }
+
+            class CarMats { public Accum Paint, Glass, Trim, Tyre, Rim, Head, Tail, Amber, Plate, PlateText; }
+
             static void BuildCarsFR(Batcher b, Transform root, FullRoutePlan plan, Mats m)
             {
                 var colliders = NewGroup("Car_Colliders", root);
+                // Paint mix of a typical Australian street: mostly white, silver, grey and black.
+                int[] paintWeights = { 26, 18, 18, 14, 10, 7, 7 };   // matches m.CarPaint order
                 int i = 0;
                 foreach (var c in plan.Cars)
                 {
+                    // Type and colour come from the car's position, not the plan's random stream,
+                    // so they stay the same on every rebuild and the layout is untouched.
+                    int hx = Mathf.RoundToInt(c.Pos.x * 100f), hz = Mathf.RoundToInt(c.Pos.y * 100f);
+                    var rng = new System.Random(((hx * 73856093) ^ (hz * 19349663) ^ (c.Variant * 83492791)) & 0x7fffffff);
+                    int roll = rng.Next(100);
+                    CarType type = c.Long
+                        ? (roll < 25 ? CarType.Ute : roll < 55 ? CarType.Suv : roll < 78 ? CarType.Sedan : CarType.Hatch)
+                        : (roll < 40 ? CarType.Suv : roll < 70 ? CarType.Sedan : CarType.Hatch);
+                    int total = 0; foreach (int w in paintWeights) total += w;
+                    int pick = rng.Next(total), paint = 0;
+                    while (pick >= paintWeights[paint]) { pick -= paintWeights[paint]; paint++; }
+
+                    var spec = CarSpecs[(int)type];
                     Vector3 basePos = W(c.Pos, FullRouteLayout.RoadTop);
-                    Quaternion rot = Quaternion.LookRotation(W3(c.Dir), Vector3.up);
-                    int v = Mathf.Clamp(c.Variant, 0, m.Cars.Length - 1);
-                    var body = b.GetGO("Cars", "CarBody_" + v, m.Cars[v], basePos);
-                    var glass = b.GetGO("Cars", "CarGlass", m.Glass, basePos);
-                    var wheels = b.GetGO("Cars", "CarWheels", m.Tyre, basePos);
+                    var f = new CarFrame { O = basePos, R = Quaternion.LookRotation(W3(c.Dir), Vector3.up) };
+                    var cm = new CarMats
+                    {
+                        Paint = b.Get("Cars", "CarPaint_" + paint, m.CarPaint[paint], basePos, 2f),
+                        Glass = b.Get("Cars", "CarGlass", m.CarGlass, basePos),
+                        Trim = b.Get("Cars", "CarTrim", m.CarTrim, basePos),
+                        Tyre = b.Get("Cars", "CarTyre", m.Tyre, basePos),
+                        Rim = b.Get("Cars", "CarRim", m.CarRim, basePos),
+                        Head = b.Get("Cars", "CarHeadlight", m.CarHeadlight, basePos),
+                        Tail = b.Get("Cars", "CarTaillight", m.CarTaillight, basePos),
+                        Amber = b.Get("Cars", "CarIndicator", m.CarIndicator, basePos),
+                        Plate = b.Get("Cars", "CarPlate", m.CarPlate, basePos),
+                        PlateText = b.Get("Cars", "CarPlateText", m.CarPlateText, basePos),
+                    };
+                    BuildCar(f, spec, cm, rng);
 
-                    AddPrimitive(body, PrimitiveType.Cube, basePos + Vector3.up * 0.62f, new Vector3(1.78f, 0.62f, 4.35f), rot);
-                    AddPrimitive(body, PrimitiveType.Cube, basePos + Vector3.up * 1.14f, new Vector3(1.62f, 0.52f, 2.35f), rot);
-                    AddPrimitive(glass, PrimitiveType.Cube, basePos + Vector3.up * 1.16f, new Vector3(1.66f, 0.40f, 2.20f), rot);
-                    for (int sx = -1; sx <= 1; sx += 2)
-                        for (int sz = -1; sz <= 1; sz += 2)
-                            AddPrimitive(wheels, PrimitiveType.Cylinder, basePos + rot * new Vector3(sx * 0.86f, 0.32f, sz * 1.42f),
-                                         new Vector3(0.32f, 0.10f, 0.32f), rot * Quaternion.Euler(0f, 0f, 90f));
-
-                    var go = new GameObject("CarCollider_" + (i++).ToString("00"));
+                    var go = new GameObject("CarCollider_" + (i++).ToString("00") + "_" + type);
                     go.transform.SetParent(colliders, false);
-                    go.transform.localPosition = basePos + Vector3.up * 0.75f;
-                    go.transform.localRotation = rot;
-                    go.AddComponent<BoxCollider>().size = new Vector3(1.8f, 1.5f, 4.4f);
+                    go.transform.localPosition = basePos + Vector3.up * (spec.Roof * 0.5f);
+                    go.transform.localRotation = f.R;
+                    go.AddComponent<BoxCollider>().size = new Vector3(spec.HalfWidth * 2f + 0.04f, spec.Roof, spec.Length);
                     go.isStatic = true;
+                }
+            }
+
+            static void BuildCar(CarFrame f, CarSpec s, CarMats cm, System.Random rng)
+            {
+                var body = s.Body;
+                float zF = body[body.Length - 1].Z, zR = s.Tub ? -s.Length * 0.5f : body[0].Z;
+
+                // ---- lower body, and the ute's tub behind the cab
+                CarLoft(cm.Paint, f, body);
+                if (s.Tub)
+                {
+                    const float tubTop = UteTubTop;
+                    var tub = new[]
+                    {
+                        new CarStation(zR, s.HalfWidth - 0.08f, 0.48f, tubTop - 0.04f), new CarStation(zR + 0.10f, s.HalfWidth, 0.44f, tubTop),
+                        new CarStation(body[0].Z + 0.02f, s.HalfWidth, 0.44f, tubTop),
+                    };
+                    CarLoft(cm.Paint, f, tub);
+                    // Flat black tonneau cover, and a ladder chassis showing under the tub.
+                    CarBox(cm.Trim, f, 0f, tubTop + 0.012f, (zR + body[0].Z) * 0.5f, (s.HalfWidth - 0.07f) * 2f, 0.024f, body[0].Z - zR - 0.22f);
+                    CarBox(cm.Trim, f, 0f, 0.40f, (zR + body[0].Z) * 0.5f, 1.10f, 0.14f, body[0].Z - zR - 0.2f);
+                }
+
+                // ---- cabin: windscreen, roof, rear glass and the two sides
+                float yb = s.Belt, yr = s.Roof, wb = s.CabHWBelt, wr = s.CabHWRoof;
+                Vector3 fl = f.P(-wb, yb, s.CabF0), fr = f.P(wb, yb, s.CabF0), rl = f.P(-wb, yb, s.CabR0), rr = f.P(wb, yb, s.CabR0);
+                Vector3 tfl = f.P(-wr, yr, s.CabF1), tfr = f.P(wr, yr, s.CabF1), trl = f.P(-wr, yr, s.CabR1), trr = f.P(wr, yr, s.CabR1);
+                Vector3 cc = f.P(0f, (yb + yr) * 0.5f, (s.CabF0 + s.CabR0) * 0.5f);
+                Quad(cm.Paint, fl, fr, tfr, tfl, (fl + fr + tfr + tfl) * 0.25f - cc);
+                Quad(cm.Paint, tfl, tfr, trr, trl, f.D(0f, 1f, 0f));
+                Quad(cm.Paint, rl, rr, trr, trl, (rl + rr + trr + trl) * 0.25f - cc);
+                Quad(cm.Paint, fr, rr, trr, tfr, f.D(1f, 0.3f, 0f));
+                Quad(cm.Paint, fl, rl, trl, tfl, f.D(-1f, 0.3f, 0f));
+
+                // ---- glass, 6 mm proud of the cabin faces, framed by the pillars
+                GlassPanel(cm.Glass, f, -1f, s.CabF0, s.CabF1, yb, yr, wb, wr, 0.07f, 0.06f, 0.05f);
+                GlassPanel(cm.Glass, f, +1f, s.CabR0, s.CabR1, yb, yr, wb, wr, 0.07f, 0.06f, 0.05f);
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    SideGlass(cm.Glass, f, s, side, s.CabF0, s.BPillar + 0.05f, 0.07f, true);
+                    SideGlass(cm.Glass, f, s, side, s.BPillar - 0.05f, s.CabR0, 0.07f, false);
+                }
+
+                // ---- wheels and arches
+                foreach (float az in new[] { s.AxleF, s.AxleR })
+                {
+                    bool onTub = s.Tub && az < body[0].Z;
+                    var at = CarStationAt(body, az);
+                    float hw = onTub ? s.HalfWidth : at.HW, sill = onTub ? 0.44f : at.Y0;
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        // Black arch lining just proud of the body side.
+                        float ax = side * (hw + 0.006f);
+                        var arch = new List<Vector3>();
+                        // Down to the sill where the sill is below the axle; above it, the
+                        // semicircle alone.
+                        float ar = s.WheelR + 0.07f;
+                        bool skirt = sill < s.WheelR - 0.01f;
+                        if (skirt) arch.Add(f.P(ax, sill, az + ar));
+                        for (int k = 0; k <= 8; k++)
+                        {
+                            float t = k / 8f * Mathf.PI;
+                            arch.Add(f.P(ax, s.WheelR + Mathf.Sin(t) * ar, az + Mathf.Cos(t) * ar));
+                        }
+                        if (skirt) arch.Add(f.P(ax, sill, az - ar));
+                        Poly(cm.Trim, arch, f.D(side, 0f, 0f));
+
+                        float tw = 0.22f, tx = side * (hw + 0.012f - tw * 0.5f);
+                        CarCyl(cm.Tyre, f, tx, s.WheelR, az, s.WheelR, tw, 14);
+                        CarCyl(cm.Rim, f, side * (hw + 0.016f), s.WheelR, az, s.WheelR * 0.62f, 0.012f, 12);
+                        CarCyl(cm.Trim, f, side * (hw + 0.022f), s.WheelR, az, s.WheelR * 0.16f, 0.012f, 8);
+                        // Five spokes, dark between them, so the rims read as alloys.
+                        for (int k = 0; k < 5; k++)
+                        {
+                            float t = k / 5f * Mathf.PI * 2f + 0.3f;
+                            float ry = s.WheelR + Mathf.Sin(t) * s.WheelR * 0.38f, rz = az + Mathf.Cos(t) * s.WheelR * 0.38f;
+                            Box(cm.Trim, f.P(side * (hw + 0.021f), ry, rz), new Vector3(0.006f, 0.06f, 0.06f), f.D(0f, 0f, 1f));
+                        }
+                    }
+                }
+
+                // ---- front: headlights, indicators, grille, bumper, plate
+                var nose = body[body.Length - 1];
+                float fy = nose.Y1 - 0.07f, fz = zF - 0.02f;
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    CarBox(cm.Head, f, side * (nose.HW - 0.20f), fy, fz, 0.30f, 0.10f, 0.08f);
+                    CarBox(cm.Amber, f, side * (nose.HW - 0.03f), fy, fz - 0.03f, 0.06f, 0.08f, 0.06f);
+                    // Mirrors: body-coloured housing on a black stalk at the base of the A pillar.
+                    CarBox(cm.Trim, f, side * (wb + 0.05f), yb + 0.07f, s.CabF0 - 0.18f, 0.10f, 0.03f, 0.05f);
+                    CarBox(cm.Paint, f, side * (wb + 0.13f), yb + 0.12f, s.CabF0 - 0.20f, 0.16f, 0.12f, 0.09f);
+                    CarBox(cm.Glass, f, side * (wb + 0.13f), yb + 0.12f, s.CabF0 - 0.25f, 0.13f, 0.09f, 0.01f);
+                }
+                float grilleW = (nose.HW - 0.38f) * 2f, grilleH = (s.Type == CarType.Suv || s.Type == CarType.Ute) ? 0.20f : 0.12f;
+                CarBox(cm.Trim, f, 0f, fy - 0.02f - grilleH * 0.3f, fz + 0.005f, grilleW, grilleH, 0.06f);
+                CarBox(cm.Trim, f, 0f, nose.Y0 + 0.06f, zF + 0.02f, nose.HW * 2f + 0.06f, 0.12f, 0.10f);
+                Plate(cm, f, nose.Y0 + 0.20f, zF + 0.05f, 1f);
+
+                // ---- rear: tail lights, bumper, plate
+                float ty, tz = zR + 0.02f;
+                float rearHW = s.Tub ? s.HalfWidth - 0.08f : body[0].HW;
+                float rearY0 = s.Tub ? 0.48f : body[0].Y0, rearY1 = s.Tub ? UteTubTop - 0.04f : body[0].Y1;
+                if (s.Tub)
+                {
+                    ty = 1.02f;
+                    for (int side = -1; side <= 1; side += 2)
+                        CarBox(cm.Tail, f, side * (rearHW - 0.05f), ty, tz, 0.10f, 0.32f, 0.08f);
+                    CarBox(cm.Trim, f, 0f, 0.52f, zR - 0.02f, rearHW * 2f, 0.14f, 0.14f);   // step bumper
+                }
+                else
+                {
+                    ty = rearY1 - 0.10f;
+                    for (int side = -1; side <= 1; side += 2)
+                        CarBox(cm.Tail, f, side * (rearHW - 0.16f), ty, tz, 0.28f, 0.11f, 0.08f);
+                    CarBox(cm.Trim, f, 0f, rearY0 + 0.06f, zR - 0.02f, rearHW * 2f + 0.06f, 0.12f, 0.10f);
+                }
+                Plate(cm, f, (rearY0 + rearY1) * 0.5f - 0.02f, zR - 0.05f, -1f);
+
+                // ---- extras
+                if (s.RoofRails)
+                    for (int side = -1; side <= 1; side += 2)
+                        CarBox(cm.Trim, f, side * (wr - 0.10f), yr + 0.04f, (s.CabF1 + s.CabR1) * 0.5f, 0.04f, 0.05f, s.CabF1 - s.CabR1 - 0.2f);
+            }
+
+            /// <summary>
+            /// Windscreen (end -1: the front face, from CabF0 up to CabF1) or rear glass (end +1),
+            /// inset from the face edges and pushed 6 mm out along the face normal.
+            /// </summary>
+            static void GlassPanel(Accum a, CarFrame f, float end, float zBase, float zTop, float yb, float yr,
+                                   float wb, float wr, float side, float bottom, float top)
+            {
+                float v0 = bottom, v1 = 1f - top;
+                System.Func<float, float, Vector3> at = (u, v) =>
+                {
+                    float hw = Mathf.Lerp(wb, wr, v) - side;
+                    return f.P(u * hw, Mathf.Lerp(yb, yr, v), Mathf.Lerp(zBase, zTop, v));
+                };
+                Vector3 p0 = at(-1f, v0), p1 = at(1f, v0), p2 = at(1f, v1), p3 = at(-1f, v1);
+                Vector3 n = Vector3.Cross(p1 - p0, p3 - p0).normalized;
+                Vector3 outward = f.D(0f, 0.2f, end < 0f ? 1f : -1f);
+                if (Vector3.Dot(n, outward) < 0f) n = -n;
+                Vector3 off = n * 0.006f;
+                Quad(a, p0 + off, p1 + off, p2 + off, p3 + off, outward);
+            }
+
+            /// <summary>
+            /// One side window between z0 and z1 (either order), following the cabin's side face:
+            /// below the roof, above the belt, and kept a pillar's width inside the sloping
+            /// windscreen or rear-glass edge.
+            /// </summary>
+            static void SideGlass(Accum a, CarFrame f, CarSpec s, int side, float zA, float zB, float pillar, bool front)
+            {
+                float yb = s.Belt, yr = s.Roof;
+                const float v0 = 0.10f, v1 = 0.86f;
+                // Cabin edges at height fraction v: front edge runs CabF0 -> CabF1, rear CabR0 -> CabR1.
+                System.Func<float, float> frontZ = v => Mathf.Lerp(s.CabF0, s.CabF1, v) - pillar;
+                System.Func<float, float> rearZ  = v => Mathf.Lerp(s.CabR0, s.CabR1, v) + pillar;
+                System.Func<float, float, Vector3> at = (z, v) =>
+                    f.P(side * (Mathf.Lerp(s.CabHWBelt, s.CabHWRoof, v) + 0.006f), Mathf.Lerp(yb, yr, v), z);
+                float zHi = Mathf.Max(zA, zB), zLo = Mathf.Min(zA, zB);
+                var pts = new List<Vector3>();
+                if (front)
+                {
+                    // Front edge follows the A pillar; rear edge is the vertical B pillar.
+                    pts.Add(at(Mathf.Min(frontZ(v0), zHi), v0));
+                    pts.Add(at(Mathf.Min(frontZ(v1), zHi), v1));
+                    pts.Add(at(zLo, v1));
+                    pts.Add(at(zLo, v0));
+                }
+                else
+                {
+                    pts.Add(at(zHi, v0));
+                    pts.Add(at(zHi, v1));
+                    pts.Add(at(Mathf.Max(rearZ(v1), zLo), v1));
+                    pts.Add(at(Mathf.Max(rearZ(v0), zLo), v0));
+                }
+                if (Mathf.Abs(pts[0].x - pts[3].x) + Mathf.Abs(pts[0].z - pts[3].z) < 0.05f) return;
+                Poly(a, pts, f.D(side, 0.25f, 0f));
+            }
+
+            /// <summary>
+            /// Number plate: white, 372 x 134 mm like a Victorian standard plate, with six navy
+            /// blocks for the characters (no real registration). 'facing' +1 = front of car.
+            /// </summary>
+            static void Plate(CarMats cm, CarFrame f, float y, float z, float facing)
+            {
+                CarBox(cm.Plate, f, 0f, y, z, 0.372f, 0.134f, 0.012f);
+                for (int k = 0; k < 6; k++)
+                {
+                    float x = -0.13f + k * 0.052f + (k >= 3 ? 0.012f : 0f);
+                    CarBox(cm.PlateText, f, x, y - 0.005f, z + facing * 0.007f, 0.034f, 0.07f, 0.004f);
                 }
             }
 
@@ -1361,6 +1986,16 @@ namespace VRTutorial.EditorTools
                               b.GetGO("BusStop", "ShelterGlass", m.Glass, pos),
                               b.GetGO("BusStop", "ShelterTimber", m.Timber, pos), pos, rot);
                 AddLandmarkCollider(group, "ShelterCollider", pos, rot, 0);
+                // That shared collider only blocks the back wall; close both short end walls
+                // too, so the shelter can only be entered from the open front.
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    var end = new GameObject(s < 0 ? "ShelterCollider_EndGlass" : "ShelterCollider_EndPanel");
+                    end.transform.SetParent(group, false);
+                    end.transform.localRotation = rot;
+                    end.transform.localPosition = pos + rot * new Vector3(s * 1.7f, 1.2f, -0.05f);
+                    end.AddComponent<BoxCollider>().size = new Vector3(0.2f, 2.4f, 1.6f);
+                }
 
                 // Flag: pole with a square sign at the top, facing up and down the street.
                 Vector3 fp = W(plan.BusFlagPos, FullRouteLayout.NatureTop);

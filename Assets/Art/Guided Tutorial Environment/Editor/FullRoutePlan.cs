@@ -57,6 +57,19 @@ namespace VRTutorial.EditorTools
 
         public const int Seed = 20260927;
 
+        // ------------------------------------------------------------ dead ends
+        // Wrong-turn side streets: long enough that the end is not obvious from the junction,
+        // short enough that a wrong turn costs about a minute (there and back at 1.5 m/s).
+        public const float DeadEndLength = 40f;   // junction to the centre of the court
+        public const float BendAt        = 15f;   // straight run before the bend
+        public const float CourtRadius   = 7.0f;  // kerb radius of the turning circle (older-suburb court)
+        public const float CourtReserve  = CourtRadius + (HalfReserve - HalfCarriageway);   // 10.25
+        public const float CourtFootMid  = CourtRadius + KerbWidth + NatureStrip + Footpath * 0.5f;
+
+        // ------------------------------------------------------------ crossings
+        public const float ZebraWidth   = 3.0f;   // along the road
+        public const float TactileDepth = 0.6f;   // yellow pad, measured back from the kerb
+
         // ------------------------------------------------------------------- route
         // N0..N16 in walking order. N0 lies on the bus road; the route street proper runs
         // N1 -> N16. Decision points marked with a circle on the drawing: N2, N4, N6, N10,
@@ -82,26 +95,31 @@ namespace VRTutorial.EditorTools
             new Vector2( -198.64f,    92.92f),   // N16 end of the street at the shopping centre
         };
 
+        // Side streets. The bus road and south road are one through road with soft closures
+        // (planter + low fence) well past the bus stop. Every other side street is a wrong turn
+        // that runs DeadEndLength metres, bends after BendAt so its end is out of sight from the
+        // junction, and finishes in a cul-de-sac court. Which way each one bends is worked out
+        // by the plan so the courts fit between the other streets.
         public static readonly BranchDef[] Branches =
         {
-            new BranchDef("BusRoad",  1, new Vector2( 0.5039f,  0.8638f),  46.0f,  17.0f,  27.0f),
-            new BranchDef("SouthRoad",  1, new Vector2( 0.0000f, -1.0000f),  42.0f,   8.6f,  20.0f),
-            new BranchDef("HouseCross_NE",  2, new Vector2( 0.5055f,  0.8628f),  42.0f,   8.6f,  20.0f),
-            new BranchDef("HouseCross_SW",  2, new Vector2(-0.4672f, -0.8841f),  42.0f,   8.6f,  20.0f),
-            new BranchDef("Cross4_N",  4, new Vector2( 0.0000f,  1.0000f),  27.1f,   8.6f,  20.0f),
-            new BranchDef("Cross4_S",  4, new Vector2( 0.0000f, -1.0000f),  42.0f,   8.6f,  20.0f),
-            new BranchDef("Side5_S",  5, new Vector2( 0.0000f, -1.0000f),  42.0f,   8.6f,  20.0f),
-            new BranchDef("Corner6_S",  6, new Vector2( 0.0000f, -1.0000f),  42.0f,   8.6f,  20.0f),
-            new BranchDef("Side7_W",  7, new Vector2(-1.0000f,  0.0000f),  42.0f,   8.6f,  20.0f),
-            new BranchDef("Side8_E",  8, new Vector2( 1.0000f,  0.0000f),  32.4f,   8.6f,  20.0f),
-            new BranchDef("Side9_W",  9, new Vector2(-1.0000f,  0.0000f),  16.4f,   8.6f,  12.4f),
-            new BranchDef("Side10_E", 10, new Vector2( 1.0000f,  0.0000f),  42.0f,   8.6f,  20.0f),
-            new BranchDef("Side11_N", 11, new Vector2( 0.0000f,  1.0000f),  42.0f,   8.6f,  20.0f),
-            new BranchDef("Cross12_N", 12, new Vector2( 0.0000f,  1.0000f),  42.0f,   8.6f,  20.0f),
-            new BranchDef("Cross12_S", 12, new Vector2( 0.0000f, -1.0000f),  15.4f,   8.6f,  11.4f),
-            new BranchDef("Side14_SW", 14, new Vector2(-0.2905f, -0.9569f),  30.0f,   8.6f,  20.0f),
-            new BranchDef("Cross15_NNE", 15, new Vector2( 0.2510f,  0.9680f),  42.0f,   8.6f,  20.0f),
-            new BranchDef("Cross15_WNW", 15, new Vector2(-0.9675f,  0.2528f),  42.0f,   8.6f,  20.0f),
+            new BranchDef("BusRoad",  1, new Vector2( 0.5039f,  0.8638f),  70.0f,  17.0f,  52.0f),
+            new BranchDef("SouthRoad",  1, new Vector2( 0.0000f, -1.0000f),  58.0f,   8.6f,  40.0f),
+            new BranchDef("HouseCross_NE",  2, new Vector2( 0.5055f,  0.8628f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("HouseCross_SW",  2, new Vector2(-0.4672f, -0.8841f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Cross4_N",  4, new Vector2( 0.0000f,  1.0000f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Cross4_S",  4, new Vector2( 0.0000f, -1.0000f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Side5_S",  5, new Vector2( 0.0000f, -1.0000f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Corner6_S",  6, new Vector2( 0.0000f, -1.0000f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Side7_W",  7, new Vector2(-1.0000f,  0.0000f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Side8_E",  8, new Vector2( 1.0000f,  0.0000f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Side9_W",  9, new Vector2(-1.0000f,  0.0000f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Side10_E", 10, new Vector2( 1.0000f,  0.0000f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Side11_N", 11, new Vector2( 0.0000f,  1.0000f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Cross12_N", 12, new Vector2( 0.0000f,  1.0000f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Cross12_S", 12, new Vector2( 0.0000f, -1.0000f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Side14_SW", 14, new Vector2(-0.2905f, -0.9569f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Cross15_NNE", 15, new Vector2( 0.2510f,  0.9680f),  DeadEndLength, 8.6f, -1f),
+            new BranchDef("Cross15_WNW", 15, new Vector2(-0.9675f,  0.2528f),  DeadEndLength, 8.6f, -1f),
         };
 
         public static readonly StarDef[] LandmarkLampStars =
@@ -170,6 +188,15 @@ namespace VRTutorial.EditorTools
                    Mathf.Abs(Vector2.Dot(d, V)) <= HV + grow;
         }
 
+        /// <summary>Distance from p to the box (0 inside).</summary>
+        public float Distance(Vector2 p)
+        {
+            Vector2 d = p - C;
+            float du = Mathf.Max(Mathf.Abs(Vector2.Dot(d, U)) - HU, 0f);
+            float dv = Mathf.Max(Mathf.Abs(Vector2.Dot(d, V)) - HV, 0f);
+            return Mathf.Sqrt(du * du + dv * dv);
+        }
+
         public Vector2[] Corners()
         {
             Vector2 a = U * HU, b = V * HV;
@@ -200,6 +227,7 @@ namespace VRTutorial.EditorTools
         public readonly List<float> Triggers = new List<float>();   // wrong-turn triggers, arc length
         public readonly List<float> Closures = new List<float>();   // soft ends, arc length
         public bool OpenStart, OpenEnd;                             // ends that run off into the suburb
+        public int CourtIndex = -1;                                 // cul-de-sac at the end, if any
         public Vector2[] Pts;
         public float[] Cum;
         public float Length;
@@ -309,6 +337,14 @@ namespace VRTutorial.EditorTools
             return false;
         }
 
+        List<Obb> _reserveCache;
+        /// <summary>Reserve boxes, computed once - the layout search asks for them constantly.</summary>
+        public List<Obb> ReserveBoxes()
+        {
+            if (_reserveCache == null) _reserveCache = Boxes(FullRouteLayout.HalfReserve);
+            return _reserveCache;
+        }
+
         /// <summary>One box per segment, lengthened at interior joints to cover the bend.</summary>
         public List<Obb> Boxes(float halfWidth)
         {
@@ -329,7 +365,7 @@ namespace VRTutorial.EditorTools
     // =====================================================================================
 
     public enum BandKind { Road, Nature, Footpath, Kerb, Pad, Dash }
-    public enum FenceStyle { None, Front, School, SpecialPicket, ParkLow, ParkBack, Hedge }
+    public enum FenceStyle { None, Front, School, SpecialPicket, ParkLow, ParkBack, Hedge, Screen }
 
     public struct Band
     {
@@ -358,9 +394,71 @@ namespace VRTutorial.EditorTools
         public int Seed;
     }
     public struct LampSpot { public Vector2 Pos, Arm; }
-    public struct CarSpot { public Vector2 Pos, Dir; public int Variant; }
+    /// <summary>
+    /// A parked car. Dir is the way its bonnet points. Long = a 5.35 m outline also fits
+    /// here, so the builder may put a dual-cab ute in this spot.
+    /// </summary>
+    public struct CarSpot { public Vector2 Pos, Dir; public int Variant; public bool Long; }
     public struct Across { public int Street; public float S; public string Name; }
     public struct NamedBox { public string Name; public Obb Box; }
+
+    /// <summary>The turning circle at the end of a wrong-turn street.</summary>
+    public sealed class Court { public int Street; public Vector2 C; public Vector2 InDir; public float Bend; }
+
+    /// <summary>An annular band around a court, as one or more arcs (radians).</summary>
+    public struct RingBand
+    {
+        public int Court; public float R0, R1, A0, A1; public BandKind Kind;
+    }
+
+    /// <summary>Convex quadrilateral in plan, corners stored counter-clockwise.</summary>
+    public struct Quad4
+    {
+        public Vector2 A, B, C, D;
+
+        public Quad4(Vector2 a, Vector2 b, Vector2 c, Vector2 d)
+        {
+            A = a; B = b; C = c; D = d;
+            float area = Cross(B - A, C - A) + Cross(C - A, D - A);
+            if (area < 0f) { B = d; D = b; }
+        }
+
+        static float Cross(Vector2 u, Vector2 v) { return u.x * v.y - u.y * v.x; }
+
+        public Vector2 Centre { get { return (A + B + C + D) * 0.25f; } }
+        public Vector2[] Corners() { return new[] { A, B, C, D }; }
+
+        /// <summary>Inside, or within 'grow' of every edge line (a slightly grown quad).</summary>
+        public bool Contains(Vector2 p, float grow = 0f)
+        {
+            var c = Corners();
+            for (int i = 0; i < 4; i++)
+            {
+                Vector2 e = c[(i + 1) % 4] - c[i];
+                float len = e.magnitude;
+                if (len < 1e-5f) continue;
+                if (Cross(e, p - c[i]) / len < -grow) return false;
+            }
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// A kerb ramp: paving from the road edge through the nature strip to the footpath, laid
+    /// square to the kerb of the street it opens onto. 'Slope' runs from the road edge up to
+    /// just past the kerb line (so there is no lip to trip on); 'Flat' continues at footpath
+    /// height. Out points from the road into the footpath.
+    /// </summary>
+    public struct Opening
+    {
+        public Quad4 Slope, Flat;
+        public Vector2 Out;
+        public bool Zebra, Apron;
+        public bool Contains(Vector2 p, float grow = 0f) { return Slope.Contains(p, grow) || Flat.Contains(p, grow); }
+    }
+
+    public struct Zebra { public int Street; public float S; public string Name; public bool School; }
+    public struct CrossingPost { public Vector2 Pos, RoadDir; public bool School; }
 
     public sealed class FullRoutePlan
     {
@@ -395,6 +493,14 @@ namespace VRTutorial.EditorTools
         public readonly List<Across> EndCaps = new List<Across>();
         public readonly List<NamedBox> WrongTurns = new List<NamedBox>();
         public readonly List<NamedBox> Checkpoints = new List<NamedBox>();
+        public readonly List<Court> Courts = new List<Court>();
+        public readonly List<RingBand> Rings = new List<RingBand>();
+        public readonly List<Opening> Openings = new List<Opening>();
+        public readonly List<Quad4> Tactiles = new List<Quad4>();
+        public readonly List<Zebra> Zebras = new List<Zebra>();
+        public readonly List<Obb> ZebraStripes = new List<Obb>();
+        public readonly List<CrossingPost> CrossingPosts = new List<CrossingPost>();
+        public readonly List<string> Warnings = new List<string>();
         public Vector2 Spawn, SpawnFacing;
         public Vector2 ShelterPos, ShelterFacing, BusFlagPos, BusFlagDir;
         public Vector2 ShopSignPos, ShopSignFacing;
@@ -407,9 +513,9 @@ namespace VRTutorial.EditorTools
 
         public FullRoutePlan()
         {
+            BuildZones();       // zones only need the route nodes, and the dead ends must avoid them
             BuildStreets();
             BuildVolumes();
-            BuildZones();
             BuildBands();
             BuildFences();
             BuildLandmarkLamps();
@@ -454,18 +560,274 @@ namespace VRTutorial.EditorTools
             BusStopS = south.Length + Vector2.Distance(n[0], n[1]);
             Streets.Add(BusRoad);
 
-            for (int i = 0; i < br.Length; i++)
+            // Lay out every wrong-turn street together: a backtracking search that always
+            // places the street with the fewest remaining options next, and undoes earlier
+            // choices when one runs out of room. Candidates are tried longest first, so the
+            // first complete layout found keeps the dead ends as long as the space allows.
+            // Deterministic: same inputs, same layout.
+            //
+            // The drawing packs more side streets into the middle blocks than can all end in a
+            // court (the streets south from N12 and west from N9 point straight at each other),
+            // so the search allows as few "stub" dead ends as it can: first none, then one, and
+            // so on. A stub still bends out of sight; it just ends in a planter instead of a court.
+            var pending = new List<int>();
+            for (int i = 0; i < br.Length; i++) if (i != busI && i != southI) pending.Add(i);
+            bool solved = false;
+            for (int stubs = 0; stubs <= 4 && !solved; stubs++)
             {
-                if (i == busI || i == southI) continue;
-                Vector2 a = n[br[i].Node];
-                var st = new RouteStreet(br[i].Name, new[] { a, a + br[i].Dir * br[i].Length })
+                _budget = 20000;
+                solved = SolveDeadEnds(pending, stubs);
+                if (!solved) { while (Streets.Count > 2) Streets.RemoveAt(Streets.Count - 1); Courts.Clear(); }
+            }
+            if (!solved)
+            {
+                Warnings.Add("Dead-end search found no layout - placed greedily instead.");
+                foreach (int i in pending) PlaceDeadEnd(i);
+            }
+            foreach (var st in Streets)
+                if (st.BranchIndex >= 0 && st.CourtIndex < 0 && st != BusRoad)
+                    Warnings.Add(st.Name + ": no room for a court here - a " + st.Length.ToString("0") +
+                                 " m street that bends and ends in a planter closure instead.");
+
+            // Keep Streets in drawing order after the route and bus road, so names and indices
+            // stay stable from build to build.
+            var dead = Streets.GetRange(2, Streets.Count - 2);
+            dead.Sort((x, y) => x.BranchIndex.CompareTo(y.BranchIndex));
+            var remap = new Dictionary<int, int>();
+            for (int k = 0; k < dead.Count; k++) { remap[dead[k].Index] = k + 2; Streets[k + 2] = dead[k]; }
+            foreach (var st in dead) st.Index = remap[st.Index];
+            foreach (var c in Courts) c.Street = remap[c.Street];
+        }
+
+        // Sharper first: at 45-55 degrees the houses and screen planting on the inside of the bend
+        // hide most of the court from the junction; at 30 degrees about half of it shows.
+        static readonly float[] BendTry = { 45f, -45f, 55f, -55f, 40f, -40f, 60f, -60f, 35f, -35f, 30f, -30f, 70f, -70f, 22f, -22f, 15f, -15f };
+        static readonly float[] LengthTry = { 1.0f, 0.9f, 0.8f, 0.7f, 0.6f, 0.5f, 0.42f };   // of DeadEndLength
+
+        int _budget;
+
+        List<Vector2[]> Candidates(int i)
+        {
+            var def = FullRouteLayout.Branches[i];
+            Vector2 a = FullRouteLayout.RouteNodes[def.Node];
+            var list = new List<Vector2[]>();
+            foreach (float lf in LengthTry)
+            {
+                float len = FullRouteLayout.DeadEndLength * lf;
+                float bendAt = Mathf.Min(FullRouteLayout.BendAt, len * 0.45f);
+                foreach (float bend in BendTry)
+                {
+                    Vector2 b = a + def.Dir * bendAt;
+                    list.Add(new[] { a, b, b + Rotate(def.Dir, bend) * (len - bendAt) });
+                }
+            }
+            return list;
+        }
+
+        bool SolveDeadEnds(List<int> pending, int stubsLeft)
+        {
+            if (pending.Count == 0) return true;
+            if (--_budget < 0) return false;
+
+            // Most constrained street next.
+            int pick = -1; List<Vector2[]> pickOpts = null;
+            foreach (int i in pending)
+            {
+                var node = FullRouteLayout.Branches[i].Node;
+                var opts = new List<Vector2[]>();
+                foreach (var c in Candidates(i)) if (DeadEndFits(c, node)) opts.Add(c);
+                if (pickOpts == null || opts.Count < pickOpts.Count) { pick = i; pickOpts = opts; }
+                if (opts.Count == 0) break;
+            }
+
+            var rest = new List<int>(pending);
+            rest.Remove(pick);
+
+            if (pickOpts.Count > 0)
+            {
+                foreach (var pts in pickOpts)
+                {
+                    AddDeadEnd(pick, pts);
+                    if (SolveDeadEnds(rest, stubsLeft)) return true;
+                    Courts.RemoveAt(Courts.Count - 1);
+                    Streets.RemoveAt(Streets.Count - 1);
+                    if (_budget < 0) return false;
+                }
+                return false;
+            }
+
+            // No court fits for this street: make it a stub, if the allowance permits.
+            if (stubsLeft <= 0) return false;
+            int nodeIdx = FullRouteLayout.Branches[pick].Node;
+            foreach (var pts in Candidates(pick))
+            {
+                var st = new RouteStreet("stub", pts);
+                if (!PathClear(st, nodeIdx, 1.5f)) continue;
+                AddStub(pick, pts);
+                if (SolveDeadEnds(rest, stubsLeft - 1)) return true;
+                Streets.RemoveAt(Streets.Count - 1);
+                if (_budget < 0) return false;
+            }
+            return false;
+        }
+
+        void AddStub(int i, Vector2[] pts)
+        {
+            var def = FullRouteLayout.Branches[i];
+            var st = new RouteStreet(def.Name, pts) { Index = Streets.Count, BranchIndex = i, OpenEnd = true };
+            st.Triggers.Add(def.TriggerAt);
+            st.Closures.Add(Mathf.Max(def.TriggerAt + 3f, st.Length - 4f));
+            Streets.Add(st);
+        }
+
+        void AddDeadEnd(int i, Vector2[] pts)
+        {
+            var def = FullRouteLayout.Branches[i];
+            var st = new RouteStreet(def.Name, pts) { Index = Streets.Count, BranchIndex = i };
+            st.Triggers.Add(def.TriggerAt);
+            Vector2 d0 = (pts[1] - pts[0]).normalized, d1 = (pts[2] - pts[1]).normalized;
+            float bend = Mathf.Atan2(d0.x * d1.y - d0.y * d1.x, Vector2.Dot(d0, d1)) * Mathf.Rad2Deg;
+            st.CourtIndex = Courts.Count;
+            Courts.Add(new Court { Street = st.Index, C = pts[2], InDir = d1, Bend = bend });
+            Streets.Add(st);
+        }
+
+        int CountLayouts(int i)
+        {
+            var def = FullRouteLayout.Branches[i];
+            Vector2 a = FullRouteLayout.RouteNodes[def.Node];
+            int count = 0;
+            foreach (float lf in LengthTry)
+            {
+                float len = FullRouteLayout.DeadEndLength * lf;
+                float bendAt = Mathf.Min(FullRouteLayout.BendAt, len * 0.45f);
+                foreach (float bend in BendTry)
+                {
+                    Vector2 b = a + def.Dir * bendAt;
+                    if (DeadEndFits(new[] { a, b, b + Rotate(def.Dir, bend) * (len - bendAt) }, def.Node)) count++;
+                }
+            }
+            return count;
+        }
+
+        static Vector2 Rotate(Vector2 v, float deg)
+        {
+            float r = deg * Mathf.Deg2Rad, c = Mathf.Cos(r), s = Mathf.Sin(r);
+            return new Vector2(v.x * c - v.y * s, v.x * s + v.y * c);
+        }
+
+        /// <summary>
+        /// Lays out one wrong-turn street: straight for BendAt metres, then a bend, then a court.
+        /// Tries bends either way and, only if nothing fits, shorter lengths - first fit wins,
+        /// so the result is deterministic. A bend of 30-40 degrees puts the court well off the
+        /// line of sight from the junction, behind the houses on the inside of the bend.
+        /// </summary>
+        void PlaceDeadEnd(int i)
+        {
+            var def = FullRouteLayout.Branches[i];
+            Vector2 a = FullRouteLayout.RouteNodes[def.Node];
+            Vector2[] best = null;
+
+            foreach (float lf in LengthTry)
+            {
+                float len = FullRouteLayout.DeadEndLength * lf;
+                float bendAt = Mathf.Min(FullRouteLayout.BendAt, len * 0.45f);
+                foreach (float bend in BendTry)
+                {
+                    Vector2 b = a + def.Dir * bendAt;
+                    Vector2 c = b + Rotate(def.Dir, bend) * (len - bendAt);
+                    var pts = new[] { a, b, c };
+                    if (DeadEndFits(pts, def.Node)) { best = pts; break; }
+                }
+                if (best != null) break;
+            }
+
+            if (best == null)
+            {
+                // No room for a court at all: a short straight stub, as long as fits, ending
+                // in the planter closure used on the bus road. Never overlaps anything.
+                float len = 0f;
+                for (float l = 30f; l >= 12f; l -= 1f)
+                {
+                    if (StubFits(a, def.Dir, l, def.Node)) { len = l; break; }
+                }
+                if (len <= 0f) len = 12f;
+                var stub = new RouteStreet(def.Name, new[] { a, a + def.Dir * len })
                 {
                     Index = Streets.Count, BranchIndex = i, OpenEnd = true,
                 };
-                st.Triggers.Add(br[i].TriggerAt);
-                st.Closures.Add(br[i].ClosureAt);
-                Streets.Add(st);
+                stub.Triggers.Add(def.TriggerAt);
+                stub.Closures.Add(Mathf.Max(def.TriggerAt + 3f, len - 4f));
+                Streets.Add(stub);
+                return;
             }
+
+            AddDeadEnd(i, best);
+        }
+
+        bool StubFits(Vector2 a, Vector2 dir, float len, int node)
+        {
+            var pts = new[] { a, a + dir * (len * 0.5f), a + dir * len };
+            return PathClear(new RouteStreet("stub", pts), node, 2.0f);
+        }
+
+        bool DeadEndFits(Vector2[] pts, int node)
+        {
+            const float gap = 1.5f;
+            const float CR = FullRouteLayout.CourtReserve;
+            var cand = new RouteStreet("candidate", pts);
+            Vector2 court = pts[pts.Length - 1];
+            Obb[] zones = { Park, School, SpecialLot, Forecourt, ShopBuilding };
+            // Past the edge of the drawing's area is fine; the world just grows.
+
+            // The court against everything already placed.
+            foreach (var o in Streets)
+                foreach (var box in o.ReserveBoxes())
+                    if (box.Distance(court) < CR + gap) return false;
+            foreach (var c in Courts)
+                if (Vector2.Distance(c.C, court) < 2f * CR + gap) return false;
+            foreach (var z in zones)
+                if (z.Distance(court) < CR - 0.3f) return false;
+
+            return PathClear(cand, node, gap);
+        }
+
+        /// <summary>
+        /// The street itself, once clear of the junction it leaves from. The route segments
+        /// meeting at that node are skipped - the street starts on them by design.
+        /// </summary>
+        bool PathClear(RouteStreet cand, int node, float gap)
+        {
+            const float CR = FullRouteLayout.CourtReserve;
+            Obb[] zones = { Park, School, SpecialLot, Forecourt, ShopBuilding };
+            int routeJoint = node - 1;   // route polyline index of this node
+            Vector2 nodePos = FullRouteLayout.RouteNodes[node];
+            for (float s = HR + 3f; s <= cand.Length; s += 1f)
+            {
+                Vector2 p = cand.Point(s);
+                foreach (var o in Streets)
+                {
+                    var boxes = o.ReserveBoxes();
+                    // Streets leaving the same junction share their first stretch of ground
+                    // with this one by design, as the route does.
+                    bool sibling = !o.IsRoute && Vector2.Distance(o.Pts[0], nodePos) < 0.01f;
+                    bool nearJunction = s < 2f * HR + gap + 2f;
+                    for (int j = 0; j < boxes.Count; j++)
+                    {
+                        if (o.IsRoute && (j == routeJoint || j == routeJoint - 1)) continue;
+                        if (sibling && j == 0 && nearJunction) continue;
+                        // Right at the junction the street may sit close to a nearby bend of the
+                        // route (N3 is only 11 m from N4): reserves may touch, not overlap.
+                        float need = nearJunction && o.IsRoute ? HR : HR + gap;
+                        if (boxes[j].Distance(p) < need) return false;
+                    }
+                }
+                foreach (var c in Courts)
+                    if (Vector2.Distance(c.C, p) < CR + HR + gap) return false;
+                foreach (var z in zones)
+                    if (z.Distance(p) < HR - 0.3f) return false;
+            }
+            return true;
         }
 
         void BuildVolumes()
@@ -500,14 +862,38 @@ namespace VRTutorial.EditorTools
             return false;
         }
 
-        public bool InAnyCarriageway(Vector2 p, int except = -1, float grow = 0f) { return InOther(_carriageway, except, p, grow); }
-        public bool InAnyReserve(Vector2 p, int except = -1, float grow = 0f) { return InOther(_reserve, except, p, grow); }
+        public bool InAnyCarriageway(Vector2 p, int except = -1, float grow = 0f)
+        {
+            return InOther(_carriageway, except, p, grow) || InCourt(p, except, FullRouteLayout.CourtRadius + FullRouteLayout.KerbWidth + grow);
+        }
+
+        public bool InAnyReserve(Vector2 p, int except = -1, float grow = 0f)
+        {
+            return InOther(_reserve, except, p, grow) || InCourt(p, except, FullRouteLayout.CourtReserve + grow);
+        }
+
+        /// <summary>Within radius r of the centre of any court not belonging to street 'except'.</summary>
+        public bool InCourt(Vector2 p, int except, float r)
+        {
+            foreach (var c in Courts)
+                if (c.Street != except && Vector2.Distance(p, c.C) < r) return true;
+            return false;
+        }
+
+        /// <summary>Distance from p to the centre of this street's own court (infinite if none).</summary>
+        float OwnCourtDist(RouteStreet st, Vector2 p)
+        {
+            return st.CourtIndex < 0 ? float.MaxValue : Vector2.Distance(p, Courts[st.CourtIndex].C);
+        }
         public float Distance(Vector2 a, Vector2 b) { return Vector2.Distance(a, b); }
 
         /// <summary>On (or within r of) any footpath or carriageway, of any street.</summary>
         public bool OnWalkway(Vector2 p, float r)
         {
             if (InOther(_carriageway, -1, p, r)) return true;
+            if (InCourt(p, -1, FullRouteLayout.CourtReserve + r)) return true;
+            if (InOpening(p, r)) return true;
+            if (OnBuiltFootpath(p, r)) return true;
             return InOther(_footBand, -1, p, r);
         }
 
@@ -588,6 +974,8 @@ namespace VRTutorial.EditorTools
         void BuildBands()
         {
             const float cw = FullRouteLayout.HalfCarriageway;
+
+            // Pass 1: road, nature strips and footpaths.
             foreach (var st in Streets)
             {
                 int k = st.Index;
@@ -597,44 +985,436 @@ namespace VRTutorial.EditorTools
                 {
                     Bands.Add(new Band(k, 0f, st.Length, side * FullRouteLayout.KerbEdge, side * FullRouteLayout.FootInner, BandKind.Nature));
 
-                    // Footpath: stops at every other street's kerb line.
+                    // Footpath: stops at every other street's kerb line, and runs into its own
+                    // court's footpath ring rather than across the turning circle.
                     foreach (var r in Runs(st, side * FullRouteLayout.FootCentre,
-                                           (s, p) => !InAnyCarriageway(p, k) && !st.InOwnOtherSegment(s, p, FullRouteLayout.KerbEdge)))
+                                           (s, p) => !InAnyCarriageway(p, k) && !st.InOwnOtherSegment(s, p, FullRouteLayout.KerbEdge)
+                                                     && OwnCourtDist(st, p) > FullRouteLayout.CourtFootMid))
                         Bands.Add(new Band(k, r.x, r.y, side * FullRouteLayout.FootInner, side * FullRouteLayout.FootOuter, BandKind.Footpath));
+                }
+            }
 
-                    // Kerb: broken at side-street mouths, and where a footpath crosses (the ramp).
+            BuildCourtRings();
+            BuildZebras();
+            BuildOpenings();
+
+            // Pass 2: kerbs, now that every opening is known. The kerb breaks at side-street
+            // mouths, wherever a footpath meets the road, and at every opening.
+            foreach (var st in Streets)
+            {
+                int k = st.Index;
+                for (int side = -1; side <= 1; side += 2)
+                {
                     foreach (var r in Runs(st, side * (cw + FullRouteLayout.KerbWidth * 0.5f),
                                            (s, p) => !InAnyCarriageway(p, k, 0.02f) && !InOther(_footBand, k, p, 0.05f)
-                                                     && !st.InOwnOtherSegment(s, p, FullRouteLayout.KerbEdge)))
+                                                     && !st.InOwnOtherSegment(s, p, FullRouteLayout.KerbEdge)
+                                                     && !InOpening(p, 0.02f)
+                                                     && OwnCourtDist(st, p) > FullRouteLayout.CourtRadius + 0.1f))
                         Bands.Add(new Band(k, r.x, r.y, side * cw, side * FullRouteLayout.KerbEdge, BandKind.Kerb));
                 }
 
-                // Broken centre line, 3 m dash every 6 m, kept out of junctions.
+                // Broken centre line, 3 m dash every 6 m, kept out of junctions, courts and
+                // zebra crossings.
                 for (float s = 2f; s + 3f < st.Length; s += 6f)
                 {
                     bool clear = true;
                     for (float t = s - 1f; t <= s + 4f; t += 0.5f)
-                        if (InAnyCarriageway(st.Point(Mathf.Clamp(t, 0f, st.Length)), k, 0.5f)) { clear = false; break; }
+                    {
+                        Vector2 p = st.Point(Mathf.Clamp(t, 0f, st.Length));
+                        if (InAnyCarriageway(p, k, 0.5f) || OwnCourtDist(st, p) < FullRouteLayout.CourtRadius + 1f) { clear = false; break; }
+                    }
+                    foreach (var z in Zebras)
+                        if (z.Street == k && s < z.S + FullRouteLayout.ZebraWidth * 0.5f + 3f && s + 3f > z.S - FullRouteLayout.ZebraWidth * 0.5f - 3f)
+                            clear = false;
                     if (clear) Bands.Add(new Band(k, s, s + 3f, -0.06f, 0.06f, BandKind.Dash));
                 }
             }
+        }
+
+        // ------------------------------------------------------------------- courts
+        /// <summary>
+        /// Rings for each cul-de-sac. The road disk and nature strip are whole circles - where
+        /// they overlap the street leading in, the higher layer wins as everywhere else. The
+        /// kerb and footpath rings are cut where the street enters, so neither crosses the road.
+        /// </summary>
+        void BuildCourtRings()
+        {
+            const float R = FullRouteLayout.CourtRadius, kw = FullRouteLayout.KerbWidth;
+            for (int ci = 0; ci < Courts.Count; ci++)
+            {
+                var c = Courts[ci];
+                float start = Mathf.Atan2(-c.InDir.y, -c.InDir.x);   // pointing back up the street
+
+                Rings.Add(new RingBand { Court = ci, R0 = 0f, R1 = R, A0 = 0f, A1 = 2f * Mathf.PI, Kind = BandKind.Road });
+                Rings.Add(new RingBand { Court = ci, R0 = R + kw, R1 = R + kw + FullRouteLayout.NatureStrip, A0 = 0f, A1 = 2f * Mathf.PI, Kind = BandKind.Nature });
+
+                foreach (var arc in Arcs(c.C, R + kw * 0.5f, start, p => !InOther(_carriageway, -1, p, 0.02f)))
+                    Rings.Add(new RingBand { Court = ci, R0 = R, R1 = R + kw, A0 = arc.x, A1 = arc.y, Kind = BandKind.Kerb });
+
+                float f0 = R + kw + FullRouteLayout.NatureStrip;
+                foreach (var arc in Arcs(c.C, FullRouteLayout.CourtFootMid, start, p => !InOther(_carriageway, -1, p, 0f)))
+                    Rings.Add(new RingBand { Court = ci, R0 = f0, R1 = f0 + FullRouteLayout.Footpath, A0 = arc.x, A1 = arc.y, Kind = BandKind.Footpath });
+            }
+        }
+
+        /// <summary>Arcs of a circle where 'ok' holds, sampled every half degree from 'start'.</summary>
+        List<Vector2> Arcs(Vector2 centre, float r, float start, Func<Vector2, bool> ok)
+        {
+            var result = new List<Vector2>();
+            const int n = 720;
+            float step = 2f * Mathf.PI / n;
+            float runStart = float.NaN;
+            for (int i = 0; i <= n; i++)
+            {
+                float a = start + i * step;
+                bool good = i < n && ok(centre + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r);
+                if (good && float.IsNaN(runStart)) runStart = a;
+                if (!good && !float.IsNaN(runStart))
+                {
+                    if (a - step - runStart > 0.02f) result.Add(new Vector2(runStart, a - step));
+                    runStart = float.NaN;
+                }
+            }
+            return result;
+        }
+
+        // ---------------------------------------------------------------- crossings
+        /// <summary>
+        /// Zebra crossings, at the four places agreed with Kade (29 Sep 2026):
+        ///  - Route: across the street at the dog-leg (N10), in line with the footpath the route
+        ///    continues on - the one full road the natural route has to cross.
+        ///  - School: across the street outside the school gate.
+        ///  - Bus stop: across the bus road just past the stop.
+        ///  - Park: across the long straight beside the park, before the corner at N6.
+        /// </summary>
+        void BuildZebras()
+        {
+            var n = FullRouteLayout.RouteNodes;
+            var route = Route;
+            float half = FullRouteLayout.ZebraWidth * 0.5f;
+
+            // Route index of node k is k - 1.
+            AddZebra(route, route.Cum[10 - 1] - FullRouteLayout.FootCentre, "Zebra_RouteCrossing", false);
+
+            Vector2 d = (n[12] - n[11]).normalized;
+            AddZebra(route, route.Cum[11 - 1] + Vector2.Dot(School.C - n[11], d), "Zebra_School", true);
+
+            AddZebra(BusRoad, BusStopS + 7.5f, "Zebra_BusStop", false);
+
+            AddZebra(route, (route.Cum[5 - 1] + route.Cum[6 - 1]) * 0.5f, "Zebra_Park", false);
+
+            foreach (var z in Zebras)
+            {
+                var st = Streets[z.Street];
+                int seg = st.Seg(z.S);
+                Vector2 dir = st.Dir(seg), left = st.Left(seg), mid = st.Point(z.S);
+
+                // Stripes run with the traffic, spaced across the road: 0.5 m white, 0.5 m gap.
+                for (float x = -FullRouteLayout.HalfCarriageway + 0.55f; x < FullRouteLayout.HalfCarriageway - 0.3f; x += 1.0f)
+                    ZebraStripes.Add(new Obb(mid + left * x, dir, half, 0.25f));
+
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    RectOpening(st, seg, side, mid, FullRouteLayout.ZebraWidth, true);
+                    CrossingPosts.Add(new CrossingPost
+                    {
+                        Pos = mid + left * (side * FullRouteLayout.NatureCentre) + dir * (side * (half + 0.6f)),
+                        RoadDir = dir, School = z.School,
+                    });
+                }
+            }
+        }
+
+        void AddZebra(RouteStreet st, float s, string name, bool school)
+        {
+            Zebras.Add(new Zebra { Street = st.Index, S = s, Name = name, School = school });
+        }
+
+        // Ramp profile, measured square to the kerb from the centreline of the street.
+        //   RampStart - 6 cm out onto the asphalt, so no hairline of grass can show at the edge.
+        //   RampTop   - where the slope reaches footpath height: 0.24 m past the kerb line.
+        //   Pads run from PadStart for TactileDepth, on the flat, parallel to the kerb.
+        const float RampStart = FullRouteLayout.HalfCarriageway - 0.06f;
+        const float RampTop   = FullRouteLayout.KerbEdge + 0.24f;
+        const float PadStart  = FullRouteLayout.KerbEdge + 0.27f;
+        const float RampEnd   = FullRouteLayout.KerbEdge + FullRouteLayout.NatureStrip + 0.3f;
+
+        /// <summary>A footpath end that stops at a road: centre point at the kerb line,
+        /// direction across the road, and the street the footpath belongs to.</summary>
+        struct FootEnd { public Vector2 P, Dir; public int Street; }
+
+        /// <summary>
+        /// The street segment whose carriageway (kerb included) holds p, nearest centreline
+        /// first. Courts are not included - footpath ends near them are skipped anyway.
+        /// </summary>
+        bool CarriagewayAt(Vector2 p, out int street, out int seg)
+        {
+            street = -1; seg = -1;
+            float best = float.MaxValue;
+            foreach (var st in Streets)
+                for (int i = 0; i < st.SegmentCount; i++)
+                {
+                    Vector2 rel = p - st.Pts[i];
+                    float along = Vector2.Dot(rel, st.Dir(i));
+                    float lat = Mathf.Abs(Vector2.Dot(rel, st.Left(i)));
+                    if (along < -0.5f || along > st.Cum[i + 1] - st.Cum[i] + 0.5f) continue;
+                    if (lat > FullRouteLayout.KerbEdge + 0.01f || lat >= best) continue;
+                    best = lat; street = st.Index; seg = i;
+                }
+            return street >= 0;
+        }
+
+        /// <summary>
+        /// Slide c along 'dir' until it is 'dist' from the centreline of the street whose side
+        /// normal is n (n points away from the road). cosA = -dot(dir, n) &gt; 0.
+        /// </summary>
+        static Vector2 AtDistance(Vector2 c, Vector2 dir, Vector2 n, Vector2 origin, float cosA, float dist)
+        {
+            return c + dir * ((Vector2.Dot(c - origin, n) - dist) / cosA);
+        }
+
+        /// <summary>
+        /// A ramp square to the kerb of street st (segment seg, side +1 = left), centred on the
+        /// line through 'onLine' that runs straight across the road. Used for zebra crossings
+        /// and for the far side of crossings that land on a nature strip.
+        /// </summary>
+        void RectOpening(RouteStreet st, int seg, int side, Vector2 onLine, float width, bool zebra)
+        {
+            Vector2 d = st.Dir(seg), n = st.Left(seg) * side, o = st.Pts[seg];
+            float h = Vector2.Dot(onLine - o, n);
+            Vector2 c = onLine - n * h;                     // on the centreline
+            Vector2 hw = d * (width * 0.5f);
+            Openings.Add(new Opening
+            {
+                Slope = new Quad4(c + n * RampStart - hw, c + n * RampStart + hw, c + n * RampTop + hw, c + n * RampTop - hw),
+                Flat  = new Quad4(c + n * RampTop - hw,   c + n * RampTop + hw,   c + n * RampEnd + hw, c + n * RampEnd - hw),
+                Out = n, Zebra = zebra,
+            });
+            Vector2 pw = d * (width * 0.5f - 0.05f);
+            float p0 = PadStart, p1 = PadStart + FullRouteLayout.TactileDepth;
+            Tactiles.Add(new Quad4(c + n * p0 - pw, c + n * p0 + pw, c + n * p1 + pw, c + n * p1 - pw));
+        }
+
+        /// <summary>
+        /// The near side of a crossing: a footpath that stops at another street's kerb line.
+        /// The ramp keeps the footpath's own edges (so it lines up with the paving it continues)
+        /// but its road end and its pad run parallel to the kerb it meets, which is what makes
+        /// a crossing on an angled street read cleanly. Returns false if this end should not
+        /// get a ramp - it meets its own street at a bend, or the road at a glancing angle.
+        /// </summary>
+        bool EndOpening(FootEnd e)
+        {
+            int k, seg;
+            if (!CarriagewayAt(e.P + e.Dir * 0.3f, out k, out seg) || k == e.Street) return false;
+            var st = Streets[k];
+            Vector2 o = st.Pts[seg], L = st.Left(seg);
+            Vector2 n = L * (Vector2.Dot(e.P - o, L) >= 0f ? 1f : -1f);
+            float cosA = -Vector2.Dot(e.Dir, n);
+            if (cosA < 0.35f) return false;
+
+            Vector2 lat = new Vector2(-e.Dir.y, e.Dir.x);
+            Vector2 a = e.P + lat * (FullRouteLayout.Footpath * 0.5f), b = e.P - lat * (FullRouteLayout.Footpath * 0.5f);
+            // The back edge: 0.3 m behind the footpath end, but never short of RampEnd's reach.
+            System.Func<Vector2, Vector2> back = c =>
+                AtDistance(c, e.Dir, n, o, cosA, Mathf.Max(Vector2.Dot(c - o, n) + 0.3f * cosA, RampTop + 0.3f));
+            System.Func<Vector2, float, Vector2> at = (c, dist) => AtDistance(c, e.Dir, n, o, cosA, dist);
+
+            Openings.Add(new Opening
+            {
+                Slope = new Quad4(at(a, RampStart), at(b, RampStart), at(b, RampTop), at(a, RampTop)),
+                Flat  = new Quad4(at(a, RampTop), at(b, RampTop), back(b), back(a)),
+                Out = n, Apron = true,
+            });
+            float shrink = (FullRouteLayout.Footpath * 0.5f - 0.05f) / (FullRouteLayout.Footpath * 0.5f);
+            Vector2 pa = e.P + (a - e.P) * shrink, pb = e.P + (b - e.P) * shrink;
+            float p0 = PadStart, p1 = PadStart + FullRouteLayout.TactileDepth;
+            Tactiles.Add(new Quad4(at(pa, p0), at(pb, p0), at(pb, p1), at(pa, p1)));
+            return true;
+        }
+
+        /// <summary>On a footpath band that was actually laid (not just where one could be).</summary>
+        bool OnBuiltFootpath(Vector2 p, float grow)
+        {
+            foreach (var b in Bands)
+            {
+                if (b.Kind != BandKind.Footpath) continue;
+                var st = Streets[b.Street];
+                for (int i = 0; i < st.SegmentCount; i++)
+                {
+                    Vector2 d = st.Dir(i), l = st.Left(i), rel = p - st.Pts[i];
+                    float along = Vector2.Dot(rel, d), lat = Vector2.Dot(rel, l);
+                    float s = st.Cum[i] + along;
+                    if (along < -grow || s > st.Cum[i + 1] + grow) continue;
+                    if (s < b.S0 - grow || s > b.S1 + grow) continue;
+                    if (lat >= b.Off0 - grow && lat <= b.Off1 + grow) return true;
+                }
+            }
+            return false;
+        }
+
+        public bool InOpening(Vector2 p, float grow)
+        {
+            foreach (var o in Openings) if (o.Contains(p, grow)) return true;
+            return false;
+        }
+
+        /// <summary>Does opening 'i' overlap any opening before it? Sampled both ways.</summary>
+        bool OverlapsEarlier(int i)
+        {
+            var o = Openings[i];
+            for (int j = 0; j < i; j++)
+            {
+                var q = Openings[j];
+                if (SampleIn(o, q) || SampleIn(q, o)) return true;
+            }
+            return false;
+        }
+
+        static bool SampleIn(Opening a, Opening b)
+        {
+            foreach (var quad in new[] { a.Slope, a.Flat })
+            {
+                var c = quad.Corners();
+                for (int u = 0; u <= 4; u++)
+                    for (int v = 0; v <= 4; v++)
+                    {
+                        Vector2 p = Vector2.Lerp(Vector2.Lerp(c[0], c[1], u / 4f), Vector2.Lerp(c[3], c[2], u / 4f), v / 4f);
+                        if (b.Contains(p, -0.05f)) return true;
+                    }
+            }
+            return false;
+        }
+
+        bool InZebraOpening(Vector2 p, float grow)
+        {
+            foreach (var o in Openings) if (o.Zebra && o.Contains(p, grow)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Every place a footpath meets a road is a crossing point, wrong way or right, and
+        /// gets exactly one ramp and one pad:
+        ///  - Near side: where a footpath stops at a kerb, a ramp continues it to the asphalt -
+        ///    unless a zebra's wider ramp is already there.
+        ///  - Far side: follow the footpath's line straight across; if it lands on a nature
+        ///    strip with a footpath behind it (the head of a T, the outside of a corner), a ramp
+        ///    square to that kerb, so the crossing lands on paving, not a kerb and a lawn.
+        /// Real streets put ramps in pairs like this.
+        /// </summary>
+        void BuildOpenings()
+        {
+            var ends = FootpathEnds();
+            var crossing = new List<FootEnd>();
+            foreach (var e in ends)
+            {
+                if (InZebraOpening(e.P, 0.3f) || InZebraOpening(e.P + e.Dir * 0.3f, 0.3f)) { crossing.Add(e); continue; }
+                if (EndOpening(e)) crossing.Add(e);
+            }
+
+            foreach (var e in crossing)
+            {
+                Vector2 p = e.P, dir = e.Dir;
+                float t = 0.05f;
+                while (t < 20f && InOther(_carriageway, -1, p + dir * t, 0f)) t += 0.05f;
+                if (t >= 20f || t < 1f) continue;
+                Vector2 far = p + dir * t;
+
+                // Already paving on the far side?
+                if (InOther(_footBand, -1, far + dir * 0.3f, 0f) || InOpening(far + dir * 0.3f, 0.2f)) continue;
+                // Only open onto a nature strip that has an actual footpath behind it.
+                float reach = 0f;
+                for (float u = 0.2f; u < FullRouteLayout.NatureStrip + 1.0f; u += 0.1f)
+                    if (OnBuiltFootpath(far + dir * u, -0.2f)) { reach = u; break; }
+                if (reach <= 0f) continue;
+                if (!InAnyReserve(far + dir * 0.5f)) continue;
+
+                int k, seg;
+                if (!CarriagewayAt(far - dir * 0.1f, out k, out seg)) continue;
+                var st = Streets[k];
+                Vector2 L = st.Left(seg);
+                int side = Vector2.Dot(far - st.Pts[seg], L) >= 0f ? 1 : -1;
+                if (Vector2.Dot(dir, L * side) < 0.35f) continue;
+                // Don't stack a second ramp on (or half over) one that is already there -
+                // at an angled junction the near-side ramp of another footpath often is.
+                int before = Openings.Count;
+                RectOpening(st, seg, side, far, FullRouteLayout.Footpath, false);
+                if (OverlapsEarlier(before))
+                {
+                    Openings.RemoveAt(before);
+                    Tactiles.RemoveAt(Tactiles.Count - 1);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Footpath ends that stop at a road (not at a street end or a court): the point on the
+        /// footpath centre line at the kerb, and the direction across the road.
+        /// </summary>
+        List<FootEnd> FootpathEnds()
+        {
+            var list = new List<FootEnd>();
+            foreach (var b in Bands)
+            {
+                if (b.Kind != BandKind.Footpath) continue;
+                var st = Streets[b.Street];
+                float mid = (b.Off0 + b.Off1) * 0.5f;
+                for (int e = 0; e < 2; e++)
+                {
+                    float s = e == 0 ? b.S0 : b.S1;
+                    if (s < 0.05f || s > st.Length - 0.05f) continue;
+                    // An end sitting exactly on a bend belongs to the segment the band runs
+                    // along, not the next one - Offset() would put it on the wrong side line.
+                    int seg = e == 0 ? st.Seg(s + 0.01f) : st.Seg(s - 0.01f);
+                    Vector2 p = st.Pts[seg] + st.Dir(seg) * (s - st.Cum[seg]) + st.Left(seg) * mid;
+                    if (OwnCourtDist(st, p) < FullRouteLayout.CourtFootMid + 1.5f) continue;
+                    Vector2 dir = st.Dir(seg) * (e == 0 ? -1f : 1f);
+                    // Only ends that actually stop at a road edge.
+                    if (!InOther(_carriageway, -1, p + dir * 0.3f, 0f)) continue;
+                    list.Add(new FootEnd { P = p, Dir = dir, Street = st.Index });
+                }
+            }
+            return list;
         }
 
         // ------------------------------------------------------------------- fences
         FenceStyle Classify(RouteStreet st, Vector2 p)
         {
             if (InAnyReserve(p, st.Index)) return FenceStyle.None;
+            if (OwnCourtDist(st, p) < FullRouteLayout.CourtReserve) return FenceStyle.None;
             if (Forecourt.Contains(p, 0.6f) || ShopBuilding.Contains(p, 0.6f)) return FenceStyle.None;
             if (Park.Contains(p, st.IsRoute ? 1.5f : 0.6f)) return st.IsRoute ? FenceStyle.None : FenceStyle.ParkLow;
             if (School.Contains(p, 0.6f)) return FenceStyle.School;
             if (SpecialLot.Contains(p, 0.6f)) return FenceStyle.SpecialPicket;
+            if (OnInnerCornerOfBend(st, p)) return FenceStyle.Screen;
             return FenceStyle.Front;
         }
+
+        /// <summary>
+        /// True on the inside of a dead end's bend, within ScreenReach of the bend. That corner
+        /// lot is too small for a house, so without something tall there the court is in plain
+        /// view from the junction. A 2.2 m clipped hedge - common on a suburban corner - blocks
+        /// eye level, and above it the participant sees only more rooftops, not an end.
+        /// </summary>
+        bool OnInnerCornerOfBend(RouteStreet st, Vector2 p)
+        {
+            if (st.IsRoute || st == BusRoad || st.Pts.Length != 3) return false;
+            Vector2 d0 = (st.Pts[1] - st.Pts[0]).normalized, d1 = (st.Pts[2] - st.Pts[1]).normalized;
+            float turn = d0.x * d1.y - d0.y * d1.x;              // + = bends left
+            if (Mathf.Abs(turn) < 0.1f) return false;
+            Vector2 b = st.Pts[1], rel = p - b;
+            if (rel.magnitude > ScreenReach) return false;
+            float sideOfFirst = d0.x * rel.y - d0.y * rel.x;     // + = left of the first leg
+            float sideOfSecond = d1.x * rel.y - d1.y * rel.x;
+            return turn > 0f ? (sideOfFirst > 0f || sideOfSecond > 0f) && Vector2.Dot(rel, d0) > -ScreenReach
+                             : (sideOfFirst < 0f || sideOfSecond < 0f) && Vector2.Dot(rel, d0) > -ScreenReach;
+        }
+
+        const float ScreenReach = 14f;
 
         void BuildFences()
         {
             float off = HR + 0.05f;
-            var styles = new[] { FenceStyle.Front, FenceStyle.School, FenceStyle.SpecialPicket, FenceStyle.ParkLow };
+            var styles = new[] { FenceStyle.Front, FenceStyle.School, FenceStyle.SpecialPicket, FenceStyle.ParkLow, FenceStyle.Screen };
 
             foreach (var st in Streets)
             {
@@ -658,6 +1438,24 @@ namespace VRTutorial.EditorTools
             AddZoneOutline(Park, FenceStyle.ParkBack, "Park");
             AddZoneOutline(School, FenceStyle.School, "School");
             AddZoneOutline(Forecourt, FenceStyle.Hedge, "Forecourt", true);
+
+            // Front fences around each court, broken where the street comes in.
+            foreach (var c in Courts)
+            {
+                float r = FullRouteLayout.CourtReserve + 0.05f;
+                float start = Mathf.Atan2(-c.InDir.y, -c.InDir.x);
+                foreach (var arc in Arcs(c.C, r, start, p => !InAnyReserve(p, -1, 0f)))
+                {
+                    var pts = new List<Vector2>();
+                    int steps = Mathf.Max(2, Mathf.CeilToInt((arc.y - arc.x) / (3f * Mathf.Deg2Rad)));
+                    for (int i = 0; i <= steps; i++)
+                    {
+                        float a = Mathf.Lerp(arc.x, arc.y, i / (float)steps);
+                        pts.Add(c.C + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r);
+                    }
+                    Fences.Add(new FenceLine(pts, FenceStyle.Front, Streets[c.Street].Name + "_Court"));
+                }
+            }
 
             CloseCornerGaps();
         }
@@ -770,9 +1568,44 @@ namespace VRTutorial.EditorTools
                         }
                     }
                     pos = node + bestN * FullRouteLayout.NatureCentre;
+                    best = new Vector2(-bestN.y, bestN.x);   // along the nature strip
                 }
-                LandmarkLamps.Add(pos);
+
+                // Keep it off ramps and footpaths: slide along the nature strip if needed, and
+                // failing that, move to the nature strip of the other street at this corner.
+                Vector2 placed;
+                if (!ClearSpotAlong(pos, best, out placed))
+                {
+                    bool found = false;
+                    var byDot = new List<Vector2>(dirs);
+                    byDot.Sort((x, y) => Vector2.Dot(y, star.Dir).CompareTo(Vector2.Dot(x, star.Dir)));
+                    foreach (var alt in byDot)
+                    {
+                        if (Vector2.Distance(alt, best) < 0.01f) continue;
+                        Vector2 perp = new Vector2(-alt.y, alt.x);
+                        if (Vector2.Dot(perp, star.Dir) < 0f) perp = -perp;
+                        Vector2 p2 = node + alt * (HR + 1.8f) + perp * FullRouteLayout.NatureCentre;
+                        if (ClearSpotAlong(p2, alt, out placed)) { found = true; break; }
+                    }
+                    if (!found)
+                    {
+                        placed = pos;
+                        Warnings.Add("Landmark lamp at N" + star.Node + " could not be kept clear of paving - check it in the Scene view.");
+                    }
+                }
+                LandmarkLamps.Add(placed);
             }
+        }
+
+        bool ClearSpotAlong(Vector2 pos, Vector2 along, out Vector2 result)
+        {
+            foreach (float shift in new[] { 0f, 1.5f, -1.5f, 3f, -3f, 4.5f, -4.5f, 6f, -6f })
+            {
+                Vector2 q = pos + along * shift;
+                if (!OnWalkway(q, 0.35f)) { result = q; return true; }
+            }
+            result = pos;
+            return false;
         }
 
         void BuildBusStop()
@@ -839,6 +1672,9 @@ namespace VRTutorial.EditorTools
                         Vector2 p = st.Offset(s, side * FullRouteLayout.NatureCentre);
                         if (InAnyReserve(p, st.Index, 2.0f) || OnWalkway(p, 0.4f)) continue;
                         if (NearAny(p, lampPos, 3.2f) || NearAny(p, LandmarkLamps, 5f)) continue;
+                        bool nearPost = false;
+                        foreach (var cp in CrossingPosts) if (Vector2.Distance(cp.Pos, p) < 3f) nearPost = true;
+                        if (nearPost) continue;
                         if (Vector2.Distance(p, ShelterPos) < 6f || Vector2.Distance(p, BusFlagPos) < 3f) continue;
                         if (NearClosure(st, s, 3f)) continue;
                         if (Forecourt.Contains(p, 2f)) continue;
@@ -873,26 +1709,52 @@ namespace VRTutorial.EditorTools
                         if (InAnyReserve(p, st.Index, 4f)) continue;
                         if (NearClosure(st, ss, 6f)) continue;
                         if (st == BusRoad && Mathf.Abs(ss - BusStopS) < 14f) continue;
+                        bool nearZebra = false;
+                        foreach (var z in Zebras) if (z.Street == st.Index && Mathf.Abs(ss - z.S) < 10f) nearZebra = true;
+                        if (nearZebra) continue;
+                        if (OwnCourtDist(st, p) < FullRouteLayout.CourtReserve + 3f) continue;
                         if (st.IsRoute && ss > st.Length - 14f) continue;
                         Vector2 d = st.Dir(st.Seg(ss));
-                        var body = new Obb(p, d, 2.3f, 0.95f);
-                        bool clear = true;
-                        foreach (var corner in body.Corners())
-                            if (InOther(_footBand, -1, corner, 0.1f) || InAnyCarriageway(corner, st.Index, 0.5f)
-                                || !InOwnCarriageway(st, corner)) { clear = false; break; }
-                        if (!clear) continue;
-                        // Australia drives on the left, so a car on the left kerb faces the way
-                        // the street runs and one on the right kerb faces back.
-                        Cars.Add(new CarSpot { Pos = p, Dir = side > 0 ? d : -d, Variant = _rng.Next(0, 3) });
+                        if (!CarFits(st, p, d, 2.3f)) continue;
+                        // Australia drives on the left, and Road Rule 208 says a parallel-parked
+                        // car faces the way traffic on its side of the road travels. 'side' +1 is
+                        // the left of the street's direction d, so a car on that kerb faces d and
+                        // one on the other kerb faces back along -d. Either way the kerb is on the
+                        // car's left.
+                        // Long is tested without drawing from _rng, so the rest of the layout
+                        // (houses, gardens) comes out exactly as before.
+                        Cars.Add(new CarSpot { Pos = p, Dir = side > 0 ? d : -d, Variant = _rng.Next(0, 3),
+                                               Long = CarFits(st, p, d, 2.68f) });
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// A car outline of half length 'halfLen' fits at p: the whole outline, every tenth of
+        /// each side, plus the centre - angled ramps at oblique crossings can poke a corner
+        /// into the lane.
+        /// </summary>
+        bool CarFits(RouteStreet st, Vector2 p, Vector2 d, float halfLen)
+        {
+            var body = new Obb(p, d, halfLen, 0.95f);
+            var probes = new List<Vector2> { p };
+            var cs = body.Corners();
+            for (int ci = 0; ci < 4; ci++)
+                for (float f = 0f; f < 1f; f += 0.1f)
+                    probes.Add(Vector2.Lerp(cs[ci], cs[(ci + 1) % 4], f));
+            foreach (var corner in probes)
+                if (InOther(_footBand, -1, corner, 0.1f) || InAnyCarriageway(corner, st.Index, 0.5f)
+                    || !InOwnCarriageway(st, corner) || InOpening(corner, 0.3f)
+                    || InCourt(corner, st.Index, FullRouteLayout.CourtReserve)) return false;
+            return true;
         }
 
         // ------------------------------------------------------------------- houses
         bool HouseFits(Obb fp)
         {
             foreach (var list in _reserve) foreach (var b in list) if (fp.Intersects(b, 0.2f)) return false;
+            foreach (var c in Courts) if (fp.Distance(c.C) < FullRouteLayout.CourtReserve + 0.2f) return false;
             Obb[] zones = { Park, School, SpecialLot, Forecourt, ShopBuilding, new Obb(ShopSignPos, ShopFacing, 1.5f, 2f) };
             foreach (var z in zones) if (fp.Intersects(z, 1.2f)) return false;
             foreach (var h in Houses) if (fp.Intersects(h.Footprint, 0.3f)) return false;
@@ -955,6 +1817,8 @@ namespace VRTutorial.EditorTools
                 }
 
                 // A house across the far end of each side street.
+                if (st.CourtIndex >= 0) HousesAroundCourt(Courts[st.CourtIndex]);
+
                 for (int e = 0; e < 2; e++)
                 {
                     if (e == 0 ? !st.OpenEnd : !st.OpenStart) continue;
@@ -967,6 +1831,31 @@ namespace VRTutorial.EditorTools
                         if (TryHouse(end, new Vector2(-d.y, d.x), d, w, out spot)) { Houses.Add(spot); break; }
                     }
                 }
+            }
+        }
+
+        /// <summary>Houses facing into a court, walked round the circle from beside the entry.</summary>
+        void HousesAroundCourt(Court c)
+        {
+            float r = FullRouteLayout.CourtReserve;
+            float a = Mathf.Atan2(-c.InDir.y, -c.InDir.x) + 0.35f;
+            float end = a + 2f * Mathf.PI - 0.7f;
+            while (a < end)
+            {
+                Vector2 away = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                Vector2 along = new Vector2(-away.y, away.x);
+                bool placed = false;
+                foreach (float w in HouseWidths)
+                {
+                    HouseSpot spot;
+                    // TryHouse measures its setback from HR past the point it is given.
+                    if (!TryHouse(c.C + away * (r - HR), along, away, w, out spot)) continue;
+                    Houses.Add(spot);
+                    a += (w + 2.5f) / (r + 5f);
+                    placed = true;
+                    break;
+                }
+                if (!placed) a += 0.08f;
             }
         }
 
