@@ -29,15 +29,20 @@ public class RunSystemController : MonoBehaviour
 		if (positionTracker == null)
 			positionTracker = gameObject.AddComponent<PlayerPositionTracker>();
 
-		// The help button for runs lives in this scene (added by Tools > VR Full Route > Add Help
-		// Button to RunSystem). Prefer that one over any other that happens to be loaded.
+		// The tutorial's pause and help badges on the controllers, for the run. Added here so it
+		// needs no scene setup; add a RunControllerTooltips by hand to change its settings.
+		if (FindInThisScene<RunControllerTooltips>() == null)
+			gameObject.AddComponent<RunControllerTooltips>();
+
+		// The help button for runs lives in this scene (added by Tools > VR Full Route > Add Help and
+		// Pause Menu to RunSystem). Prefer that one over any other that happens to be loaded.
 		assistanceController = FindInThisScene<AssistanceController>();
 		if (assistanceController != null)
 			assistanceController.onRequested.AddListener(HandleAssistanceRequested);
 		else
 			Debug.LogWarning("RunSystemController found no AssistanceController in this scene, so the " +
 			                 "participant cannot ask for help during the run. Run Tools > VR Full Route > " +
-			                 "Add Help Button to RunSystem.", this);
+			                 "Add Help and Pause Menu to RunSystem.", this);
 
 		// Every ACTIVE wrong-turn controller in this scene. The old test map (Map1) has its own,
 		// but it is switched off - listening to it would miss every wrong turn on the route.

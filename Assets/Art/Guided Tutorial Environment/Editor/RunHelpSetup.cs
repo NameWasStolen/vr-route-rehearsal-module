@@ -1,39 +1,56 @@
 using System.Collections.Generic;
+using System.Linq;
+using TMPro;
 using UnityEditor;
+using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 namespace VRTutorial.EditorTools
 {
     /// <summary>
-    /// Tools > VR Full Route > Add Help Button to RunSystem
+    /// Tools > VR Full Route > Add Help and Pause Menu to RunSystem
     ///
-    /// Runs load RunSystem from the main menu without the Tutorial scene, so the help button
-    /// (hold A/X for ~2 s, or Get help in a pause menu) did not exist during a run: the
-    /// participant had no way to call the researcher, and the run CSV's assistance column was
-    /// always 0.
+    /// Runs load RunSystem from the main menu without the Tutorial scene, so neither the help
+    /// button (hold A/X, or Get Help in the pause menu) nor the pause menu (B/Y) existed during
+    /// a run. This copies both from the tutorial into RunSystem, under a root called "RunHelp":
     ///
-    /// This copies the tutorial's help button into RunSystem, under a root called "RunHelp":
     ///   AssisstanceController        - AssistanceController (hold A/X, both hands)
     ///   AssistancePanel_Confirm      - "Hold for assistance" + progress bar
     ///   AssistancePanel_Requested    - "Assistance requested" + Resume
-    /// References between the three are pointed at the copies. Everything that belonged to the
-    /// tutorial is dropped: TutorialFlow (flow, and the panel hide/restore events), the route
-    /// guide line (tap to see the way - not part of runs yet), and the tutorial's pause menu.
-    /// Nothing in the Tutorial scene is changed; it is opened read-only and closed unsaved.
+    ///   PauseController              - PauseController (B/Y, both hands)
+    ///   PauseMenuPanel               - the pause menu, trimmed for the module
     ///
-    /// Safe to re-run after the tutorial's panels change: the old copy is replaced, and a Pause
-    /// Controller or Spectator Marker that was linked to the run copy is linked again.
+    /// The pause menu is made into the module's version, not the tutorial's:
+    ///   - lesson buttons removed (any button that called TutorialFlow - Walking Guide, Turning
+    ///     Guide), and TutorialResetController removed (its runtime Start Again button);
+    ///   - Resume -> the copied PauseController.Close, Get Help -> the copied
+    ///     AssistanceController.Request (both re-pointed automatically);
+    ///   - Back to Menu -> RunSystemController.ExitRun, replacing ReturnToMainMenu, which is the
+    ///     tutorial's scene switch;
+    ///   - the remaining buttons laid out in one centred column, and a stray leading apostrophe
+    ///     stripped from button labels.
+    /// The help button is linked to the pause menu, so a help request closes the menu and pausing
+    /// is off while the help panel is up - the same as in the tutorial.
+    ///
+    /// Everything else that belonged to the tutorial is dropped: TutorialFlow references and
+    /// events, and the route guide line tap (not part of runs yet). Nothing in the Tutorial scene
+    /// is changed; it is opened read-only and closed unsaved.
+    ///
+    /// Safe to re-run whenever the tutorial's panels change: the old RunHelp is replaced.
     /// </summary>
     public static class RunHelpSetup
     {
         private const string RunScenePath = "Assets/Scenes/RunSystem.unity";
         private const string TutorialScenePath = "Assets/Scenes/Tutorial.unity";
         private const string RootName = "RunHelp";
+        private const float ButtonSpacing = 200f;
 
-        [MenuItem("Tools/VR Full Route/Add Help Button to RunSystem", false, 30)]
-        public static void AddHelpButton()
+        [MenuItem("Tools/VR Full Route/Add Help and Pause Menu to RunSystem", false, 30)]
+        public static void AddHelpAndPause()
         {
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
                 return;
@@ -58,29 +75,43 @@ namespace VRTutorial.EditorTools
             AssistanceController source = FindIn<AssistanceController>(tutorial);
             if (source == null)
             {
-                EditorUtility.DisplayDialog("Add Help Button",
+                EditorUtility.DisplayDialog("Add Help and Pause Menu",
                     "No AssistanceController found in Tutorial.unity, so there is nothing to copy.", "OK");
                 return;
             }
-
             var sourceSo = new SerializedObject(source);
             var confirm = sourceSo.FindProperty("confirmRoot").objectReferenceValue as GameObject;
             var requested = sourceSo.FindProperty("requestedRoot").objectReferenceValue as GameObject;
 
-            // Keep what was linked to the previous run copy by hand, then remove it.
-            Object keepPause = null, keepMarker = null;
+            PauseController pauseSource = FindIn<PauseController>(tutorial);
+            GameObject menuSource = null;
+            if (pauseSource != null)
+                menuSource = new SerializedObject(pauseSource).FindProperty("menuRoot").objectReferenceValue as GameObject;
+            else
+                Debug.LogWarning("[RunHelp] No PauseController in Tutorial.unity - copying the help button only.");
+
+            // Lesson buttons: any pause-menu button that calls into TutorialFlow.
+            var lessonButtons = new HashSet<Button>();
+            if (menuSource != null)
+                foreach (Button b in menuSource.GetComponentsInChildren<Button>(true))
+                    if (CallsType<TutorialFlow>(b.onClick)) lessonButtons.Add(b);
+
+            // Keep a spectator marker linked by hand to the old copy, then remove the old copy.
+            Object keepMarker = null;
             foreach (GameObject g in run.GetRootGameObjects())
             {
                 if (g.name != RootName) continue;
                 var old = g.GetComponentInChildren<AssistanceController>(true);
                 if (old != null)
-                {
-                    var oldSo = new SerializedObject(old);
-                    keepPause = oldSo.FindProperty("pauseController").objectReferenceValue;
-                    keepMarker = oldSo.FindProperty("spectatorMarker").objectReferenceValue;
-                }
+                    keepMarker = new SerializedObject(old).FindProperty("spectatorMarker").objectReferenceValue;
                 Object.DestroyImmediate(g);
             }
+
+            // A pause menu added to RunSystem by hand would answer B/Y as well - two menus.
+            foreach (GameObject g in run.GetRootGameObjects())
+                foreach (PauseController other in g.GetComponentsInChildren<PauseController>(true))
+                    Debug.LogWarning($"[RunHelp] RunSystem already has a PauseController on '{other.name}' " +
+                                     "(outside RunHelp). Delete it - otherwise B/Y opens two pause menus.", other);
 
             SceneManager.SetActiveScene(run);
             var root = new GameObject(RootName);
@@ -90,7 +121,10 @@ namespace VRTutorial.EditorTools
             // GameObject and component, so references between them can be re-pointed.
             var map = new Dictionary<Object, Object>();
             var copies = new List<GameObject>();
-            foreach (GameObject original in new[] { source.gameObject, confirm, requested })
+            var originals = new List<GameObject> { source.gameObject, confirm, requested };
+            if (pauseSource != null) originals.Add(pauseSource.gameObject);
+            if (menuSource != null && menuSource != pauseSource.gameObject) originals.Add(menuSource);
+            foreach (GameObject original in originals)
             {
                 if (original == null) continue;
                 GameObject copy = Object.Instantiate(original, root.transform, true);
@@ -106,23 +140,107 @@ namespace VRTutorial.EditorTools
                     if (c != null && !(c is Transform))
                         dropped += Remap(c, map, tutorial);
 
-            // Put back what was linked to the old copy.
-            AssistanceController runController = root.GetComponentInChildren<AssistanceController>(true);
-            if (runController != null && (keepPause != null || keepMarker != null))
+            AssistanceController runHelp = root.GetComponentInChildren<AssistanceController>(true);
+            if (runHelp != null && keepMarker != null)
             {
-                var so = new SerializedObject(runController);
-                if (keepPause != null) so.FindProperty("pauseController").objectReferenceValue = keepPause;
-                if (keepMarker != null) so.FindProperty("spectatorMarker").objectReferenceValue = keepMarker;
+                var so = new SerializedObject(runHelp);
+                so.FindProperty("spectatorMarker").objectReferenceValue = keepMarker;
                 so.ApplyModifiedPropertiesWithoutUndo();
             }
+
+            string pauseReport = "no pause menu";
+            if (pauseSource != null && menuSource != null)
+                pauseReport = MakeRunPauseMenu(root, run, map, lessonButtons, runHelp);
 
             EditorSceneManager.MarkSceneDirty(run);
             EditorSceneManager.SaveScene(run);
 
-            string relinked = keepPause != null ? " The run pause menu was linked again." : "";
-            Debug.Log($"[RunHelp] Help button copied into RunSystem ({copies.Count} objects under '{RootName}'). " +
-                      $"Dropped {dropped} tutorial-only reference(s) and event call(s).{relinked}", root);
-            Selection.activeGameObject = runController != null ? runController.gameObject : root;
+            Debug.Log($"[RunHelp] Copied into RunSystem under '{RootName}': help button, {pauseReport}. " +
+                      $"Dropped {dropped} tutorial-only reference(s) and event call(s).", root);
+            Selection.activeGameObject = root;
+        }
+
+        /// <summary>Turns the copied tutorial pause menu into the module's. Returns a summary.</summary>
+        private static string MakeRunPauseMenu(GameObject root, Scene run, Dictionary<Object, Object> map,
+                                               HashSet<Button> lessonButtons, AssistanceController runHelp)
+        {
+            PauseController pause = root.GetComponentInChildren<PauseController>(true);
+            if (pause == null) return "no pause menu";
+            GameObject menu = new SerializedObject(pause).FindProperty("menuRoot").objectReferenceValue as GameObject;
+            if (menu == null) return "pause controller without a menu";
+
+            // Start Again belongs to the tutorial (it is added at runtime by this component).
+            foreach (var reset in pause.GetComponents<TutorialResetController>())
+                Object.DestroyImmediate(reset);
+
+            // Lesson buttons.
+            int removed = 0;
+            foreach (Button original in lessonButtons)
+                if (map.TryGetValue(original.gameObject, out Object copy) && copy != null)
+                {
+                    Object.DestroyImmediate(copy);
+                    removed++;
+                }
+
+            // Back to Menu: end the run properly instead of the tutorial's scene switch.
+            RunSystemController runController = FindIn<RunSystemController>(run);
+            bool exitWired = false;
+            foreach (Button b in menu.GetComponentsInChildren<Button>(true))
+            {
+                var returner = b.GetComponent<ReturnToMainMenu>();
+                if (returner == null && !CallsType<ReturnToMainMenu>(b.onClick)) continue;
+                for (int i = b.onClick.GetPersistentEventCount() - 1; i >= 0; i--)
+                    if (b.onClick.GetPersistentTarget(i) is ReturnToMainMenu)
+                        UnityEventTools.RemovePersistentListener(b.onClick, i);
+                if (returner != null) Object.DestroyImmediate(returner);
+                if (runController != null)
+                {
+                    UnityEventTools.AddPersistentListener(b.onClick, runController.ExitRun);
+                    exitWired = true;
+                }
+                EditorUtility.SetDirty(b);
+            }
+            if (!exitWired)
+                Debug.LogWarning("[RunHelp] Could not wire Back to Menu: no RunSystemController in RunSystem, " +
+                                 "or no button used ReturnToMainMenu.", menu);
+
+            // Tidy labels ("'Get Help" -> "Get Help") and lay the buttons out in one column,
+            // keeping their top-to-bottom order.
+            var buttons = menu.GetComponentsInChildren<Button>(true)
+                              .Where(b => b.transform.parent == menu.transform)
+                              .Select(b => (RectTransform)b.transform)
+                              .OrderByDescending(r => r.anchoredPosition.y)
+                              .ToList();
+            float top = (buttons.Count - 1) * 0.5f * ButtonSpacing;
+            for (int i = 0; i < buttons.Count; i++)
+            {
+                buttons[i].anchoredPosition = new Vector2(0f, top - i * ButtonSpacing);
+                foreach (TMP_Text label in buttons[i].GetComponentsInChildren<TMP_Text>(true))
+                {
+                    string trimmed = label.text.TrimStart('\'', '\u2018', '\u2019').TrimStart();
+                    if (trimmed != label.text) { label.text = trimmed; EditorUtility.SetDirty(label); }
+                }
+            }
+
+            // Help closes the menu and pausing is off while the help panel is up.
+            if (runHelp != null)
+            {
+                var so = new SerializedObject(runHelp);
+                so.FindProperty("pauseController").objectReferenceValue = pause;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            string names = string.Join(", ", buttons.Select(b => b.name));
+            return $"pause menu with {buttons.Count} buttons ({names}), {removed} lesson button(s) removed" +
+                   (exitWired ? ", Back to Menu -> RunSystemController.ExitRun" : "");
+        }
+
+        /// <summary>Does any persistent call on this event target a component of type T?</summary>
+        private static bool CallsType<T>(UnityEventBase evt) where T : Object
+        {
+            for (int i = 0; i < evt.GetPersistentEventCount(); i++)
+                if (evt.GetPersistentTarget(i) is T) return true;
+            return false;
         }
 
         private static void MapHierarchy(Transform original, Transform copy, Dictionary<Object, Object> map)
