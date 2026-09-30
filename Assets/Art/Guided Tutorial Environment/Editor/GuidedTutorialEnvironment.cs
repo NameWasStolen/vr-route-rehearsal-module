@@ -28,7 +28,9 @@ namespace VRTutorial.EditorTools
     /// (Tools > VR Tutorial > Options > Include Landmarks). Landmark availability changes
     /// wayfinding difficulty, so it is a variable you set deliberately, not a decoration.
     /// </summary>
-    public static class VRTutorialSceneBuilder
+    // partial: FullRouteEnvironment.cs nests the full-route builder in this class so it can
+    // reuse the helpers below (textures, materials, houses, trees, batching) without copying them.
+    public static partial class VRTutorialSceneBuilder
     {
         // ---------------------------------------------------------------- paths
         private const string RootName        = "TutorialEnvironment";
