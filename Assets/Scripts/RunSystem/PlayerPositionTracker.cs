@@ -94,6 +94,9 @@ public class PlayerPositionTracker : MonoBehaviour
     private int errorTotal;
 
     public bool IsTracking { get; private set; }
+
+    /// <summary>Optional. When set, hesitations are logged with where they happened.</summary>
+    public RouteProgressTracker RouteTracker { get; set; }
     public IReadOnlyList<PlayerPositionSample> Samples => samples;
 
     public int HesitationCount => hesitationCount;
@@ -218,7 +221,7 @@ public class PlayerPositionTracker : MonoBehaviour
                 isStationary = true;
                 hesitationCount++;
                 hesitationStartTime = Time.time - stillTime;
-                SessionLog.Record("hesitation_start");
+                SessionLog.Record("hesitation_start", HesitationPlace());
             }
         }
         else
@@ -229,6 +232,13 @@ public class PlayerPositionTracker : MonoBehaviour
         }
 
         stationaryThisSample |= isStationary;
+    }
+
+    private string HesitationPlace()
+    {
+        if (RouteTracker == null || !RouteTracker.IsTracking) return null;
+        if (!string.IsNullOrEmpty(RouteTracker.Zone)) return RouteTracker.Zone;
+        return RouteTracker.OnRoute ? "near " + RouteTracker.NearestNode : "off route near " + RouteTracker.NearestNode;
     }
 
     private void EndHesitation()

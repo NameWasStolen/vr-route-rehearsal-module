@@ -14,6 +14,7 @@ public class RunSystemController : MonoBehaviour
 
 	private TimerController timerController;
 	private PlayerPositionTracker positionTracker;
+	private RouteProgressTracker routeTracker;
 	private AssistanceController assistanceController;
 	private readonly List<WrongTurnController> wrongTurnControllers = new List<WrongTurnController>();
 	private XROrigin xrOrigin;
@@ -28,6 +29,12 @@ public class RunSystemController : MonoBehaviour
 		positionTracker = GetComponent<PlayerPositionTracker>();
 		if (positionTracker == null)
 			positionTracker = gameObject.AddComponent<PlayerPositionTracker>();
+
+		// Follows the participant along the route: detours, decision points, road crossings.
+		routeTracker = GetComponent<RouteProgressTracker>();
+		if (routeTracker == null)
+			routeTracker = gameObject.AddComponent<RouteProgressTracker>();
+		positionTracker.RouteTracker = routeTracker;
 
 		// The tutorial's pause and help badges on the controllers, for the run. Added here so it
 		// needs no scene setup; add a RunControllerTooltips by hand to change its settings.
@@ -167,6 +174,7 @@ public class RunSystemController : MonoBehaviour
 		SessionLog.Record("run_started", runType);
 
 		positionTracker.StartTracking(xrOrigin.Camera.transform, settings, runType);
+		routeTracker?.Begin(xrOrigin.Camera.transform);
 	}
 
 	private void Update()
@@ -215,6 +223,7 @@ public class RunSystemController : MonoBehaviour
 	private void HandleAssistanceRequested()
 	{
 		positionTracker?.RecordAssistance();
+		routeTracker?.NoteHelpRequest();
 	}
 
 	private void HandleWrongTurnRecorded(string triggerName)
@@ -225,6 +234,7 @@ public class RunSystemController : MonoBehaviour
 	private IEnumerator ReturnToMainMenu(float elapsedTime, bool completed)
 	{
 		isEndingRun = true;
+		routeTracker?.End(completed, elapsedTime);
 		positionTracker?.StopTracking(completed);
 		Debug.Log($"Returning to main menu after a {elapsedTime:F2} second run.");
 

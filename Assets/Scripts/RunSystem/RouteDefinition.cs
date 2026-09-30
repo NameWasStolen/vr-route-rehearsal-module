@@ -72,6 +72,16 @@ public class RouteDefinition : MonoBehaviour
     [Tooltip("Distance along the walking line where the run ends (entering CP_EndZone).")]
     [SerializeField] private float endDistance;
 
+    [Header("Route street")]
+    [Tooltip("Half the width of the route's street reserve (road, nature strips and both footpaths), " +
+             "measured from the street centreline through the nodes. Anywhere inside it is on the route.")]
+    [SerializeField] private float streetHalfWidth = 6.55f;
+    [Tooltip("How far behind N0 (the bus stop) still counts as on the route, in metres - the spawn is " +
+             "just behind it, and CP_Start reaches 3.5 m. Beyond this, walking up the bus road the wrong way is off the route.")]
+    [SerializeField] private float startSlack = 3.5f;
+    [Tooltip("How far past N16 still counts as on the route, in metres - the forecourt (end zone).")]
+    [SerializeField] private float endSlack = 12f;
+
     [Header("Layout (local space)")]
     [SerializeField] private Node[] nodes = new Node[0];
     [SerializeField] private Branch[] branches = new Branch[0];
@@ -100,6 +110,7 @@ public class RouteDefinition : MonoBehaviour
     public IReadOnlyList<Zone> DecisionZones => decisionZones;
     public IReadOnlyList<Zone> Zebras => zebras;
     public string BakedAt => bakedAt;
+    public float StreetHalfWidth => streetHalfWidth;
 
     /// <summary>The first RouteDefinition in the scene of the given object, or any loaded one.</summary>
     public static RouteDefinition Find(GameObject near = null)
@@ -188,19 +199,58 @@ public class RouteDefinition : MonoBehaviour
     public string ZoneAt(Vector3 worldPosition)
     {
         Vector3 local = transform.InverseTransformPoint(worldPosition);
-        foreach (Zone z in decisionZones) if (Contains(z, local)) return z.name;
-        foreach (Zone z in zebras) if (Contains(z, local)) return z.name;
+        foreach (Zone z in decisionZones) if (Contains(z, local, 0f)) return z.name;
+        foreach (Zone z in zebras) if (Contains(z, local, 0f)) return z.name;
         return null;
     }
 
-    private static bool Contains(Zone z, Vector3 local)
+    /// <summary>Name of the zebra containing a world position, grown by 'grow' metres, or null.</summary>
+    public string ZebraAt(Vector3 worldPosition, float grow)
+    {
+        Vector3 local = transform.InverseTransformPoint(worldPosition);
+        foreach (Zone z in zebras) if (Contains(z, local, grow)) return z.name;
+        return null;
+    }
+
+    /// <summary>
+    /// Is a world position on the route street - within StreetHalfWidth (plus margin) of the
+    /// centreline through the nodes, from just behind the bus stop to the far side of the end
+    /// zone? Side streets count only as far as their mouth.
+    /// </summary>
+    public bool OnRouteStreet(Vector3 worldPosition, float margin = 0.5f)
+    {
+        if (nodes.Length < 2) return true;
+        Vector3 local = transform.InverseTransformPoint(worldPosition);
+        Vector2 p = new Vector2(local.x, local.z);
+        float limit = streetHalfWidth + margin;
+        for (int i = 1; i < nodes.Length; i++)
+        {
+            Vector2 a = new Vector2(nodes[i - 1].position.x, nodes[i - 1].position.z);
+            Vector2 b = new Vector2(nodes[i].position.x, nodes[i].position.z);
+            Vector2 ab = b - a;
+            float len = Mathf.Sqrt(ab.sqrMagnitude);
+            if (len < 1e-4f) continue;
+            Vector2 dir = ab * (1f / len);
+            float along = Vector2.Dot(p - a, dir);
+            float lo = i == 1 ? -startSlack : 0f;
+            float hi = i == nodes.Length - 1 ? len + endSlack : len;
+            // The two ends of the route are cut square: behind the bus stop and past the end
+            // zone is off the route, not a rounded cap around the end node.
+            if ((i == 1 && along < lo) || (i == nodes.Length - 1 && along > hi)) continue;
+            along = Mathf.Clamp(along, lo, hi);
+            if (Vector2.Distance(p, a + dir * along) <= limit) return true;
+        }
+        return false;
+    }
+
+    private static bool Contains(Zone z, Vector3 local, float grow)
     {
         Vector2 f = new Vector2(z.forward.x, z.forward.z);
         if (f.sqrMagnitude < 1e-6f) f = Vector2.up;
         f.Normalize();
         Vector2 r = new Vector2(f.y, -f.x);
         Vector2 d = new Vector2(local.x - z.centre.x, local.z - z.centre.z);
-        return Mathf.Abs(Vector2.Dot(d, f)) <= z.size.z * 0.5f && Mathf.Abs(Vector2.Dot(d, r)) <= z.size.x * 0.5f;
+        return Mathf.Abs(Vector2.Dot(d, f)) <= z.size.z * 0.5f + grow && Mathf.Abs(Vector2.Dot(d, r)) <= z.size.x * 0.5f + grow;
     }
 
     // ------------------------------------------------------------------ baking
