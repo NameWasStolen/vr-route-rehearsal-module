@@ -4,24 +4,41 @@ using UnityEngine;
 
 public readonly struct PlayerPositionSample
 {
-    public PlayerPositionSample(float elapsedTime, Vector3 position)
+    public PlayerPositionSample(
+        float elapsedTime,
+        Vector3 position,
+        int pause,
+        int assistance,
+        int error)
     {
         ElapsedTime = elapsedTime;
         Position = position;
+        Pause = pause;
+        Assistance = assistance;
+        Error = error;
     }
 
     public float ElapsedTime { get; }
     public Vector3 Position { get; }
+    public int Pause { get; }
+    public int Assistance { get; }
+    public int Error { get; }
 }
 
 public class PlayerPositionTracker : MonoBehaviour
 {
     [SerializeField, Min(0.02f)] private float sampleInterval = 1f;
+    [SerializeField, Min(0.01f)] private float pauseThreshold = 0.1f;
+    [SerializeField, Min(0.1f)] private float pauseDurationSeconds = 3f;
 
     private readonly List<PlayerPositionSample> samples = new();
     private Transform playerTransform;
     private float runStartTime;
     private float nextSampleTime;
+    private float stationaryDuration;
+    private Vector3? previousPosition;
+    private bool assistanceCalled;
+    private bool errorMade;
     private RunSettingsSnapshot runSettings;
     private string runType;
 
@@ -43,6 +60,10 @@ public class PlayerPositionTracker : MonoBehaviour
         runSettings = settings;
         runType = selectedRunType;
         samples.Clear();
+        previousPosition = null;
+        stationaryDuration = 0f;
+        assistanceCalled = false;
+        errorMade = false;
         runStartTime = Time.time;
         nextSampleTime = runStartTime;
         IsTracking = true;
@@ -69,14 +90,51 @@ public class PlayerPositionTracker : MonoBehaviour
         nextSampleTime = Time.time + sampleInterval;
     }
 
+    public void RecordAssistance()
+    {
+        assistanceCalled = true;
+    }
+
+    public void RecordError()
+    {
+        errorMade = true;
+    }
+
     private void CaptureSample()
     {
         Vector3 currentPosition = playerTransform.position;
         float elapsedTime = Time.time - runStartTime;
-        samples.Add(new PlayerPositionSample(elapsedTime, currentPosition));
+
+        if (previousPosition.HasValue)
+        {
+            float distanceMoved = Vector3.Distance(currentPosition, previousPosition.Value);
+            if (distanceMoved <= pauseThreshold)
+                stationaryDuration += sampleInterval;
+            else
+                stationaryDuration = 0f;
+        }
+        else
+        {
+            stationaryDuration = 0f;
+        }
+
+        int pauseValue = stationaryDuration > pauseDurationSeconds ? 1 : 0;
+        int assistanceValue = assistanceCalled ? 1 : 0;
+        int errorValue = errorMade ? 1 : 0;
+        assistanceCalled = false;
+        errorMade = false;
+        previousPosition = currentPosition;
+
+        samples.Add(new PlayerPositionSample(
+            elapsedTime,
+            currentPosition,
+            pauseValue,
+            assistanceValue,
+            errorValue));
         Debug.Log(
             $"Player position at {elapsedTime:F2}s: " +
-            $"x={currentPosition.x:F2}, y={currentPosition.y:F2}, z={currentPosition.z:F2}",
+            $"x={currentPosition.x:F2}, y={currentPosition.y:F2}, z={currentPosition.z:F2}, " +
+            $"pause={pauseValue}, assistance={assistanceValue}, error={errorValue}",
             this
         );
     }
