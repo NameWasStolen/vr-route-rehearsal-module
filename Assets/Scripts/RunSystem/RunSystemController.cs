@@ -15,6 +15,7 @@ public class RunSystemController : MonoBehaviour
 	private TimerController timerController;
 	private PlayerPositionTracker positionTracker;
 	private RouteProgressTracker routeTracker;
+	private RunGuidance guidance;
 	private AssistanceController assistanceController;
 	private readonly List<WrongTurnController> wrongTurnControllers = new List<WrongTurnController>();
 	private XROrigin xrOrigin;
@@ -38,6 +39,11 @@ public class RunSystemController : MonoBehaviour
 		if (routeTracker == null)
 			routeTracker = gameObject.AddComponent<RouteProgressTracker>();
 		positionTracker.RouteTracker = routeTracker;
+
+		// Guided vs Unguided: the route line, the tap and the "Turn around" signal.
+		guidance = GetComponent<RunGuidance>();
+		if (guidance == null)
+			guidance = gameObject.AddComponent<RunGuidance>();
 
 		// The tutorial's pause and help badges on the controllers, for the run. Added here so it
 		// needs no scene setup; add a RunControllerTooltips by hand to change its settings.
@@ -155,6 +161,9 @@ public class RunSystemController : MonoBehaviour
 			                 "Tools > VR Study > Participant ID before the next run.", this);
 		SessionLog.Record("run_loaded", $"{runType}, participant {participantId}, run {runIndex}");
 
+		// Armed as the run loads, so a Guided participant can already tap for the way at the bus stop.
+		guidance?.Configure(runType, assistanceController, routeTracker, positionTracker);
+
 		XRPlayerTeleport.MoveToStandingPoint(
 			xrOrigin,
 			runStartPoint,
@@ -263,6 +272,7 @@ public class RunSystemController : MonoBehaviour
 	private IEnumerator ReturnToMainMenu(float elapsedTime, bool completed)
 	{
 		isEndingRun = true;
+		guidance?.End();
 		routeTracker?.End(completed, elapsedTime);
 
 		// Per-sample CSV, then this run's row in run_summaries.csv. Nothing is written for a run
