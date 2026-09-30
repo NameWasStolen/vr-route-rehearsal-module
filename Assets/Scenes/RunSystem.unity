@@ -11311,6 +11311,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 141941060}
+  - component: {fileID: 141941061}
   m_Layer: 0
   m_Name: FullRouteEnvironment
   m_TagString: Untagged
@@ -11363,6 +11364,247 @@ Transform:
   - {fileID: 210914805}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &141941061
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 141941059}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 170f6207a68def145bea1370f393f87a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RouteDefinition
+  walkingLine:
+  - {x: 1.5147352, y: 0.03, z: 13.710284}
+  - {x: -1.9282136, y: 0.03, z: 7.808282}
+  - {x: -35.46842, y: 0.03, z: 28.766537}
+  - {x: -62.02072, y: 0.03, z: 44.199997}
+  - {x: -74.53, y: 0.03, z: 44.199997}
+  - {x: -96.47, y: 0.03, z: 44.199997}
+  - {x: -110.880005, y: 0.03, z: 44.199997}
+  - {x: -110.880005, y: 0.03, z: 55.74}
+  - {x: -110.880005, y: 0.03, z: 76.12}
+  - {x: -110.880005, y: 0.03, z: 90.520004}
+  - {x: -104.08001, y: 0.03, z: 90.520004}
+  - {x: -104.08001, y: 0.03, z: 101.72}
+  - {x: -104.08, y: 0.03, z: 101.72}
+  - {x: -104.08, y: 0.03, z: 110.520004}
+  - {x: -143.19, y: 0.03, z: 110.520004}
+  - {x: -160.36394, y: 0.03, z: 110.520004}
+  - {x: -170.73093, y: 0.03, z: 113.32392}
+  - {x: -186.0872, y: 0.03, z: 117.47027}
+  - {x: -193.24011, y: 0.03, z: 91.436356}
+  - {x: -193.50505, y: 0.03, z: 90.47209}
+  startDistance: 4.1
+  crossingDistance: 179.07382
+  endDistance: 309.00217
+  nodes:
+  - name: N0
+    position: {x: 6.05, y: 0.03, z: 10.37}
+    decision: 0
+  - name: N1
+    position: {x: 0, y: 0.03, z: 0}
+    decision: 0
+  - name: N2
+    position: {x: -38.36, y: 0.03, z: 23.97}
+    decision: 1
+  - name: N3
+    position: {x: -63.53, y: 0.03, z: 38.6}
+    decision: 0
+  - name: N4
+    position: {x: -74.53, y: 0.03, z: 38.6}
+    decision: 1
+  - name: N5
+    position: {x: -96.47, y: 0.03, z: 38.6}
+    decision: 0
+  - name: N6
+    position: {x: -116.48, y: 0.03, z: 38.6}
+    decision: 1
+  - name: N7
+    position: {x: -116.48, y: 0.03, z: 55.74}
+    decision: 0
+  - name: N8
+    position: {x: -116.48, y: 0.03, z: 76.12}
+    decision: 0
+  - name: N9
+    position: {x: -116.48, y: 0.03, z: 96.12}
+    decision: 0
+  - name: N10
+    position: {x: -98.48, y: 0.03, z: 96.12}
+    decision: 1
+  - name: N11
+    position: {x: -98.48, y: 0.03, z: 116.12}
+    decision: 0
+  - name: N12
+    position: {x: -143.19, y: 0.03, z: 116.12}
+    decision: 1
+  - name: N13
+    position: {x: -159.62, y: 0.03, z: 116.12}
+    decision: 0
+  - name: N14
+    position: {x: -169.27, y: 0.03, z: 118.73}
+    decision: 0
+  - name: N15
+    position: {x: -190.01, y: 0.03, z: 124.33}
+    decision: 1
+  - name: N16
+    position: {x: -198.64, y: 0.03, z: 92.92}
+    decision: 0
+  branches:
+  - name: WrongTurn_BusRoad_South
+    node: N1
+    atDecision: 0
+    mouth: {x: 0, y: 0.01, z: 0}
+    into: {x: -0, y: 0, z: -1}
+    trigger: {x: 0, y: 1.5, z: -8.599998}
+  - name: WrongTurn_BusRoad_North
+    node: N0
+    atDecision: 0
+    mouth: {x: 6.049527, y: 0.01, z: 10.3702755}
+    into: {x: 0.5038835, y: 0, z: 0.8637717}
+    trigger: {x: 8.566019, y: 1.5, z: 14.684118}
+  - name: WrongTurn_HouseCross_NE
+    node: N2
+    atDecision: 1
+    mouth: {x: -38.36, y: 0.01, z: 23.97}
+    into: {x: 0.5055116, y: 0, z: 0.8628198}
+    trigger: {x: -34.0126, y: 1.5, z: 31.39025}
+  - name: WrongTurn_HouseCross_SW
+    node: N2
+    atDecision: 1
+    mouth: {x: -38.36, y: 0.01, z: 23.97}
+    into: {x: -0.4672214, y: 0, z: -0.8841404}
+    trigger: {x: -42.378105, y: 1.5, z: 16.366392}
+  - name: WrongTurn_Cross4_N
+    node: N4
+    atDecision: 1
+    mouth: {x: -74.53, y: 0.01, z: 38.6}
+    into: {x: 0, y: 0, z: 1}
+    trigger: {x: -74.53, y: 1.5, z: 47.199997}
+  - name: WrongTurn_Cross4_S
+    node: N4
+    atDecision: 1
+    mouth: {x: -74.53, y: 0.01, z: 38.6}
+    into: {x: 0, y: 0, z: -1}
+    trigger: {x: -74.53, y: 1.5, z: 29.999998}
+  - name: WrongTurn_Side5_S
+    node: N5
+    atDecision: 0
+    mouth: {x: -96.47, y: 0.01, z: 38.6}
+    into: {x: 0, y: 0, z: -1}
+    trigger: {x: -96.47, y: 1.5, z: 29.999998}
+  - name: WrongTurn_Corner6_S
+    node: N6
+    atDecision: 1
+    mouth: {x: -116.48, y: 0.01, z: 38.6}
+    into: {x: 0, y: 0, z: -1}
+    trigger: {x: -116.48, y: 1.5, z: 29.999998}
+  - name: WrongTurn_Side7_W
+    node: N7
+    atDecision: 0
+    mouth: {x: -116.48, y: 0.01, z: 55.74}
+    into: {x: -1, y: 0, z: 0}
+    trigger: {x: -125.08, y: 1.5, z: 55.74}
+  - name: WrongTurn_Side8_E
+    node: N8
+    atDecision: 0
+    mouth: {x: -116.48, y: 0.01, z: 76.12}
+    into: {x: 1, y: 0, z: 0}
+    trigger: {x: -107.880005, y: 1.5, z: 76.12}
+  - name: WrongTurn_Side9_W
+    node: N9
+    atDecision: 0
+    mouth: {x: -116.48, y: 0.01, z: 96.12}
+    into: {x: -1, y: 0, z: 0}
+    trigger: {x: -125.08, y: 1.5, z: 96.12}
+  - name: WrongTurn_Side10_E
+    node: N10
+    atDecision: 1
+    mouth: {x: -98.48, y: 0.01, z: 96.12}
+    into: {x: 1, y: 0, z: 0}
+    trigger: {x: -89.880005, y: 1.5, z: 96.12}
+  - name: WrongTurn_Side11_N
+    node: N11
+    atDecision: 0
+    mouth: {x: -98.48, y: 0.01, z: 116.12}
+    into: {x: 0, y: 0, z: 1}
+    trigger: {x: -98.48, y: 1.5, z: 124.72}
+  - name: WrongTurn_Cross12_N
+    node: N12
+    atDecision: 1
+    mouth: {x: -143.19, y: 0.01, z: 116.12}
+    into: {x: 0, y: 0, z: 1}
+    trigger: {x: -143.19, y: 1.5, z: 124.72}
+  - name: WrongTurn_Cross12_S
+    node: N12
+    atDecision: 1
+    mouth: {x: -143.19, y: 0.01, z: 116.12}
+    into: {x: 0, y: 0, z: -1}
+    trigger: {x: -143.19, y: 1.5, z: 107.520004}
+  - name: WrongTurn_Side14_SW
+    node: N14
+    atDecision: 0
+    mouth: {x: -169.27, y: 0.01, z: 118.73}
+    into: {x: -0.29049277, y: 0, z: -0.9568772}
+    trigger: {x: -171.76825, y: 1.5, z: 110.50086}
+  - name: WrongTurn_Cross15_NNE
+    node: N15
+    atDecision: 1
+    mouth: {x: -190.01, y: 0.01, z: 124.33}
+    into: {x: 0.25099686, y: 0, z: 0.9679879}
+    trigger: {x: -187.85143, y: 1.5, z: 132.6547}
+  - name: WrongTurn_Cross15_WNW
+    node: N15
+    atDecision: 1
+    mouth: {x: -190.01, y: 0.01, z: 124.33}
+    into: {x: -0.9675173, y: 0, z: 0.25280464}
+    trigger: {x: -198.33064, y: 1.5, z: 126.50412}
+  decisionZones:
+  - name: CP_Decision_N2
+    centre: {x: -38.36, y: 1.5, z: 23.97}
+    forward: {x: -0.86456275, y: 0, z: 0.502525}
+    size: {x: 13.099999, y: 3, z: 13.099999}
+  - name: CP_Decision_N4
+    centre: {x: -74.53, y: 1.5, z: 38.6}
+    forward: {x: -1, y: 0, z: 0}
+    size: {x: 13.099999, y: 3, z: 13.099999}
+  - name: CP_Decision_N6
+    centre: {x: -116.48, y: 1.5, z: 38.6}
+    forward: {x: 0, y: 0, z: 1}
+    size: {x: 13.099999, y: 3, z: 13.099999}
+  - name: CP_Decision_N10
+    centre: {x: -98.48, y: 1.5, z: 96.12}
+    forward: {x: 0, y: 0, z: 1}
+    size: {x: 13.099999, y: 3, z: 13.099999}
+  - name: CP_Decision_N12
+    centre: {x: -143.19, y: 1.5, z: 116.12}
+    forward: {x: -1, y: 0, z: 0}
+    size: {x: 13.099999, y: 3, z: 13.099999}
+  - name: CP_Decision_N15
+    centre: {x: -190.01, y: 1.5, z: 124.33}
+    forward: {x: -0.2649354, y: 0, z: -0.9642662}
+    size: {x: 13.099999, y: 3, z: 13.099999}
+  zebras:
+  - name: Zebra_RouteCrossing
+    centre: {x: -104.08001, y: 0.01, z: 96.12}
+    forward: {x: 1, y: 0, z: 0}
+    size: {x: 6.6, y: 0.2, z: 3}
+  - name: Zebra_School
+    centre: {x: -120.835, y: 0.01, z: 116.12}
+    forward: {x: -1, y: 0, z: 0}
+    size: {x: 6.6, y: 0.2, z: 3}
+  - name: Zebra_BusStop
+    centre: {x: 9.828653, y: 0.01, z: 16.848562}
+    forward: {x: 0.5038835, y: 0, z: 0.8637717}
+    size: {x: 6.6, y: 0.2, z: 3}
+  - name: Zebra_Park
+    centre: {x: -106.475, y: 0.01, z: 38.6}
+    forward: {x: -1, y: 0, z: 0}
+    size: {x: 6.6, y: 0.2, z: 3}
+  bakedAt: 2026-09-30 17:30
+  drawWhenNotSelected: 0
 --- !u!1 &143603684
 GameObject:
   m_ObjectHideFlags: 0
