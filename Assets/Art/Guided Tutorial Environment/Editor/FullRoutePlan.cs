@@ -511,6 +511,12 @@ namespace VRTutorial.EditorTools
         // Route definition for the run statistics (see BuildWalkingLine).
         public readonly List<Vector2> WalkingLine = new List<Vector2>();
         public float WalkingStartS, WalkingCrossS, WalkingEndS;   // arc lengths along WalkingLine
+
+        // Footpath network for the Guided line (see BuildFootpathNetwork).
+        public struct FootLink { public int A, B; public string Kind; }
+        public readonly List<Vector2> FootNodes = new List<Vector2>();
+        public readonly List<FootLink> FootLinks = new List<FootLink>();
+        public int FootDestination = -1;
         public readonly List<Branch> Branches = new List<Branch>();
         public readonly List<string> Warnings = new List<string>();
         public Vector2 Spawn, SpawnFacing;
@@ -540,6 +546,7 @@ namespace VRTutorial.EditorTools
             BuildBounds();
             BuildGardens();
             BuildWalkingLine();
+            BuildFootpathNetwork();
         }
 
         // ------------------------------------------------------------ walking line
@@ -588,6 +595,107 @@ namespace VRTutorial.EditorTools
             // The run starts when the participant leaves CP_Start (3.5 m either side of the stop,
             // along the bus road) walking toward N1. The spawn is 0.6 m past the stop.
             WalkingStartS = 0.6f + 3.5f;
+        }
+
+        // ------------------------------------------------------------ footpath network
+        /// <summary>
+        /// Where a pedestrian may walk to the end, for the Guided line (agreed with Kade,
+        /// 30 Sep 2026): both footpaths of the route street, joined ONLY at its zebras (Park,
+        /// N10, School). The guide finds the shortest walk to the end over this from wherever the
+        /// participant is, so it follows the footpath they are on and never shows crossing the
+        /// route street away from a zebra.
+        ///
+        ///   - "footpath": along the middle of each footpath, as the walking line does
+        ///     (side-street mouths are crossed along the kerb line, as the walking line does).
+        ///   - "busroad": the spawn to the N1 corner, along the bus road's footpath, and on across
+        ///     the mouth of the route street to the far corner.
+        ///   - "zebra": straight over each route-street zebra.
+        ///   - "forecourt": both footpaths' ends into the forecourt, to the walking line's end
+        ///     (the destination).
+        /// The shortest walk from the spawn is exactly the walking line.
+        /// </summary>
+        void BuildFootpathNetwork()
+        {
+            const float fc = FullRouteLayout.FootCentre;
+            RouteStreet route = Route, bus = BusRoad;
+            FootNodes.Clear();
+            FootLinks.Clear();
+
+            // Corners at N1, where each footpath meets the bus road's footpath.
+            int bs = bus.Seg(BusStopS);
+            Vector2 n1 = route.Pts[0];
+            Vector2 busFoot = n1 + bus.Left(bs) * fc;
+            Vector2 cornerR = Intersect(busFoot, bus.Dir(bs), n1 - route.Left(0) * fc, route.Dir(0));
+            Vector2 cornerL = Intersect(busFoot, bus.Dir(bs), n1 + route.Left(0) * fc, route.Dir(0));
+            float sR0 = Mathf.Max(0f, Vector2.Dot(cornerR - n1, route.Dir(0)));
+            float sL0 = Mathf.Max(0f, Vector2.Dot(cornerL - n1, route.Dir(0)));
+
+            // Zebras on the route street, in order along it.
+            var zs = new List<float>();
+            foreach (var z in Zebras) if (z.Street == route.Index) zs.Add(z.S);
+            zs.Sort();
+
+            int spawn = AddFootNode(Spawn);
+            int[] zR, zL;
+            int endR = FootChain(route, sR0, zs, -fc, out zR);
+            int endL = FootChain(route, sL0, zs, fc, out zL);
+            int startR = AddFootNode(route.Edge(sR0, sR0 + 0.001f, -fc)[0]);
+            int startL = AddFootNode(route.Edge(sL0, sL0 + 0.001f, fc)[0]);
+
+            AddFootLink(spawn, startR, "busroad");
+            AddFootLink(startR, startL, "busroad");
+            for (int i = 0; i < zs.Count; i++) AddFootLink(zR[i], zL[i], "zebra");
+
+            // Into the forecourt: the walking line ends 1 m in, off the left-hand footpath.
+            Vector2 dir = route.Dir(route.SegmentCount - 1);
+            int dest = AddFootNode(WalkingLine[WalkingLine.Count - 1]);
+            AddFootLink(endL, dest, "forecourt");
+            int inR = AddFootNode(FootNodes[endR] + dir * 1f);
+            AddFootLink(endR, inR, "forecourt");
+            AddFootLink(inR, dest, "forecourt");
+            FootDestination = dest;
+        }
+
+        /// <summary>
+        /// One footpath of the route street from s0 to the end, split at each zebra. Returns the
+        /// node at the end; zebraNodes gets the node at each zebra.
+        /// </summary>
+        int FootChain(RouteStreet st, float s0, List<float> zebraS, float off, out int[] zebraNodes)
+        {
+            zebraNodes = new int[zebraS.Count];
+            var cuts = new List<float> { s0 };
+            foreach (float z in zebraS) cuts.Add(Mathf.Max(z, s0 + 0.01f));
+            cuts.Add(st.Length);
+
+            int prev = -1;
+            for (int c = 0; c + 1 < cuts.Count; c++)
+            {
+                var pts = st.Edge(cuts[c], cuts[c + 1], off);
+                for (int i = 0; i < pts.Count; i++)
+                {
+                    int node = AddFootNode(pts[i]);
+                    if (prev >= 0 && node != prev) AddFootLink(prev, node, "footpath");
+                    prev = node;
+                }
+                if (c < zebraS.Count) zebraNodes[c] = prev;
+            }
+            return prev;
+        }
+
+        int AddFootNode(Vector2 p)
+        {
+            for (int i = 0; i < FootNodes.Count; i++)
+                if ((FootNodes[i] - p).sqrMagnitude < 0.0025f) return i;
+            FootNodes.Add(p);
+            return FootNodes.Count - 1;
+        }
+
+        void AddFootLink(int a, int b, string kind)
+        {
+            if (a == b) return;
+            foreach (var l in FootLinks)
+                if ((l.A == a && l.B == b) || (l.A == b && l.B == a)) return;
+            FootLinks.Add(new FootLink { A = a, B = b, Kind = kind });
         }
 
         static Vector2 Intersect(Vector2 p, Vector2 d, Vector2 q, Vector2 e)

@@ -2446,13 +2446,22 @@ namespace VRTutorial.EditorTools
                 def.SetData(line, plan.WalkingStartS, plan.WalkingCrossS, plan.WalkingEndS, nodes, branches,
                             zones.ToArray(), zebras.ToArray(),
                             System.DateTime.Now.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture));
+
+                // Footpath network for the Guided line: both footpaths, joined only at zebras.
+                var footNodes = new Vector3[plan.FootNodes.Count];
+                for (int i = 0; i < footNodes.Length; i++) footNodes[i] = W(plan.FootNodes[i], FullRouteLayout.FootSlabTop);
+                var footLinks = new RouteDefinition.FootLink[plan.FootLinks.Count];
+                for (int i = 0; i < footLinks.Length; i++)
+                    footLinks[i] = new RouteDefinition.FootLink { a = plan.FootLinks[i].A, b = plan.FootLinks[i].B, kind = plan.FootLinks[i].Kind };
+                def.SetFootpathNetwork(footNodes, footLinks, plan.FootDestination);
                 EditorUtility.SetDirty(def);
                 Debug.Log(string.Format(
                     "[FullRoute] Route definition baked: walking line {0} points, ideal walk {1:0} m from leaving the " +
                     "bus stop to the end zone (zebra at {2:0} m), {3} nodes ({4} decision points), {5} branches, " +
-                    "{6} decision zones, {7} zebras.",
+                    "{6} decision zones, {7} zebras, footpath network {8} points / {9} links.",
                     line.Length, plan.WalkingEndS - plan.WalkingStartS, plan.WalkingCrossS - plan.WalkingStartS,
-                    nodes.Length, decision.Count, branches.Length, zones.Count, zebras.Count), def);
+                    nodes.Length, decision.Count, branches.Length, zones.Count, zebras.Count,
+                    footNodes.Length, footLinks.Length), def);
             }
 
             static void BuildTriggersFR(Transform root, FullRoutePlan plan)

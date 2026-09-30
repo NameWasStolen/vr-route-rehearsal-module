@@ -11606,7 +11606,179 @@ MonoBehaviour:
     centre: {x: -106.475, y: 0.01, z: 38.6}
     forward: {x: -1, y: 0, z: 0}
     size: {x: 6.6, y: 0.2, z: 3}
-  bakedAt: 2026-09-30 17:30
+  footNodes:
+  - {x: 1.5147352, y: 0.03, z: 13.710284}
+  - {x: -1.9282134, y: 0.03, z: 7.8082814}
+  - {x: -35.46842, y: 0.03, z: 28.766537}
+  - {x: -62.02072, y: 0.03, z: 44.199997}
+  - {x: -74.53, y: 0.03, z: 44.199997}
+  - {x: -96.47, y: 0.03, z: 44.199997}
+  - {x: -106.475, y: 0.03, z: 44.199997}
+  - {x: -110.880005, y: 0.03, z: 44.199997}
+  - {x: -110.880005, y: 0.03, z: 55.74}
+  - {x: -110.880005, y: 0.03, z: 76.12}
+  - {x: -110.880005, y: 0.03, z: 90.520004}
+  - {x: -104.08001, y: 0.03, z: 90.520004}
+  - {x: -92.880005, y: 0.03, z: 90.520004}
+  - {x: -92.880005, y: 0.03, z: 121.72}
+  - {x: -120.835, y: 0.03, z: 121.72}
+  - {x: -143.19, y: 0.03, z: 121.72}
+  - {x: -158.87605, y: 0.03, z: 121.72}
+  - {x: -167.80908, y: 0.03, z: 124.136086}
+  - {x: -193.93279, y: 0.03, z: 131.18974}
+  - {x: -204.03989, y: 0.03, z: 94.403625}
+  - {x: -7.57432, y: 0.03, z: -1.8704376}
+  - {x: -41.251583, y: 0.03, z: 19.173462}
+  - {x: -65.039276, y: 0.03, z: 33}
+  - {x: -74.53, y: 0.03, z: 33}
+  - {x: -96.47, y: 0.03, z: 33}
+  - {x: -106.475, y: 0.03, z: 33}
+  - {x: -122.08, y: 0.03, z: 33}
+  - {x: -122.08, y: 0.03, z: 55.74}
+  - {x: -122.08, y: 0.03, z: 76.12}
+  - {x: -122.08, y: 0.03, z: 101.72}
+  - {x: -104.08001, y: 0.03, z: 101.72}
+  - {x: -104.08, y: 0.03, z: 110.520004}
+  - {x: -120.835, y: 0.03, z: 110.520004}
+  - {x: -143.19, y: 0.03, z: 110.520004}
+  - {x: -160.36394, y: 0.03, z: 110.520004}
+  - {x: -170.73093, y: 0.03, z: 113.32392}
+  - {x: -186.0872, y: 0.03, z: 117.47027}
+  - {x: -193.24011, y: 0.03, z: 91.436356}
+  - {x: -193.50505, y: 0.03, z: 90.47209}
+  - {x: -204.30482, y: 0.03, z: 93.43936}
+  footLinks:
+  - a: 1
+    b: 2
+    kind: footpath
+  - a: 2
+    b: 3
+    kind: footpath
+  - a: 3
+    b: 4
+    kind: footpath
+  - a: 4
+    b: 5
+    kind: footpath
+  - a: 5
+    b: 6
+    kind: footpath
+  - a: 6
+    b: 7
+    kind: footpath
+  - a: 7
+    b: 8
+    kind: footpath
+  - a: 8
+    b: 9
+    kind: footpath
+  - a: 9
+    b: 10
+    kind: footpath
+  - a: 10
+    b: 11
+    kind: footpath
+  - a: 11
+    b: 12
+    kind: footpath
+  - a: 12
+    b: 13
+    kind: footpath
+  - a: 13
+    b: 14
+    kind: footpath
+  - a: 14
+    b: 15
+    kind: footpath
+  - a: 15
+    b: 16
+    kind: footpath
+  - a: 16
+    b: 17
+    kind: footpath
+  - a: 17
+    b: 18
+    kind: footpath
+  - a: 18
+    b: 19
+    kind: footpath
+  - a: 20
+    b: 21
+    kind: footpath
+  - a: 21
+    b: 22
+    kind: footpath
+  - a: 22
+    b: 23
+    kind: footpath
+  - a: 23
+    b: 24
+    kind: footpath
+  - a: 24
+    b: 25
+    kind: footpath
+  - a: 25
+    b: 26
+    kind: footpath
+  - a: 26
+    b: 27
+    kind: footpath
+  - a: 27
+    b: 28
+    kind: footpath
+  - a: 28
+    b: 29
+    kind: footpath
+  - a: 29
+    b: 30
+    kind: footpath
+  - a: 30
+    b: 31
+    kind: footpath
+  - a: 31
+    b: 32
+    kind: footpath
+  - a: 32
+    b: 33
+    kind: footpath
+  - a: 33
+    b: 34
+    kind: footpath
+  - a: 34
+    b: 35
+    kind: footpath
+  - a: 35
+    b: 36
+    kind: footpath
+  - a: 36
+    b: 37
+    kind: footpath
+  - a: 0
+    b: 1
+    kind: busroad
+  - a: 1
+    b: 20
+    kind: busroad
+  - a: 6
+    b: 25
+    kind: zebra
+  - a: 11
+    b: 30
+    kind: zebra
+  - a: 14
+    b: 32
+    kind: zebra
+  - a: 37
+    b: 38
+    kind: forecourt
+  - a: 19
+    b: 39
+    kind: forecourt
+  - a: 39
+    b: 38
+    kind: forecourt
+  footDestination: 38
+  bakedAt: 2026-09-30 23:20
   drawWhenNotSelected: 0
 --- !u!1 &143603684
 GameObject:

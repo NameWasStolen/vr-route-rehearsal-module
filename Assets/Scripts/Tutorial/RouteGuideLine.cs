@@ -262,6 +262,27 @@ namespace VRTutorial
         /// <summary>True while an outside detector has a detour open (BeginCorrection).</summary>
         public bool IsCorrecting => _externalCorrection != null;
 
+        /// <summary>
+        /// Supplies the way to the destination from where the participant is, instead of the
+        /// built-in "rejoin the route polyline" logic. Guided runs use the footpath network
+        /// (both footpaths, joined only at zebras), so the line never cuts across a road.
+        /// </summary>
+        public interface IGuidePath
+        {
+            /// <summary>
+            /// Fills 'path' with world X/Z points from where the line should join (near 'foot')
+            /// to the destination. False to fall back to the built-in logic.
+            /// </summary>
+            bool TryGetPath(Vector2 foot, float floorY, List<Vector2> path);
+        }
+
+        /// <summary>Uses 'source' to route the line; null returns to the built-in logic.</summary>
+        public void SetPathSource(IGuidePath source)
+        {
+            _pathSource = source;
+            _lastFoot = new Vector2(float.NaN, float.NaN);
+        }
+
         // ------------------------------------------------------------------ internals
         private const float SampleSpacing = 0.5f;   // centreline samples for the rejoin search
         private const float MeshSpacing   = 0.25f;  // max distance between ribbon cross-sections
@@ -299,6 +320,8 @@ namespace VRTutorial
         private WrongArm _correctingArm;
         private string _externalCorrection;        // BeginCorrection (guided runs)
         private string _reason = "request";        // why the line is being drawn, for Shown
+        private IGuidePath _pathSource;            // SetPathSource (guided runs)
+        private readonly List<Vector2> _sourcePath = new List<Vector2>();
         private Coroutine _haptics;
 
         // ================================================================== lifecycle
@@ -673,6 +696,18 @@ namespace VRTutorial
         // ================================================================== line
         private void BuildLine(Vector2 foot, float floorY)
         {
+            if (_pathSource != null && _pathSource.TryGetPath(foot, floorY, _sourcePath) && _sourcePath.Count > 0)
+            {
+                _raw.Clear();
+                _raw.Add(foot);
+                foreach (Vector2 p in _sourcePath)
+                    if ((p - _raw[_raw.Count - 1]).sqrMagnitude > 0.01f) _raw.Add(p);
+                RoundCorners(_raw, _rounded);
+                Densify(_rounded, floorY);
+                BuildMesh();
+                return;
+            }
+
             float s = Project(foot, out float d);
 
             bool wasOnPath = IsOnPath;

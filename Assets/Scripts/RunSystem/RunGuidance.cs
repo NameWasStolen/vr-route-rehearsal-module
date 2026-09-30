@@ -9,7 +9,9 @@ using VRTutorial;
 ///
 /// GUIDED (decided with Kade, 30 Sep 2026):
 ///   - The blue route line from the tutorial, in its on-request form, following the full route's
-///     ideal walking line (RouteDefinition).
+///     ideal walking line (RouteDefinition). Off that line it takes the shortest walk over the
+///     footpath network (FootpathNetwork): along the footpath they are on, crossing the main road
+///     only at a zebra.
 ///   - A quick TAP of A/X draws it for 8 s (holding still calls the researcher, unchanged).
 ///   - A WRONG TURN - the participant crossing a side street's trigger, the same point where it
 ///     is counted in both modes - buzzes both controllers, shows the "Turn around" signal in
@@ -88,6 +90,15 @@ public class RunGuidance : MonoBehaviour
                     pts[i] = new Vector2(w.x, w.z);
                 }
                 guide.SetRoute(pts);
+                if (route.HasFootpathNetwork)
+                    guide.SetPathSource(new FootpathNetwork(route));
+                else
+                {
+                    guide.SetPathSource(null);
+                    Debug.LogWarning("[RunGuidance] The route has no footpath network yet, so off the ideal line the guide " +
+                                     "may draw straight across a road. Run Tools > VR Full Route > Update Route Definition " +
+                                     "in RunSystem.", this);
+                }
                 guide.MaxDrawLength = drawAhead;
                 guide.RequestLogEvent = "guide_requested";
                 guide.Shown += OnGuideShown;

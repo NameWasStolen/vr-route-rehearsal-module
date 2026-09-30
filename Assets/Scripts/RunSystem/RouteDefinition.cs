@@ -63,6 +63,15 @@ public class RouteDefinition : MonoBehaviour
         public Vector3 size;
     }
 
+    /// <summary>A link of the footpath network: nodes a and b, walkable in a straight line.</summary>
+    [Serializable]
+    public class FootLink
+    {
+        public int a, b;
+        [Tooltip("footpath, busroad, zebra or forecourt.")]
+        public string kind;
+    }
+
     [Header("Walking line (local space)")]
     [SerializeField] private Vector3[] walkingLine = new Vector3[0];
     [Tooltip("Distance along the walking line where the run timer starts (leaving CP_Start).")]
@@ -88,6 +97,13 @@ public class RouteDefinition : MonoBehaviour
     [SerializeField] private Zone[] decisionZones = new Zone[0];
     [SerializeField] private Zone[] zebras = new Zone[0];
 
+    [Header("Footpath network (local space) - for the Guided line")]
+    [Tooltip("Both footpaths of the route street, joined only at its zebras, with the bus road start " +
+             "and the forecourt. The Guided line takes the shortest walk to the end over this.")]
+    [SerializeField] private Vector3[] footNodes = new Vector3[0];
+    [SerializeField] private FootLink[] footLinks = new FootLink[0];
+    [SerializeField] private int footDestination = -1;
+
     [Header("Bake")]
     [SerializeField] private string bakedAt;
 
@@ -110,6 +126,15 @@ public class RouteDefinition : MonoBehaviour
     public IReadOnlyList<Zone> DecisionZones => decisionZones;
     public IReadOnlyList<Zone> Zebras => zebras;
     public string BakedAt => bakedAt;
+
+    /// <summary>True once the footpath network has been baked (older bakes have none).</summary>
+    public bool HasFootpathNetwork =>
+        footNodes != null && footLinks != null && footNodes.Length > 1 && footLinks.Length > 0 &&
+        footDestination >= 0 && footDestination < footNodes.Length;
+    public int FootNodeCount => footNodes != null ? footNodes.Length : 0;
+    public Vector3 FootNode(int i) => transform.TransformPoint(footNodes[i]);
+    public IReadOnlyList<FootLink> FootLinks => footLinks;
+    public int FootDestination => footDestination;
     public float StreetHalfWidth => streetHalfWidth;
 
     /// <summary>The first RouteDefinition in the scene of the given object, or any loaded one.</summary>
@@ -271,6 +296,14 @@ public class RouteDefinition : MonoBehaviour
         cumulative = null;
     }
 
+    /// <summary>Editor bake: the footpath network, in this object's local space.</summary>
+    public void SetFootpathNetwork(Vector3[] localNodes, FootLink[] links, int destination)
+    {
+        footNodes = localNodes ?? new Vector3[0];
+        footLinks = links ?? new FootLink[0];
+        footDestination = destination;
+    }
+
     private void EnsureCumulative()
     {
         if (cumulative != null && cumulative.Length == walkingLine.Length) return;
@@ -325,6 +358,17 @@ public class RouteDefinition : MonoBehaviour
         foreach (Zone z in decisionZones) DrawZone(z);
         Gizmos.color = new Color(1f, 1f, 1f, 0.5f);
         foreach (Zone z in zebras) DrawZone(z);
+
+        if (HasFootpathNetwork)
+        {
+            Vector3 up = Vector3.up * 0.15f;
+            foreach (FootLink l in footLinks)
+            {
+                if (l.a < 0 || l.b < 0 || l.a >= footNodes.Length || l.b >= footNodes.Length) continue;
+                Gizmos.color = l.kind == "zebra" ? new Color(0.1f, 0.8f, 0.2f) : new Color(0.2f, 0.6f, 1f);
+                Gizmos.DrawLine(FootNode(l.a) + up, FootNode(l.b) + up);
+            }
+        }
     }
 
     private void DrawZone(Zone z)
