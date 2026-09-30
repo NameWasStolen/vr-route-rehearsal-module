@@ -33,22 +33,39 @@ public class MenuController : MonoBehaviour
         Debug.Log("Run System Button Clicked");
     }
 
-    public void onGuidedButtonClick()
-    {
-        if (!isLoadingRunSystem)
-        {
-            Debug.Log("Guided Button Clicked");
-            StartCoroutine(LoadRunSystem("guided"));
-        }
-    }
+    // ------------------------------------------------------------------ study modules
+    // The intervention runs four modules in this order, each followed by its own survey, so
+    // each records its own run type (the CSVs' run_type column and the session log). Only
+    // "guided" shows the route line; the three unguided modules are the same run.
+    public const string ModuleUnguided1 = "unguided_1";
+    public const string ModuleGuided = "guided";
+    public const string ModuleUnguided2a = "unguided_2a";
+    public const string ModuleUnguided2b = "unguided_2b";
 
-    public void onUnguidedButtonClick()
+    /// <summary>Module 1: "1  Unguided". (Kept its old name so the existing button stays wired.)</summary>
+    public void onUnguidedButtonClick() => StartModule(ModuleUnguided1);
+
+    /// <summary>Module 2: "2  Guided".</summary>
+    public void onGuidedButtonClick() => StartModule(ModuleGuided);
+
+    /// <summary>Module 3: "3  Unguided 2.a".</summary>
+    public void onUnguided2aButtonClick() => StartModule(ModuleUnguided2a);
+
+    /// <summary>Module 4: "4  Unguided 2.b".</summary>
+    public void onUnguided2bButtonClick() => StartModule(ModuleUnguided2b);
+
+    /// <summary>
+    /// Any module by run type - for the fifth button when it is added: wire its On Click to
+    /// this and type its run type into the box. Only the run type "guided" shows the route line.
+    /// </summary>
+    public void onModuleButtonClick(string runType) => StartModule(runType);
+
+    private void StartModule(string runType)
     {
-        if (!isLoadingRunSystem)
-        {
-            Debug.Log("Unguided Button Clicked");
-            StartCoroutine(LoadRunSystem("unguided"));
-        }
+        if (isLoadingRunSystem || string.IsNullOrWhiteSpace(runType))
+            return;
+        Debug.Log($"Module button clicked: {runType}");
+        StartCoroutine(LoadRunSystem(runType.Trim()));
     }
 
     public void ShowMainMenu()
