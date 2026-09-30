@@ -34,6 +34,12 @@ public class RunSystemController : MonoBehaviour
 		if (FindInThisScene<RunControllerTooltips>() == null)
 			gameObject.AddComponent<RunControllerTooltips>();
 
+		// Only the participant's selected controller is shown during a run, as in the tutorial:
+		// the other one's model, pointer ray and badges are hidden (its pause and help buttons
+		// still work). Scene-scoped, so both controllers come back at the main menu.
+		if (FindInThisScene<SelectedControllerOnly>() == null)
+			gameObject.AddComponent<SelectedControllerOnly>();
+
 		// The help button for runs lives in this scene (added by Tools > VR Full Route > Add Help and
 		// Pause Menu to RunSystem). Prefer that one over any other that happens to be loaded.
 		assistanceController = FindInThisScene<AssistanceController>();
