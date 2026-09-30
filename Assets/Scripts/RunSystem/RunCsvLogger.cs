@@ -5,6 +5,17 @@ using System.IO;
 using System.Text;
 using UnityEngine;
 
+/// <summary>
+/// Writes one run's samples to Data/RunData under persistentDataPath.
+///
+/// Columns: elapsed_seconds, x, y, z (head position);
+/// stationary - 1 if hesitating (standing still 3 s+, see PlayerPositionTracker) during the sample;
+/// menu_paused - 1 if the pause menu was open during the sample;
+/// awaiting_help - 1 if a confirmed help request was waiting for the researcher;
+/// assistance - number of help requests placed during the sample;
+/// error - number of wrong turns taken during the sample;
+/// then the participant's settings for the run.
+/// </summary>
 public static class RunCsvLogger
 {
     public static string Write(
@@ -22,7 +33,7 @@ public static class RunCsvLogger
 
         StringBuilder csv = new();
         csv.AppendLine(
-            "elapsed_seconds,x,y,z,pause,assistance,error,brightness,volume,font_size,usage_mode,handedness,rotation_mode");
+            "elapsed_seconds,x,y,z,stationary,menu_paused,awaiting_help,assistance,error,brightness,volume,font_size,usage_mode,handedness,rotation_mode");
 
         foreach (PlayerPositionSample sample in samples)
         {
@@ -34,7 +45,11 @@ public static class RunCsvLogger
             csv.Append(',');
             csv.Append(sample.Position.z.ToString("F3", CultureInfo.InvariantCulture));
             csv.Append(',');
-            csv.Append(sample.Pause.ToString(CultureInfo.InvariantCulture));
+            csv.Append(sample.Stationary.ToString(CultureInfo.InvariantCulture));
+            csv.Append(',');
+            csv.Append(sample.MenuPaused.ToString(CultureInfo.InvariantCulture));
+            csv.Append(',');
+            csv.Append(sample.AwaitingHelp.ToString(CultureInfo.InvariantCulture));
             csv.Append(',');
             csv.Append(sample.Assistance.ToString(CultureInfo.InvariantCulture));
             csv.Append(',');
@@ -91,4 +106,4 @@ public static class RunCsvLogger
 
         return value;
     }
-}
+}
