@@ -458,6 +458,13 @@ namespace VRTutorial.EditorTools
     }
 
     public struct Zebra { public int Street; public float S; public string Name; public bool School; }
+
+    /// <summary>
+    /// A side street (or the wrong way along the bus road) off the route, for the run
+    /// statistics. Name matches its WrongTurn_ trigger. Mouth is where it leaves the route; Into
+    /// points down it, away from the route.
+    /// </summary>
+    public struct Branch { public string Name; public int Node; public Vector2 Mouth, Into, Trigger; }
     public struct CrossingPost { public Vector2 Pos, RoadDir; public bool School; }
 
     public sealed class FullRoutePlan
@@ -500,6 +507,17 @@ namespace VRTutorial.EditorTools
         public readonly List<Zebra> Zebras = new List<Zebra>();
         public readonly List<Obb> ZebraStripes = new List<Obb>();
         public readonly List<CrossingPost> CrossingPosts = new List<CrossingPost>();
+
+        // Route definition for the run statistics (see BuildWalkingLine).
+        public readonly List<Vector2> WalkingLine = new List<Vector2>();
+        public float WalkingStartS, WalkingCrossS, WalkingEndS;   // arc lengths along WalkingLine
+
+        // Footpath network for the Guided line (see BuildFootpathNetwork).
+        public struct FootLink { public int A, B; public string Kind; }
+        public readonly List<Vector2> FootNodes = new List<Vector2>();
+        public readonly List<FootLink> FootLinks = new List<FootLink>();
+        public int FootDestination = -1;
+        public readonly List<Branch> Branches = new List<Branch>();
         public readonly List<string> Warnings = new List<string>();
         public Vector2 Spawn, SpawnFacing;
         public Vector2 ShelterPos, ShelterFacing, BusFlagPos, BusFlagDir;
@@ -527,6 +545,173 @@ namespace VRTutorial.EditorTools
             BuildTriggers();
             BuildBounds();
             BuildGardens();
+            BuildWalkingLine();
+            BuildFootpathNetwork();
+        }
+
+        // ------------------------------------------------------------ walking line
+        /// <summary>
+        /// The ideal walk, for the run statistics: along the middle of the footpath the natural
+        /// route uses, from the bus stop to the shopping-centre forecourt. Draws from no random
+        /// numbers, so adding it changed nothing else in the layout.
+        ///
+        ///   - From the spawn point along the bus road's footpath back to the corner at N1.
+        ///   - Round that corner onto the route's right-hand footpath (the inside of the corner,
+        ///     so no road is crossed) as far as the route zebra at N10.
+        ///   - Straight over the zebra to the left-hand footpath - the one the route continues on
+        ///     north from N10 - and along it to N16.
+        ///   - One metre into the forecourt (the end zone).
+        /// Side-street mouths are crossed along the kerb line, as anyone would walk them.
+        ///
+        /// WalkingStartS / WalkingEndS are where the run timer starts (leaving CP_Start) and stops
+        /// (entering CP_EndZone), so the optimal length is WalkingEndS - WalkingStartS.
+        /// </summary>
+        void BuildWalkingLine()
+        {
+            const float fc = FullRouteLayout.FootCentre;
+            RouteStreet route = Route, bus = BusRoad;
+            WalkingLine.Clear();
+
+            // Bus road: the spawn is on its left footpath; walk back toward N1.
+            int bs = bus.Seg(BusStopS);
+            Vector2 n1 = route.Pts[0];
+            Vector2 corner = Intersect(n1 + bus.Left(bs) * fc, bus.Dir(bs), n1 - route.Left(0) * fc, route.Dir(0));
+            WalkingLine.Add(Spawn);
+            WalkingLine.Add(corner);
+
+            // Route, right-hand footpath, to the zebra.
+            float sCross = route.Cum[10 - 1] - fc;
+            foreach (var z in Zebras) if (z.Name == "Zebra_RouteCrossing") sCross = z.S;
+            var before = route.Edge(0f, sCross, -fc);
+            for (int i = 1; i < before.Count; i++) WalkingLine.Add(before[i]);
+            WalkingCrossS = LineLength(WalkingLine);
+
+            // Over the zebra, then the left-hand footpath to the end of the route.
+            var after = route.Edge(sCross, route.Length, fc);
+            for (int i = 0; i < after.Count; i++) WalkingLine.Add(after[i]);
+            WalkingEndS = LineLength(WalkingLine);
+            WalkingLine.Add(after[after.Count - 1] + route.Dir(route.SegmentCount - 1) * 1f);
+
+            // The run starts when the participant leaves CP_Start (3.5 m either side of the stop,
+            // along the bus road) walking toward N1. The spawn is 0.6 m past the stop.
+            WalkingStartS = 0.6f + 3.5f;
+        }
+
+        // ------------------------------------------------------------ footpath network
+        /// <summary>
+        /// Where a pedestrian may walk to the end, for the Guided line (agreed with Kade,
+        /// 30 Sep 2026): both footpaths of the route street, joined ONLY at its zebras (Park,
+        /// N10, School). The guide finds the shortest walk to the end over this from wherever the
+        /// participant is, so it follows the footpath they are on and never shows crossing the
+        /// route street away from a zebra.
+        ///
+        ///   - "footpath": along the middle of each footpath, as the walking line does
+        ///     (side-street mouths are crossed along the kerb line, as the walking line does).
+        ///   - "busroad": the spawn to the N1 corner, along the bus road's footpath, and on across
+        ///     the mouth of the route street to the far corner.
+        ///   - "zebra": straight over each route-street zebra.
+        ///   - "forecourt": both footpaths' ends into the forecourt, to the walking line's end
+        ///     (the destination).
+        /// The shortest walk from the spawn is exactly the walking line.
+        /// </summary>
+        void BuildFootpathNetwork()
+        {
+            const float fc = FullRouteLayout.FootCentre;
+            RouteStreet route = Route, bus = BusRoad;
+            FootNodes.Clear();
+            FootLinks.Clear();
+
+            // Corners at N1, where each footpath meets the bus road's footpath.
+            int bs = bus.Seg(BusStopS);
+            Vector2 n1 = route.Pts[0];
+            Vector2 busFoot = n1 + bus.Left(bs) * fc;
+            Vector2 cornerR = Intersect(busFoot, bus.Dir(bs), n1 - route.Left(0) * fc, route.Dir(0));
+            Vector2 cornerL = Intersect(busFoot, bus.Dir(bs), n1 + route.Left(0) * fc, route.Dir(0));
+            float sR0 = Mathf.Max(0f, Vector2.Dot(cornerR - n1, route.Dir(0)));
+            float sL0 = Mathf.Max(0f, Vector2.Dot(cornerL - n1, route.Dir(0)));
+
+            // Zebras on the route street, in order along it.
+            var zs = new List<float>();
+            foreach (var z in Zebras) if (z.Street == route.Index) zs.Add(z.S);
+            zs.Sort();
+
+            int spawn = AddFootNode(Spawn);
+            int[] zR, zL;
+            int endR = FootChain(route, sR0, zs, -fc, out zR);
+            int endL = FootChain(route, sL0, zs, fc, out zL);
+            int startR = AddFootNode(route.Edge(sR0, sR0 + 0.001f, -fc)[0]);
+            int startL = AddFootNode(route.Edge(sL0, sL0 + 0.001f, fc)[0]);
+
+            AddFootLink(spawn, startR, "busroad");
+            AddFootLink(startR, startL, "busroad");
+            for (int i = 0; i < zs.Count; i++) AddFootLink(zR[i], zL[i], "zebra");
+
+            // Into the forecourt: the walking line ends 1 m in, off the left-hand footpath.
+            Vector2 dir = route.Dir(route.SegmentCount - 1);
+            int dest = AddFootNode(WalkingLine[WalkingLine.Count - 1]);
+            AddFootLink(endL, dest, "forecourt");
+            int inR = AddFootNode(FootNodes[endR] + dir * 1f);
+            AddFootLink(endR, inR, "forecourt");
+            AddFootLink(inR, dest, "forecourt");
+            FootDestination = dest;
+        }
+
+        /// <summary>
+        /// One footpath of the route street from s0 to the end, split at each zebra. Returns the
+        /// node at the end; zebraNodes gets the node at each zebra.
+        /// </summary>
+        int FootChain(RouteStreet st, float s0, List<float> zebraS, float off, out int[] zebraNodes)
+        {
+            zebraNodes = new int[zebraS.Count];
+            var cuts = new List<float> { s0 };
+            foreach (float z in zebraS) cuts.Add(Mathf.Max(z, s0 + 0.01f));
+            cuts.Add(st.Length);
+
+            int prev = -1;
+            for (int c = 0; c + 1 < cuts.Count; c++)
+            {
+                var pts = st.Edge(cuts[c], cuts[c + 1], off);
+                for (int i = 0; i < pts.Count; i++)
+                {
+                    int node = AddFootNode(pts[i]);
+                    if (prev >= 0 && node != prev) AddFootLink(prev, node, "footpath");
+                    prev = node;
+                }
+                if (c < zebraS.Count) zebraNodes[c] = prev;
+            }
+            return prev;
+        }
+
+        int AddFootNode(Vector2 p)
+        {
+            for (int i = 0; i < FootNodes.Count; i++)
+                if ((FootNodes[i] - p).sqrMagnitude < 0.0025f) return i;
+            FootNodes.Add(p);
+            return FootNodes.Count - 1;
+        }
+
+        void AddFootLink(int a, int b, string kind)
+        {
+            if (a == b) return;
+            foreach (var l in FootLinks)
+                if ((l.A == a && l.B == b) || (l.A == b && l.B == a)) return;
+            FootLinks.Add(new FootLink { A = a, B = b, Kind = kind });
+        }
+
+        static Vector2 Intersect(Vector2 p, Vector2 d, Vector2 q, Vector2 e)
+        {
+            float den = d.x * e.y - d.y * e.x;
+            if (Mathf.Abs(den) < 1e-6f) return q;
+            Vector2 w = q - p;
+            float t = (w.x * e.y - w.y * e.x) / den;
+            return p + d * t;
+        }
+
+        static float LineLength(List<Vector2> pts)
+        {
+            float len = 0f;
+            for (int i = 1; i < pts.Count; i++) len += Vector2.Distance(pts[i - 1], pts[i]);
+            return len;
         }
 
         // ------------------------------------------------------------------ streets
@@ -1869,6 +2054,7 @@ namespace VRTutorial.EditorTools
                     float t = st.Triggers[i];
                     string name = "WrongTurn_" + st.Name + (st.Triggers.Count > 1 ? (t < BusStopS - 12f ? "_South" : "_North") : "");
                     WrongTurns.Add(new NamedBox { Name = name, Box = new Obb(st.Point(t), st.Dir(st.Seg(t)), 0.6f, HR) });
+                    Branches.Add(MakeBranch(st, name, t));
                 }
                 foreach (float c in st.Closures)
                     Closures.Add(new Across { Street = st.Index, S = c, Name = st.Name });
@@ -1882,6 +2068,31 @@ namespace VRTutorial.EditorTools
                 Checkpoints.Add(new NamedBox { Name = "CP_Decision_N" + i, Box = new Obb(n[i], d, HR, HR) });
             }
             Checkpoints.Add(new NamedBox { Name = "CP_EndZone", Box = Forecourt });
+        }
+
+        /// <summary>
+        /// Where a wrong-turn trigger's street leaves the route, and which way is into it. Side
+        /// streets start at their route node. The bus road runs through: its south arm leaves at
+        /// N1, and its north arm is the wrong way from the bus stop itself.
+        /// </summary>
+        Branch MakeBranch(RouteStreet st, string name, float triggerS)
+        {
+            var n = FullRouteLayout.RouteNodes;
+            Vector2 trigger = st.Point(triggerS);
+            if (st == BusRoad)
+            {
+                bool south = triggerS < BusStopS - 12f;
+                if (south)
+                    return new Branch { Name = name, Node = 1, Mouth = st.Pts[1], Into = -st.Dir(0), Trigger = trigger };
+                return new Branch { Name = name, Node = 0, Mouth = st.Point(BusStopS), Into = st.Dir(st.Seg(BusStopS)), Trigger = trigger };
+            }
+            int node = 0; float best = float.MaxValue;
+            for (int i = 0; i < n.Length; i++)
+            {
+                float d = Vector2.Distance(n[i], st.Pts[0]);
+                if (d < best) { best = d; node = i; }
+            }
+            return new Branch { Name = name, Node = node, Mouth = st.Pts[0], Into = st.Dir(0), Trigger = trigger };
         }
 
         /// <summary>

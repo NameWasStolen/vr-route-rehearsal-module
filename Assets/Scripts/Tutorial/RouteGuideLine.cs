@@ -29,8 +29,8 @@ namespace VRTutorial
     /// A little hysteresis (offPathDistance > onPathDistance) stops the line flickering between
     /// the two modes when someone walks along the edge of the paving.
     ///
-    /// TUTORIAL SCENE ONLY. The line gives away the right turn at the intersection, so it must
-    /// not be placed in a study scene where wrong turns are measured.
+    /// NEVER IN UNGUIDED RUNS. The line gives away the right turn, so in RunSystem it is only
+    /// armed by RunGuidance for Guided runs (enforced in code, not left to scene setup).
     ///
     /// MODES
     ///
@@ -45,6 +45,12 @@ namespace VRTutorial
     /// Wiring (see route-guide-line.md in the project):
     ///   StepGoToExit -> TutorialStep.onStepEnter        -> RouteGuideLine.Show
     ///   end zone     -> TutorialZoneTrigger.onPlayerEntered -> RouteGuideLine.Hide
+    ///
+    /// GUIDED RUNS (RunGuidance, 30 Sep 2026) drive the same component from outside: SetRoute
+    /// replaces the tutorial route with the full route's walking line and clears the built-in
+    /// wrong arms, and BeginCorrection / EndCorrection are called by the route tracker's detours
+    /// instead. Shown / Hidden report when the line is on screen, for the run statistics.
+    /// With no SetRoute call - the tutorial - nothing changes.
     /// </summary>
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
     public class RouteGuideLine : MonoBehaviour
@@ -134,6 +140,11 @@ namespace VRTutorial
         [Tooltip("Hide automatically within this distance of the destination, as a backup to the " +
                  "end-zone trigger.")]
         [SerializeField] private float arriveDistance = 2.0f;
+
+        [Tooltip("Longest stretch of line drawn ahead, in metres. 0 draws all the way to the " +
+                 "destination (the tutorial). Long routes need a limit: every metre drawn is a " +
+                 "ground raycast each frame the participant moves.")]
+        [SerializeField] private float maxDrawLength = 0f;
 
         [Tooltip("Layers the ground raycast and the line-of-sight check can hit. Exclude the " +
                  "player's own layer if it is not ignored already.")]
@@ -225,6 +236,53 @@ namespace VRTutorial
         /// <summary>True while the line is on screen (drawing, drawn or retracting).</summary>
         public bool IsVisible => _visible;
 
+        /// <summary>
+        /// The line has started drawing out. The reason is "request" (a tap), "wrong_turn" or
+        /// "always" (Always mode).
+        /// </summary>
+        public event Action<string> Shown;
+
+        /// <summary>The line has finished retracting, or was hidden.</summary>
+        public event Action Hidden;
+
+        /// <summary>Longest stretch drawn ahead, in metres; 0 for all of it. See Max Draw Length.</summary>
+        public float MaxDrawLength
+        {
+            get => maxDrawLength;
+            set => maxDrawLength = Mathf.Max(0f, value);
+        }
+
+        /// <summary>Session log event for a tap (the tutorial's is tutorial_route_requested).</summary>
+        public string RequestLogEvent
+        {
+            get => requestLogEvent;
+            set => requestLogEvent = value;
+        }
+
+        /// <summary>True while an outside detector has a detour open (BeginCorrection).</summary>
+        public bool IsCorrecting => _externalCorrection != null;
+
+        /// <summary>
+        /// Supplies the way to the destination from where the participant is, instead of the
+        /// built-in "rejoin the route polyline" logic. Guided runs use the footpath network
+        /// (both footpaths, joined only at zebras), so the line never cuts across a road.
+        /// </summary>
+        public interface IGuidePath
+        {
+            /// <summary>
+            /// Fills 'path' with world X/Z points from where the line should join (near 'foot')
+            /// to the destination. False to fall back to the built-in logic.
+            /// </summary>
+            bool TryGetPath(Vector2 foot, float floorY, List<Vector2> path);
+        }
+
+        /// <summary>Uses 'source' to route the line; null returns to the built-in logic.</summary>
+        public void SetPathSource(IGuidePath source)
+        {
+            _pathSource = source;
+            _lastFoot = new Vector2(float.NaN, float.NaN);
+        }
+
         // ------------------------------------------------------------------ internals
         private const float SampleSpacing = 0.5f;   // centreline samples for the rejoin search
         private const float MeshSpacing   = 0.25f;  // max distance between ribbon cross-sections
@@ -260,6 +318,10 @@ namespace VRTutorial
         private float _requestUntil = -1f;
         private float _lingerUntil = -1f;
         private WrongArm _correctingArm;
+        private string _externalCorrection;        // BeginCorrection (guided runs)
+        private string _reason = "request";        // why the line is being drawn, for Shown
+        private IGuidePath _pathSource;            // SetPathSource (guided runs)
+        private readonly List<Vector2> _sourcePath = new List<Vector2>();
         private Coroutine _haptics;
 
         // ================================================================== lifecycle
@@ -315,6 +377,7 @@ namespace VRTutorial
             bool want = mode == GuideMode.Always
                         || now < _requestUntil
                         || _correctingArm != null
+                        || _externalCorrection != null
                         || now < _lingerUntil;
 
             if (want && !_visible) BeginDraw();
@@ -406,7 +469,59 @@ namespace VRTutorial
                 return;
             }
             _requestUntil = Time.unscaledTime + requestSeconds;
-            if (!SuppressLogging) SessionLog.Record(requestLogEvent);
+            if (!_visible) _reason = "request";
+            if (!SuppressLogging && !string.IsNullOrEmpty(requestLogEvent)) SessionLog.Record(requestLogEvent);
+        }
+
+        /// <summary>
+        /// Replaces the route with a new centreline (world X/Z, start to destination) and clears
+        /// the built-in wrong arms: whoever calls this detects wrong turns itself and calls
+        /// BeginCorrection / EndCorrection. Used by guided runs; the tutorial never calls it.
+        /// </summary>
+        public void SetRoute(Vector2[] points)
+        {
+            if (points == null || points.Length < 2)
+            {
+                Debug.LogWarning("[RouteGuideLine] SetRoute needs at least two points; route unchanged.", this);
+                return;
+            }
+            routePoints = (Vector2[])points.Clone();
+            wrongArms = new WrongArm[0];
+            _correctingArm = null;
+            _externalCorrection = null;
+            _rejoinIndex = -1;
+            _lastFoot = new Vector2(float.NaN, float.NaN);
+            PrepareRoute();
+        }
+
+        /// <summary>
+        /// A wrong turn found by someone else (guided runs: the route tracker, at the side
+        /// street's trigger). Buzzes both controllers, fires onWrongTurn and draws the line back
+        /// until EndCorrection. Needs the guide to be armed.
+        /// </summary>
+        public void BeginCorrection(string name)
+        {
+            if (!IsArmed && mode == GuideMode.OnRequest) return;
+            bool already = _externalCorrection != null;
+            _externalCorrection = string.IsNullOrEmpty(name) ? "detour" : name;
+            _lingerUntil = -1f;
+            if (!_visible || _retracting) _reason = "wrong_turn";
+            if (logStateChanges) Debug.Log($"[RouteGuideLine] correction: {_externalCorrection}", this);
+            if (already) return;
+
+            if (_haptics != null) StopCoroutine(_haptics);
+            _haptics = StartCoroutine(Buzz());
+            onWrongTurn?.Invoke();
+        }
+
+        /// <summary>Back on the route after BeginCorrection: the line lingers, then retracts.</summary>
+        public void EndCorrection()
+        {
+            if (_externalCorrection == null) return;
+            _externalCorrection = null;
+            _lingerUntil = Time.unscaledTime + lingerSeconds;
+            onBackOnRoute?.Invoke();
+            if (logStateChanges) Debug.Log("[RouteGuideLine] correction ended", this);
         }
 
         /// <summary>Hides the line and disarms. Wire to the end-zone trigger.</summary>
@@ -424,6 +539,7 @@ namespace VRTutorial
             _requestUntil = -1f;
             _lingerUntil = -1f;
             _correctingArm = null;
+            _externalCorrection = null;
             EndDraw();
         }
 
@@ -434,14 +550,17 @@ namespace VRTutorial
             _revealed = 0f;
             _lastFoot = new Vector2(float.NaN, float.NaN);
             if (_renderer != null) _renderer.enabled = true;
+            Shown?.Invoke(mode == GuideMode.Always ? "always" : _reason);
         }
 
         private void EndDraw()
         {
+            bool was = _visible;
             _visible = false;
             _retracting = false;
             if (_renderer != null) _renderer.enabled = false;
             if (_mesh != null) _mesh.Clear();
+            if (was) Hidden?.Invoke();
         }
 
         // ================================================================== wrong turns
@@ -458,6 +577,7 @@ namespace VRTutorial
                 {
                     arm.fired = true;
                     _correctingArm = arm;
+                    if (!_visible || _retracting) _reason = "wrong_turn";
                     OnWrongTurn(arm);
                 }
                 else if (arm.fired && along < 0.5f)
@@ -576,6 +696,18 @@ namespace VRTutorial
         // ================================================================== line
         private void BuildLine(Vector2 foot, float floorY)
         {
+            if (_pathSource != null && _pathSource.TryGetPath(foot, floorY, _sourcePath) && _sourcePath.Count > 0)
+            {
+                _raw.Clear();
+                _raw.Add(foot);
+                foreach (Vector2 p in _sourcePath)
+                    if ((p - _raw[_raw.Count - 1]).sqrMagnitude > 0.01f) _raw.Add(p);
+                RoundCorners(_raw, _rounded);
+                Densify(_rounded, floorY);
+                BuildMesh();
+                return;
+            }
+
             float s = Project(foot, out float d);
 
             bool wasOnPath = IsOnPath;
@@ -694,6 +826,7 @@ namespace VRTutorial
             for (int i = 1; i < src.Count; i++) total += Vector2.Distance(src[i - 1], src[i]);
 
             float limit = Mathf.Min(total, _revealed);
+            if (maxDrawLength > 0f) limit = Mathf.Min(limit, maxDrawLength);
             float walked = 0f;
             AddPoint(src[0], -total, floorY);
 

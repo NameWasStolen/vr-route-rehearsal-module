@@ -135,6 +135,31 @@ namespace VRTutorial.EditorTools
                 Debug.Log("[FullRoute] Installed in " + RunSystemScenePath + ". Guided and Unguided both start at the bus stop.");
             }
 
+            /// <summary>
+            /// Refreshes only the RouteDefinition on the route already in RunSystem - the walking
+            /// line, nodes, branches and zones the run statistics read - without rebuilding the
+            /// meshes. Install Route in RunSystem does this too, as part of a full rebuild.
+            /// </summary>
+            [MenuItem("Tools/VR Full Route/Update Route Definition in RunSystem", false, 3)]
+            public static void UpdateRouteDefinitionInRunSystem()
+            {
+                if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+                var scene = EditorSceneManager.OpenScene(RunSystemScenePath, OpenSceneMode.Single);
+                GameObject root = null;
+                foreach (var go in scene.GetRootGameObjects())
+                    if (go.name == FRRoot) root = go;
+                if (root == null)
+                {
+                    EditorUtility.DisplayDialog("Update Route Definition",
+                        "No " + FRRoot + " in RunSystem. Run Install Route in RunSystem first.", "OK");
+                    return;
+                }
+                BakeRouteDefinition(root, new FullRoutePlan());
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+                Selection.activeGameObject = root;
+            }
+
             [MenuItem("Tools/VR Full Route/Options/Include Landmarks", false, 10)]
             public static void ToggleLandmarksFR()
             {
@@ -650,6 +675,7 @@ namespace VRTutorial.EditorTools
                 int meshes = b.Finish();
                 BuildTriggersFR(root.transform, plan);
                 BuildSpawnAndLightFR(root.transform, plan, forRunSystem);
+                BakeRouteDefinition(root, plan);
 
                 AssetDatabase.SaveAssets();
                 EditorSceneManager.MarkSceneDirty(root.scene);
@@ -2363,6 +2389,81 @@ namespace VRTutorial.EditorTools
             /// shopping centre forecourt, and WrongTurn_* just inside each side street. Wire
             /// TriggerController onto them once the run system for this scene is set up.
             /// </summary>
+            /// <summary>
+            /// Writes the route's layout into a RouteDefinition on the route root, in the root's
+            /// local space: the walking line (bus stop to forecourt along the footpath, over the
+            /// N10 zebra), the nodes, one branch per WrongTurn_ trigger, the decision zones and
+            /// the zebras. Everything comes from the same plan the meshes and triggers were built
+            /// from, so it always matches them.
+            /// </summary>
+            static void BakeRouteDefinition(GameObject root, FullRoutePlan plan)
+            {
+                var def = root.GetComponent<RouteDefinition>();
+                if (def == null) def = root.AddComponent<RouteDefinition>();
+
+                var line = new Vector3[plan.WalkingLine.Count];
+                for (int i = 0; i < line.Length; i++) line[i] = W(plan.WalkingLine[i], FullRouteLayout.FootSlabTop);
+
+                var n = FullRouteLayout.RouteNodes;
+                var decision = new HashSet<int>(FullRouteLayout.DecisionNodes);
+                var nodes = new RouteDefinition.Node[n.Length];
+                for (int i = 0; i < n.Length; i++)
+                    nodes[i] = new RouteDefinition.Node { name = "N" + i, position = W(n[i], FullRouteLayout.FootSlabTop), decision = decision.Contains(i) };
+
+                var branches = new RouteDefinition.Branch[plan.Branches.Count];
+                for (int i = 0; i < branches.Length; i++)
+                {
+                    var b = plan.Branches[i];
+                    branches[i] = new RouteDefinition.Branch
+                    {
+                        name = b.Name, node = "N" + b.Node, atDecision = decision.Contains(b.Node),
+                        mouth = W(b.Mouth, FullRouteLayout.RoadTop), into = W3(b.Into),
+                        trigger = W(b.Trigger, CheckpointH * 0.5f),
+                    };
+                }
+
+                var zones = new List<RouteDefinition.Zone>();
+                foreach (var cp in plan.Checkpoints)
+                    if (cp.Name.StartsWith("CP_Decision_"))
+                        zones.Add(new RouteDefinition.Zone
+                        {
+                            name = cp.Name, centre = W(cp.Box.C, CheckpointH * 0.5f), forward = W3(cp.Box.U),
+                            size = new Vector3(cp.Box.HV * 2f, CheckpointH, cp.Box.HU * 2f),
+                        });
+
+                var zebras = new List<RouteDefinition.Zone>();
+                foreach (var z in plan.Zebras)
+                {
+                    var st = plan.Streets[z.Street];
+                    zebras.Add(new RouteDefinition.Zone
+                    {
+                        name = z.Name, centre = W(st.Point(z.S), FullRouteLayout.RoadTop),
+                        forward = W3(st.Dir(st.Seg(z.S))),
+                        size = new Vector3(FullRouteLayout.HalfCarriageway * 2f, 0.2f, FullRouteLayout.ZebraWidth),
+                    });
+                }
+
+                def.SetData(line, plan.WalkingStartS, plan.WalkingCrossS, plan.WalkingEndS, nodes, branches,
+                            zones.ToArray(), zebras.ToArray(),
+                            System.DateTime.Now.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture));
+
+                // Footpath network for the Guided line: both footpaths, joined only at zebras.
+                var footNodes = new Vector3[plan.FootNodes.Count];
+                for (int i = 0; i < footNodes.Length; i++) footNodes[i] = W(plan.FootNodes[i], FullRouteLayout.FootSlabTop);
+                var footLinks = new RouteDefinition.FootLink[plan.FootLinks.Count];
+                for (int i = 0; i < footLinks.Length; i++)
+                    footLinks[i] = new RouteDefinition.FootLink { a = plan.FootLinks[i].A, b = plan.FootLinks[i].B, kind = plan.FootLinks[i].Kind };
+                def.SetFootpathNetwork(footNodes, footLinks, plan.FootDestination);
+                EditorUtility.SetDirty(def);
+                Debug.Log(string.Format(
+                    "[FullRoute] Route definition baked: walking line {0} points, ideal walk {1:0} m from leaving the " +
+                    "bus stop to the end zone (zebra at {2:0} m), {3} nodes ({4} decision points), {5} branches, " +
+                    "{6} decision zones, {7} zebras, footpath network {8} points / {9} links.",
+                    line.Length, plan.WalkingEndS - plan.WalkingStartS, plan.WalkingCrossS - plan.WalkingStartS,
+                    nodes.Length, decision.Count, branches.Length, zones.Count, zebras.Count,
+                    footNodes.Length, footLinks.Length), def);
+            }
+
             static void BuildTriggersFR(Transform root, FullRoutePlan plan)
             {
                 var cps = NewGroup("Checkpoints", root);
