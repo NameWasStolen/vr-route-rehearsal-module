@@ -21,6 +21,9 @@ public class RunSystemController : MonoBehaviour
 	private bool isEndingRun;
 	private string runType = "run";
 	private float runStartTime;
+	private System.DateTime runStartedAt;
+	private string participantId = StudySession.Unset;
+	private int runIndex = 1;
 
 	private void OnEnable()
 	{
@@ -144,7 +147,13 @@ public class RunSystemController : MonoBehaviour
 		SessionLog.BeginSession();
 		if (xrOrigin.Camera != null)
 			SessionLog.SetPositionSource(xrOrigin.Camera.transform);
-		SessionLog.Record("run_loaded", runType);
+		// Who and which run, for the CSVs. Set with Tools > VR Study > Participant ID.
+		participantId = StudySession.ParticipantId;
+		runIndex = StudySession.NextRunIndex(participantId);
+		if (!StudySession.HasParticipant)
+			Debug.LogWarning("No participant ID is set, so this run is saved as 'unset'. Set one with " +
+			                 "Tools > VR Study > Participant ID before the next run.", this);
+		SessionLog.Record("run_loaded", $"{runType}, participant {participantId}, run {runIndex}");
 
 		XRPlayerTeleport.MoveToStandingPoint(
 			xrOrigin,
@@ -172,9 +181,12 @@ public class RunSystemController : MonoBehaviour
 			RunSettingsSnapshot.Capture(settingsController);
 
 		SessionLog.Record("run_started", runType);
+		runStartedAt = System.DateTime.Now;
 
-		positionTracker.StartTracking(xrOrigin.Camera.transform, settings, runType);
+		// Route first, so the very first sample already has its route columns.
 		routeTracker?.Begin(xrOrigin.Camera.transform);
+		WarnAboutUnknownDecisionZones();
+		positionTracker.StartTracking(xrOrigin.Camera.transform, settings, runType, participantId, runIndex);
 	}
 
 	private void Update()
@@ -231,11 +243,34 @@ public class RunSystemController : MonoBehaviour
 		positionTracker?.RecordError();
 	}
 
+	/// <summary>
+	/// The summary has columns for the six decision points only (fixed, so the file layout never
+	/// changes). Says so if the baked route has a decision zone the summary does not know.
+	/// </summary>
+	private void WarnAboutUnknownDecisionZones()
+	{
+		if (routeTracker == null || routeTracker.Route == null)
+			return;
+		foreach (RouteDefinition.Zone z in routeTracker.Route.DecisionZones)
+		{
+			string node = z.name.Replace("CP_Decision_", "");
+			if (System.Array.IndexOf(RunSummaryWriter.DecisionNodes, node) < 0)
+				Debug.LogWarning($"Decision zone {z.name} has no columns in run_summaries.csv; its time and " +
+				                 "head scan are only in the session log.", this);
+		}
+	}
+
 	private IEnumerator ReturnToMainMenu(float elapsedTime, bool completed)
 	{
 		isEndingRun = true;
 		routeTracker?.End(completed, elapsedTime);
-		positionTracker?.StopTracking(completed);
+
+		// Per-sample CSV, then this run's row in run_summaries.csv. Nothing is written for a run
+		// that never started (left from the pause menu before leaving the bus stop).
+		bool wasTracking = positionTracker != null && positionTracker.IsTracking;
+		string sampleFile = positionTracker?.StopTracking(completed);
+		if (wasTracking)
+			RunSummaryWriter.Write(positionTracker, routeTracker, runStartedAt, completed, elapsedTime, sampleFile);
 		Debug.Log($"Returning to main menu after a {elapsedTime:F2} second run.");
 
 		MenuController menuController =

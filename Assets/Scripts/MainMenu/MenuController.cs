@@ -23,6 +23,9 @@ public class MenuController : MonoBehaviour
     private void Start()
     {
         TeleportPlayerToMenu();
+
+        // Researcher-only participant ID screen: hold both thumbsticks in for 3 s on this menu.
+        ResearcherScreen.Attach(mainMenuRoot);
     }
 
     public void onRunSystemButtonClick()

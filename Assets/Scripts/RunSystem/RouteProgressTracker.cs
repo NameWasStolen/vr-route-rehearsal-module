@@ -23,7 +23,7 @@ using UnityEngine;
 ///     the trigger, so hovering at the mouth of the side street still counts as off route.
 ///
 /// Everything is written to the session log as it happens, and summarised at the end of the run
-/// (Console + a route_summary event). The run CSVs pick these values up in step 5.
+/// (Console + a route_summary event). RunSummaryWriter puts the same values in run_summaries.csv.
 /// </summary>
 [DisallowMultipleComponent]
 public class RouteProgressTracker : MonoBehaviour
@@ -308,8 +308,10 @@ public class RouteProgressTracker : MonoBehaviour
                 crossingTouchedZebra = true;
                 crossingZebra = zone;
             }
-            else if (zone == null && !crossingTouchedZebra)
+            else if (!crossingTouchedZebra)
             {
+                // Also inside a decision zone: the N10 route zebra lies within CP_Decision_N10,
+                // and ZoneAt reports the decision zone first.
                 string zebra = Route.ZebraAt(head.position, 0.5f);
                 if (zebra != null) { crossingTouchedZebra = true; crossingZebra = zebra; }
             }
