@@ -11,8 +11,13 @@ namespace VRTutorial.EditorTools
     /// <summary>
     /// Tools > VR Full Route > Set Up Module Buttons
     ///
-    /// Turns the main menu's "Select Module" page (MainMenuScreen prefab, RunModeSelection) into
-    /// the Map plus the intervention's four modules, in session order (decided with Kade):
+    /// Lays out the main menu's "Select Module" page (MainMenuScreen prefab, RunModeSelection):
+    /// the Map and the intervention's four modules, in session order (decided with Kade).
+    ///
+    ///   [Back]         Select Module
+    ///   [               Map               ]
+    ///   [ 1  Unguided   ] [ 2  Guided      ]
+    ///   [ 3  Unguided 2.a] [ 4  Unguided 2.b]
     ///
     ///   Map               -> MenuController.onMapButtonClick        (tabletop route model, 60 s)
     ///   1  Unguided       -> MenuController.onUnguidedButtonClick   (run type unguided_1)
@@ -20,18 +25,21 @@ namespace VRTutorial.EditorTools
     ///   3  Unguided 2.a   -> MenuController.onUnguided2aButtonClick (run type unguided_2a)
     ///   4  Unguided 2.b   -> MenuController.onUnguided2bButtonClick (run type unguided_2b)
     ///
-    /// The Map is the fifth button (2 Oct 2026). It takes over the old hidden ModuleButton5 if
-    /// the prefab has one, and moves to the top, because it is seen before the first unguided
-    /// run. It is unnumbered: it is not a module and records no run.
+    /// Layout v2 (2 Oct 2026). The first layout was one column of five 42-unit buttons that
+    /// reached the bottom edge of the 600 x 400 menu. The menu magnifies as a whole with the text
+    /// size (ScalableUIRoot, up to 1.6x about its centre), so at the largest size the bottom
+    /// button went into the floor (Kade). Now:
+    ///   - the four modules sit in a 2 x 2 grid under a full-width Map button. They read left to
+    ///     right, top to bottom, in session order. The lowest button ends 107 units below the
+    ///     centre instead of 198;
+    ///   - the buttons are bigger targets (64 tall), with larger, centred labels sized to fit;
+    ///   - the "Select Module" title sits on one line beside Back. Before, it wrapped onto two
+    ///     lines in its 200-wide box and crowded the top button;
+    ///   - the menu's ScalableUIRoot is told to keep the whole panel above the floor (see
+    ///     ScalableUIRoot.keepAboveFloor), so no page can be magnified into it.
     ///
-    /// The existing UnguidedButton and GuidedButton are reused (renamed, relabelled, moved); the
-    /// others are copies of UnguidedButton, so they look and behave the same. The column sits
-    /// under the "Select Module" title, centred like the old buttons, 42 units tall on a 48 pitch
-    /// so all five fit on the 600 x 400 menu. They are only as wide as the longest label plus
-    /// PaddingX either side, and every label starts at that padding, so the names line up.
-    /// Title and Back are not touched.
-    ///
-    /// Needs Tools > VR Full Route > Build Route Map Scene for the Map to have a scene to load.
+    /// The existing buttons are reused (renamed, relabelled, moved). Missing ones are copies of
+    /// the first module button, so all look the same. Back is not touched.
     ///
     /// Safe to re-run: it finds the buttons by name and only updates them.
     /// </summary>
@@ -41,30 +49,40 @@ namespace VRTutorial.EditorTools
         private const string SectionName = "RunModeSelection";
 
         // Canvas units, relative to the menu canvas centre (the canvas is 600 x 400).
-        private static readonly float[] SlotY = { 15f, -33f, -81f, -129f, -177f };
-        private const float ButtonHeight = 42f;
+        private const float ButtonHeight = 64f;
+        private const float WideWidth = 520f;          // Map
+        private const float CellWidth = 255f;          // each module button
+        private const float ColumnX = 132.5f;          // module columns at -132.5 / +132.5 (10 apart)
+        private const float MapY = 85f, Row1Y = 5f, Row2Y = -75f;
 
-        // Buttons are only as wide as the longest label needs, plus this much space either side
-        // (canvas units). Labels are left-aligned at the same padding, so the numbers and the
-        // names after them line up in a column.
-        private const float PaddingX = 32f;
-        private const float MinButtonWidth = 200f;
+        // Labels: centred, as large as fits every button at once (same size on all five).
+        private const float LabelMaxSize = 30f, LabelMinSize = 22f, LabelPadX = 16f;
+
+        // Title beside Back (Back spans x -280..-130 at y 161).
+        private static readonly Vector2 TitlePos = new Vector2(75f, 161f);
+        private static readonly Vector2 TitleSize = new Vector2(390f, 56f);
+        private const float TitleMaxSize = 52f, TitleMinSize = 36f;
+
+        // Floor clearance for the whole menu, given to its ScalableUIRoot (world metres).
+        private const float FloorY = 0f, FloorClearance = 0.2f;
 
         private struct Slot
         {
             public string Name;      // GameObject name
             public string OldName;   // existing button to reuse, if any
             public string Label;
-            public string Method;    // MenuController method, or null
+            public string Method;    // MenuController method
+            public Vector2 Pos;      // canvas units
+            public float Width;
         }
 
         private static readonly Slot[] Slots =
         {
-            new Slot { Name = "ModuleButton0_Map",        OldName = "ModuleButton5",  Label = "Map",             Method = "onMapButtonClick" },
-            new Slot { Name = "ModuleButton1_Unguided",   OldName = "UnguidedButton", Label = "1  Unguided",     Method = "onUnguidedButtonClick" },
-            new Slot { Name = "ModuleButton2_Guided",     OldName = "GuidedButton",   Label = "2  Guided",       Method = "onGuidedButtonClick" },
-            new Slot { Name = "ModuleButton3_Unguided2a", OldName = null,             Label = "3  Unguided 2.a", Method = "onUnguided2aButtonClick" },
-            new Slot { Name = "ModuleButton4_Unguided2b", OldName = null,             Label = "4  Unguided 2.b", Method = "onUnguided2bButtonClick" },
+            new Slot { Name = "ModuleButton0_Map",        OldName = "ModuleButton5",  Label = "Map",             Method = "onMapButtonClick",        Pos = new Vector2(0f, MapY),         Width = WideWidth },
+            new Slot { Name = "ModuleButton1_Unguided",   OldName = "UnguidedButton", Label = "1  Unguided",     Method = "onUnguidedButtonClick",   Pos = new Vector2(-ColumnX, Row1Y),  Width = CellWidth },
+            new Slot { Name = "ModuleButton2_Guided",     OldName = "GuidedButton",   Label = "2  Guided",       Method = "onGuidedButtonClick",     Pos = new Vector2(ColumnX, Row1Y),   Width = CellWidth },
+            new Slot { Name = "ModuleButton3_Unguided2a", OldName = null,             Label = "3  Unguided 2.a", Method = "onUnguided2aButtonClick", Pos = new Vector2(-ColumnX, Row2Y),  Width = CellWidth },
+            new Slot { Name = "ModuleButton4_Unguided2b", OldName = null,             Label = "4  Unguided 2.b", Method = "onUnguided2bButtonClick", Pos = new Vector2(ColumnX, Row2Y),   Width = CellWidth },
         };
 
         [MenuItem("Tools/VR Full Route/Set Up Module Buttons", false, 40)]
@@ -105,12 +123,10 @@ namespace VRTutorial.EditorTools
 
             RectTransform canvasRect = root.GetComponent<RectTransform>();
 
-            // Template for the new buttons: the old unguided button (or whichever slot exists).
             Transform template = Child(section, "UnguidedButton") ?? Child(section, "ModuleButton1_Unguided")
                                  ?? Child(section, "GuidedButton") ?? Child(section, "ModuleButton2_Guided");
             if (template == null) { report = "No existing module button to copy in RunModeSelection."; return false; }
 
-            // Keep the five together in the hierarchy, in order, where the old buttons were.
             int baseIndex = template.GetSiblingIndex();
             foreach (Slot s0 in Slots)
             {
@@ -119,74 +135,145 @@ namespace VRTutorial.EditorTools
             }
 
             var done = new List<string>();
-            var rects = new List<RectTransform>();
-            float widest = 0f;
+            var labels = new List<TMP_Text>();
             for (int i = 0; i < Slots.Length; i++)
             {
                 Slot slot = Slots[i];
                 Transform t = Child(section, slot.Name);
                 if (t == null && slot.OldName != null) t = Child(section, slot.OldName);
-                if (t == null)
-                {
-                    t = Object.Instantiate(template.gameObject, section).transform;
-                }
+                if (t == null) t = Object.Instantiate(template.gameObject, section).transform;
                 t.name = slot.Name;
                 t.SetSiblingIndex(baseIndex + i);
+                t.gameObject.SetActive(true);
 
-                // Position: the column under the title, centred on the canvas like the old buttons.
                 var rt = (RectTransform)t;
-                Vector3 world = canvasRect.TransformPoint(new Vector3(0f, SlotY[i], 0f));
-                Vector3 local = section.InverseTransformPoint(world);
-                rt.localPosition = new Vector3(local.x, local.y, rt.localPosition.z);
-                rects.Add(rt);
+                Place(rt, canvasRect, section, slot.Pos);
+                rt.sizeDelta = new Vector2(slot.Width, ButtonHeight);
 
-                // Label.
                 foreach (TMP_Text label in t.GetComponentsInChildren<TMP_Text>(true))
                 {
                     label.text = slot.Label;
                     label.name = slot.Name + "_Text";
-
-                    // Fill the button, then start every label at the same distance from its left edge.
                     RectTransform lr = label.rectTransform;
                     lr.anchorMin = Vector2.zero;
                     lr.anchorMax = Vector2.one;
                     lr.offsetMin = Vector2.zero;
                     lr.offsetMax = Vector2.zero;
-                    label.horizontalAlignment = HorizontalAlignmentOptions.Left;
+                    label.horizontalAlignment = HorizontalAlignmentOptions.Center;
                     label.verticalAlignment = VerticalAlignmentOptions.Middle;
-                    label.margin = new Vector4(PaddingX, 0f, 0f, 0f);
-                    widest = Mathf.Max(widest, label.GetPreferredValues(label.text).x);
-                    EditorUtility.SetDirty(label);
+                    label.margin = new Vector4(LabelPadX, 0f, LabelPadX, 0f);
+                    label.textWrappingMode = TextWrappingModes.NoWrap;
+                    label.enableAutoSizing = false;    // measured below at a fixed size
+                    label.overflowMode = TextOverflowModes.Overflow;
+                    labels.Add(label);
                     break;
                 }
 
-                // Click.
                 var button = t.GetComponent<Button>();
                 if (button != null)
                 {
                     for (int k = button.onClick.GetPersistentEventCount() - 1; k >= 0; k--)
                         UnityEventTools.RemovePersistentListener(button.onClick, k);
-                    if (slot.Method != null)
-                    {
-                        var action = (UnityAction)System.Delegate.CreateDelegate(typeof(UnityAction), menu, slot.Method);
-                        UnityEventTools.AddPersistentListener(button.onClick, action);
-                    }
+                    var action = (UnityAction)System.Delegate.CreateDelegate(typeof(UnityAction), menu, slot.Method);
+                    UnityEventTools.AddPersistentListener(button.onClick, action);
                     EditorUtility.SetDirty(button);
                 }
-
-                // Every slot is in use now; a slot without a method would wait, switched off.
-                t.gameObject.SetActive(slot.Method != null);
-                done.Add($"{slot.Label.Replace("  ", " ")}{(slot.Method != null ? " -> " + slot.Method : " (hidden)")}");
+                done.Add($"{slot.Label.Replace("  ", " ")} -> {slot.Method}");
             }
 
-            // One width for all five, from the longest label, so they still form a neat column.
-            float width = Mathf.Max(MinButtonWidth, Mathf.Ceil(widest + 2f * PaddingX));
-            foreach (RectTransform r in rects) r.sizeDelta = new Vector2(width, ButtonHeight);
-            done.Add($"buttons {width:0} x {ButtonHeight:0} (longest label {widest:0})");
+            // One label size for all five: the largest that fits the narrowest button's longest label.
+            float size = LabelMaxSize;
+            for (; size > LabelMinSize; size -= 1f)
+            {
+                bool fits = true;
+                for (int i = 0; i < labels.Count && fits; i++)
+                {
+                    labels[i].fontSize = size;
+                    float room = Slots[i].Width - 2f * LabelPadX;
+                    fits = labels[i].GetPreferredValues(labels[i].text).x <= room;
+                }
+                if (fits) break;
+            }
+            foreach (TMP_Text l in labels)
+            {
+                l.fontSize = size;
+                l.enableAutoSizing = true;          // a safety net if a label ever outgrows its button
+                l.fontSizeMin = LabelMinSize - 4f;
+                l.fontSizeMax = size;
+                EditorUtility.SetDirty(l);
+            }
+            done.Add($"labels {size:0} pt");
+
+            // Title: one line, beside Back.
+            Transform titleT = Child(section, "SelectionTitle");
+            if (titleT != null)
+            {
+                var title = titleT.GetComponent<TMP_Text>();
+                var tr = (RectTransform)titleT;
+                Place(tr, canvasRect, section, TitlePos);
+                tr.sizeDelta = TitleSize;
+                if (title != null)
+                {
+                    // The title carried a right margin of about -364 units from earlier editing,
+                    // which stretched its text area far past the right edge of its box, so the
+                    // "centred" title sat off the edge of the menu (Kade's screenshot, 2 Oct 2026).
+                    title.margin = Vector4.zero;
+                    title.textWrappingMode = TextWrappingModes.NoWrap;
+                    title.overflowMode = TextOverflowModes.Overflow;
+                    title.horizontalAlignment = HorizontalAlignmentOptions.Center;
+                    title.verticalAlignment = VerticalAlignmentOptions.Middle;
+                    float ts = TitleMaxSize;
+                    title.fontSize = ts;
+                    while (ts > TitleMinSize && title.GetPreferredValues(title.text).x > TitleSize.x)
+                        title.fontSize = (ts -= 1f);
+                    // And let TMP shrink it at runtime too, in case the measurement here was off.
+                    title.enableAutoSizing = true;
+                    title.fontSizeMin = TitleMinSize;
+                    title.fontSizeMax = ts;
+                    EditorUtility.SetDirty(title);
+                    done.Add($"title {ts:0} pt");
+                }
+            }
+
+            // Keep the whole menu above the floor when it is magnified.
+            var scaler = root.GetComponent<ScalableUIRoot>();
+            if (scaler != null)
+            {
+                var so = new SerializedObject(scaler);
+                SetBool(so, "keepAboveFloor", true);
+                SetFloat(so, "floorY", FloorY);
+                SetFloat(so, "floorClearance", FloorClearance);
+                so.ApplyModifiedPropertiesWithoutUndo();
+                done.Add("menu kept above the floor");
+            }
+            else
+            {
+                done.Add("no ScalableUIRoot on the menu root, so it is not kept above the floor");
+            }
 
             report = "Module buttons set up in MainMenuScreen: " + string.Join("; ", done) +
-                     ". Check the Select Module page in the prefab or at runtime.";
+                     ". Check the Select Module page in the prefab or at runtime, at the largest text size too.";
             return true;
+        }
+
+        /// <summary>Puts a child of the section at a point given in canvas units from the canvas centre.</summary>
+        private static void Place(RectTransform rt, RectTransform canvasRect, Transform section, Vector2 canvasPos)
+        {
+            Vector3 world = canvasRect.TransformPoint(new Vector3(canvasPos.x, canvasPos.y, 0f));
+            Vector3 local = section.InverseTransformPoint(world);
+            rt.localPosition = new Vector3(local.x, local.y, rt.localPosition.z);
+        }
+
+        private static void SetBool(SerializedObject so, string name, bool value)
+        {
+            var p = so.FindProperty(name);
+            if (p != null) p.boolValue = value;
+        }
+
+        private static void SetFloat(SerializedObject so, string name, float value)
+        {
+            var p = so.FindProperty(name);
+            if (p != null) p.floatValue = value;
         }
 
         private static Transform Child(Transform parent, string name)

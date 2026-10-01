@@ -88,12 +88,14 @@ public class RouteMapView : MonoBehaviour
 
     [Header("Time ring")]
     [Tooltip("Full grey circle under the ring.")]
-    [SerializeField] private LineRenderer ringTrack;
+    [SerializeField] private MeshFilter ringTrack;
 
     [Tooltip("Blue arc that empties over the visit.")]
-    [SerializeField] private LineRenderer ringFill;
+    [SerializeField] private MeshFilter ringFill;
 
     [SerializeField] private float ringRadius = 0.03f;
+    [Tooltip("Width of the ring band, metres.")]
+    [SerializeField] private float ringWidth = 0.008f;
     [SerializeField] private int ringSegments = 64;
 
     public bool IsRunning { get; private set; }
@@ -108,7 +110,7 @@ public class RouteMapView : MonoBehaviour
     // ------------------------------------------------------------------ editor setup
     /// <summary>Called by the editor tool that generates RouteMap.unity.</summary>
     public void SetUp(Transform standing, Transform rig, Transform floorDisc, Transform modelRoot,
-                      Vector3[] points, Transform figure, LineRenderer track, LineRenderer fill, float radius)
+                      Vector3[] points, Transform figure, MeshFilter track, MeshFilter fill, float radius)
     {
         standingPoint = standing;
         tableRig = rig;
@@ -265,27 +267,58 @@ public class RouteMapView : MonoBehaviour
             ControllerHandednessManager.Instance.ResumeLocomotion(this);
     }
 
-    private void DrawRing(LineRenderer line, float fraction)
+    /// <summary>
+    /// Draws the ring as a flat band in its own transform's XZ plane (the board surface), from
+    /// 12 o'clock - the far side as the participant sees it - clockwise for 'fraction' of a
+    /// turn. A mesh rather than a LineRenderer: the LineRenderer version stood partly upright
+    /// and half of it disappeared into the table (Kade's screenshot, 2 Oct 2026).
+    /// </summary>
+    private void DrawRing(MeshFilter filter, float fraction)
     {
-        if (line == null) return;
+        if (filter == null) return;
+        var renderer = filter.GetComponent<MeshRenderer>();
         fraction = Mathf.Clamp01(fraction);
         if (fraction <= 0.001f)
         {
-            line.enabled = false;
+            if (renderer != null) renderer.enabled = false;
             return;
         }
-        line.enabled = true;
+        if (renderer != null) renderer.enabled = true;
 
-        int count = Mathf.Max(2, Mathf.CeilToInt(ringSegments * fraction) + 1);
-        float sweep = fraction * Mathf.PI * 2f;
-        line.positionCount = count;
-        for (int i = 0; i < count; i++)
+        Mesh mesh = filter.sharedMesh;
+        if (mesh == null || mesh.name != "TimeRing")
         {
-            // Starts at the far side of the ring (12 o'clock as the participant sees it) and
-            // runs clockwise; as time passes the arc shortens back toward 12 o'clock.
-            float a = sweep * i / (count - 1);
-            line.SetPosition(i, new Vector3(Mathf.Sin(a), -Mathf.Cos(a), 0f) * ringRadius);
+            mesh = new Mesh { name = "TimeRing" };
+            mesh.MarkDynamic();
+            filter.sharedMesh = mesh;
         }
+
+        int steps = Mathf.Max(1, Mathf.CeilToInt(ringSegments * fraction));
+        float sweep = fraction * Mathf.PI * 2f;
+        float r0 = ringRadius - ringWidth * 0.5f, r1 = ringRadius + ringWidth * 0.5f;
+        var verts = new Vector3[(steps + 1) * 2];
+        var normals = new Vector3[verts.Length];
+        var tris = new int[steps * 6];
+        for (int i = 0; i <= steps; i++)
+        {
+            float a = sweep * i / steps;
+            var d = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
+            verts[i * 2] = d * r0;
+            verts[i * 2 + 1] = d * r1;
+            normals[i * 2] = normals[i * 2 + 1] = Vector3.up;
+        }
+        for (int i = 0; i < steps; i++)
+        {
+            int a0 = i * 2, b0 = a0 + 1, a1 = a0 + 2, b1 = a0 + 3;
+            // Clockwise seen from above, so the faces point up.
+            tris[i * 6 + 0] = a0; tris[i * 6 + 1] = b0; tris[i * 6 + 2] = a1;
+            tris[i * 6 + 3] = b0; tris[i * 6 + 4] = b1; tris[i * 6 + 5] = a1;
+        }
+        mesh.Clear();
+        mesh.vertices = verts;
+        mesh.normals = normals;
+        mesh.triangles = tris;
+        mesh.RecalculateBounds();
     }
 
     // ------------------------------------------------------------------ walking figure

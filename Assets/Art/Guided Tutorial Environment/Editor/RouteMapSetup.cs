@@ -626,10 +626,11 @@ namespace VRTutorial.EditorTools
             // Time ring on the front lip, right-hand side.
             var ring = new GameObject("TimeRing").transform;
             ring.SetParent(board, false);
-            ring.localPosition = new Vector3(boardW * 0.5f - 0.055f, 0.0015f, FrontLip * 0.5f);
-            ring.localRotation = Quaternion.Euler(-90f, 0f, 0f);   // its Z is the board's up
-            LineRenderer track = RingLine(ring, "Track", mats.RingTrack, 0f);
-            LineRenderer fill = RingLine(ring, "Fill", mats.Line, 0.0007f);
+            // Flat on the board, a few millimetres proud of it; the fill sits just above the track.
+            ring.localPosition = new Vector3(boardW * 0.5f - 0.055f, 0.003f, FrontLip * 0.5f);
+            ring.localRotation = Quaternion.identity;
+            MeshFilter track = RingMesh(ring, "Track", mats.RingTrack, 0f);
+            MeshFilter fill = RingMesh(ring, "Fill", mats.Line, 0.0015f);
 
             view.SetUp(standing, rig, floor, model, routePoints, walker, track, fill, RingRadius);
 
@@ -751,21 +752,17 @@ namespace VRTutorial.EditorTools
             return w;
         }
 
-        static LineRenderer RingLine(Transform ring, string name, Material mat, float raise)
+        static MeshFilter RingMesh(Transform ring, string name, Material mat, float raise)
         {
             var go = new GameObject(name);
             go.transform.SetParent(ring, false);
-            go.transform.localPosition = new Vector3(0f, 0f, raise);
-            var lr = go.AddComponent<LineRenderer>();
-            lr.useWorldSpace = false;
-            lr.alignment = LineAlignment.TransformZ;
-            lr.widthMultiplier = 0.007f;
-            lr.numCapVertices = 4;
-            lr.numCornerVertices = 2;
-            lr.shadowCastingMode = ShadowCastingMode.Off;
-            lr.receiveShadows = false;
-            lr.sharedMaterial = mat;
-            return lr;
+            go.transform.localPosition = new Vector3(0f, raise, 0f);
+            var mf = go.AddComponent<MeshFilter>();
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = mat;
+            mr.shadowCastingMode = ShadowCastingMode.Off;
+            mr.receiveShadows = false;
+            return mf;
         }
 
         /// <summary>
