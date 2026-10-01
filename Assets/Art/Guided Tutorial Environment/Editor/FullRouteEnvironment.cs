@@ -683,13 +683,14 @@ namespace VRTutorial.EditorTools
 
                 Debug.Log(string.Format(
                     "[FullRoute] Built in {0:0.0} s: {1} meshes, {2} houses, {3} street lights, {4} landmark lamps, " +
-                    "{5} cul-de-sac dead ends, {6} planter closures, {7} zebra crossings, {8} kerb ramps. " +
+                    "{5} cul-de-sac dead ends, {12} T-intersection ends, {13} L-corner ends, {6} planter closures, " +
+                    "{7} zebra crossings, {8} kerb ramps. " +
                     "Route bus stop -> shopping centre is {9:0} m, about {10:0.0} min at 1.5 m/s. Landmarks {11}. " +
                     "Bake lighting for the intended look.",
                     sw.Elapsed.TotalSeconds, meshes, plan.Houses.Count, plan.Lamps.Count, plan.LandmarkLamps.Count,
                     plan.Courts.Count, plan.Closures.Count, plan.Zebras.Count, plan.Openings.Count,
                     FullRouteLayout.RouteLength, FullRouteLayout.RouteLength / 1.5f / 60f,
-                    landmarks ? "INCLUDED" : "OMITTED"));
+                    landmarks ? "INCLUDED" : "OMITTED", plan.TeeEnds.Count, plan.ElbowEnds.Count));
                 foreach (var w in plan.Warnings) Debug.LogWarning("[FullRoute] " + w);
                 return root;
             }
@@ -900,14 +901,17 @@ namespace VRTutorial.EditorTools
                             Ring(b.Get(G, "Kerb", m.Kerb, at, 1f), c, r.R0, r.R1, r.A0, r.A1, FullRouteLayout.KerbTop, 0.20f);
                             break;
                         case BandKind.Footpath:
-                            Ring(b.Get(G, "FootpathBody", m.Kerb, at, 1.2f, true, SurfPaving), c, r.R0, r.R1, r.A0, r.A1, FullRouteLayout.FootBodyTop, 0.10f);
+                            // A few millimetres below the street footpaths, which run on into the
+                            // ring at each entry: where they overlap, the street's slabs show.
+                            const float drop = FullRouteLayout.CourtFootDrop;
+                            Ring(b.Get(G, "FootpathBody", m.Kerb, at, 1.2f, true, SurfPaving), c, r.R0, r.R1, r.A0, r.A1, FullRouteLayout.FootBodyTop - drop, 0.10f);
                             float mid = (r.R0 + r.R1) * 0.5f;
                             float step = pitch / mid, gapA = joint / mid;
                             for (float a = r.A0; a < r.A1 - 0.01f; a += step)
                             {
                                 int v = rng.Next(0, m.Stone.Length);
                                 Ring(b.Get(G, "FootpathSlabs_" + v, m.Stone[v], at, 1.2f), c, r.R0 + joint, r.R1 - joint,
-                                     a + gapA * 0.5f, Mathf.Min(a + step, r.A1) - gapA * 0.5f, FullRouteLayout.FootSlabTop, 0.012f);
+                                     a + gapA * 0.5f, Mathf.Min(a + step, r.A1) - gapA * 0.5f, FullRouteLayout.FootSlabTop - drop, 0.012f);
                             }
                             break;
                     }
