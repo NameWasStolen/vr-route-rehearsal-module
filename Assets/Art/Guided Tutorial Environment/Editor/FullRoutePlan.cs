@@ -1473,6 +1473,22 @@ namespace VRTutorial.EditorTools
                 s = next;
             }
             if (inside && st.Length - start >= minLen) result.Add(new Vector2(start, st.Length));
+
+            // A run can break for a sliver at a bend of its own street: another street that
+            // starts at that node has a box whose end touches the corner (Corner6_S at N6 does
+            // this to the route's inside kerb). Rejoin the two pieces, so the band goes round the
+            // corner as one mitred piece rather than two that each overshoot the corner.
+            for (int i = result.Count - 1; i > 0; i--)
+            {
+                Vector2 a = result[i - 1], b = result[i];
+                if (b.x - a.y > 0.3f) continue;
+                bool joint = false;
+                for (int j = 1; j < st.Pts.Length - 1; j++)
+                    if (st.Cum[j] >= a.y - 0.01f && st.Cum[j] <= b.x + 0.01f) joint = true;
+                if (!joint) continue;
+                result[i - 1] = new Vector2(a.x, b.y);
+                result.RemoveAt(i);
+            }
             return result;
         }
 
@@ -1491,9 +1507,14 @@ namespace VRTutorial.EditorTools
                     Bands.Add(new Band(k, 0f, st.Length, side * FullRouteLayout.KerbEdge, side * FullRouteLayout.FootInner, BandKind.Nature));
 
                     // Footpath: stops at every other street's kerb line, and runs into its own
-                    // court's footpath ring rather than across the turning circle.
+                    // court's footpath ring rather than across the turning circle. It runs straight
+                    // through the street's own bends as one mitred band (Edge mitres every joint),
+                    // so on the inside of a bend the two legs meet exactly at the mitre. It used to
+                    // be cut where its centreline entered the next leg's carriageway, which left each
+                    // leg's footpath running past the other across the nature strip to the kerb, with
+                    // a grass wedge between (Kade's screenshot of HouseCross_SW, 1 Oct 2026).
                     foreach (var r in Runs(st, side * FullRouteLayout.FootCentre,
-                                           (s, p) => !InAnyCarriageway(p, k) && !st.InOwnOtherSegment(s, p, FullRouteLayout.KerbEdge)
+                                           (s, p) => !InAnyCarriageway(p, k)
                                                      && OwnCourtAlong(st, p) > FullRouteLayout.CourtJoinAlong))
                         Bands.Add(new Band(k, r.x, r.y, side * FullRouteLayout.FootInner, side * FullRouteLayout.FootOuter, BandKind.Footpath));
                 }
@@ -1512,7 +1533,6 @@ namespace VRTutorial.EditorTools
                 {
                     foreach (var r in Runs(st, side * (cw + FullRouteLayout.KerbWidth * 0.5f),
                                            (s, p) => !InAnyCarriageway(p, k, 0.02f) && !InOther(_footBand, k, p, 0.05f)
-                                                     && !st.InOwnOtherSegment(s, p, FullRouteLayout.KerbEdge)
                                                      && !InOpening(p, 0.02f)
                                                      && OwnCourtDist(st, p) > FullRouteLayout.CourtRadius + 0.1f))
                         Bands.Add(new Band(k, r.x, r.y, side * cw, side * FullRouteLayout.KerbEdge, BandKind.Kerb));
