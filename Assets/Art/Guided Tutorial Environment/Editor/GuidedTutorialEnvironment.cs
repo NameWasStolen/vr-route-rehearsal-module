@@ -2274,9 +2274,22 @@ namespace VRTutorial.EditorTools
         private static Mesh[] _blobs;
         private static Mesh[] _trunks;
 
+        // The cached meshes are plain in-memory meshes, not assets. Creating or opening a scene
+        // makes Unity clean up every unreferenced non-asset mesh ("Cleaning up leaked objects"),
+        // and once a build has merged them into its batches nothing references them. So a second
+        // build in the same Editor session - Build Route Map Scene, then Install Route in
+        // RunSystem, say - found the arrays still there but every mesh in them destroyed, and
+        // every shrub, tree canopy, trunk and lamp basket came out empty (2 Oct 2026). Both
+        // caches are now rebuilt whenever Unity has destroyed any of their meshes.
+        private static bool AnyDestroyed(Mesh[] meshes)
+        {
+            foreach (var m in meshes) if (m == null) return true;   // Unity's == sees destroyed objects as null
+            return false;
+        }
+
         private static Mesh BlobVariant(int i)
         {
-            if (_blobs == null)
+            if (_blobs == null || AnyDestroyed(_blobs))
             {
                 _blobs = new Mesh[BlobVariants];
                 for (int k = 0; k < BlobVariants; k++)
@@ -2287,7 +2300,7 @@ namespace VRTutorial.EditorTools
 
         private static Mesh TrunkVariant(int i)
         {
-            if (_trunks == null)
+            if (_trunks == null || AnyDestroyed(_trunks))
             {
                 _trunks = new Mesh[BlobVariants];
                 for (int k = 0; k < BlobVariants; k++)

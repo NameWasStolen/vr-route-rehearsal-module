@@ -12,24 +12,26 @@ namespace VRTutorial.EditorTools
     /// Tools > VR Full Route > Set Up Module Buttons
     ///
     /// Turns the main menu's "Select Module" page (MainMenuScreen prefab, RunModeSelection) into
-    /// the intervention's four modules, in order, plus a hidden fifth slot (decided with Kade):
+    /// the Map plus the intervention's four modules, in session order (decided with Kade):
     ///
+    ///   Map               -> MenuController.onMapButtonClick        (tabletop route model, 60 s)
     ///   1  Unguided       -> MenuController.onUnguidedButtonClick   (run type unguided_1)
     ///   2  Guided         -> MenuController.onGuidedButtonClick     (run type guided)
     ///   3  Unguided 2.a   -> MenuController.onUnguided2aButtonClick (run type unguided_2a)
     ///   4  Unguided 2.b   -> MenuController.onUnguided2bButtonClick (run type unguided_2b)
-    ///   5  (hidden)       -> ModuleButton5, laid out but switched off and not wired
+    ///
+    /// The Map is the fifth button (2 Oct 2026). It takes over the old hidden ModuleButton5 if
+    /// the prefab has one, and moves to the top, because it is seen before the first unguided
+    /// run. It is unnumbered: it is not a module and records no run.
     ///
     /// The existing UnguidedButton and GuidedButton are reused (renamed, relabelled, moved); the
-    /// other three are copies of UnguidedButton, so they look and behave the same. The column sits
+    /// others are copies of UnguidedButton, so they look and behave the same. The column sits
     /// under the "Select Module" title, centred like the old buttons, 42 units tall on a 48 pitch
     /// so all five fit on the 600 x 400 menu. They are only as wide as the longest label plus
-    /// PaddingX either side, and every label starts at that padding, so the numbers line up.
+    /// PaddingX either side, and every label starts at that padding, so the names line up.
     /// Title and Back are not touched.
     ///
-    /// To use the fifth slot later: select ModuleButton5 under RunModeSelection, tick it active,
-    /// change its label, and in its On Click pick MenuController.onModuleButtonClick with the new
-    /// run type typed into the box (or add a dedicated method to MenuController).
+    /// Needs Tools > VR Full Route > Build Route Map Scene for the Map to have a scene to load.
     ///
     /// Safe to re-run: it finds the buttons by name and only updates them.
     /// </summary>
@@ -58,11 +60,11 @@ namespace VRTutorial.EditorTools
 
         private static readonly Slot[] Slots =
         {
+            new Slot { Name = "ModuleButton0_Map",        OldName = "ModuleButton5",  Label = "Map",             Method = "onMapButtonClick" },
             new Slot { Name = "ModuleButton1_Unguided",   OldName = "UnguidedButton", Label = "1  Unguided",     Method = "onUnguidedButtonClick" },
             new Slot { Name = "ModuleButton2_Guided",     OldName = "GuidedButton",   Label = "2  Guided",       Method = "onGuidedButtonClick" },
             new Slot { Name = "ModuleButton3_Unguided2a", OldName = null,             Label = "3  Unguided 2.a", Method = "onUnguided2aButtonClick" },
             new Slot { Name = "ModuleButton4_Unguided2b", OldName = null,             Label = "4  Unguided 2.b", Method = "onUnguided2bButtonClick" },
-            new Slot { Name = "ModuleButton5",            OldName = null,             Label = "5  (not set up)", Method = null },
         };
 
         [MenuItem("Tools/VR Full Route/Set Up Module Buttons", false, 40)]
@@ -104,8 +106,8 @@ namespace VRTutorial.EditorTools
             RectTransform canvasRect = root.GetComponent<RectTransform>();
 
             // Template for the new buttons: the old unguided button (or whichever slot exists).
-            Transform template = Child(section, "UnguidedButton") ?? Child(section, Slots[0].Name)
-                                 ?? Child(section, "GuidedButton") ?? Child(section, Slots[1].Name);
+            Transform template = Child(section, "UnguidedButton") ?? Child(section, "ModuleButton1_Unguided")
+                                 ?? Child(section, "GuidedButton") ?? Child(section, "ModuleButton2_Guided");
             if (template == null) { report = "No existing module button to copy in RunModeSelection."; return false; }
 
             // Keep the five together in the hierarchy, in order, where the old buttons were.
@@ -172,7 +174,7 @@ namespace VRTutorial.EditorTools
                     EditorUtility.SetDirty(button);
                 }
 
-                // The fifth slot waits, switched off.
+                // Every slot is in use now; a slot without a method would wait, switched off.
                 t.gameObject.SetActive(slot.Method != null);
                 done.Add($"{slot.Label.Replace("  ", " ")}{(slot.Method != null ? " -> " + slot.Method : " (hidden)")}");
             }
