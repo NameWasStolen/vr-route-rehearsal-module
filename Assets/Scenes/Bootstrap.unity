@@ -157,21 +157,21 @@ MonoBehaviour:
   surfaces:
   - kind: 0
     clips:
-    - {fileID: 8300000, guid: da688256731d40e5ae2507e8c553e45f, type: 3}
-    - {fileID: 8300000, guid: 71a6b407ebc7410d8c9e344ae283f708, type: 3}
-    - {fileID: 8300000, guid: 86d9a8754842494dab3fc37fae151989, type: 3}
-    - {fileID: 8300000, guid: d77e4d376d9b436ca94f9bb525e3dcdf, type: 3}
-    volume: 0.7
+    - {fileID: 8300000, guid: 374eefbace0f7834693b8b82cfea52d1, type: 3}
+    - {fileID: 8300000, guid: 3d5ed313e97d2ac47a36b0e26422a20e, type: 3}
+    - {fileID: 8300000, guid: dcfdc291bd175134fb542fed0edc44eb, type: 3}
+    - {fileID: 8300000, guid: 1552364c39c458e4295d23ca7077fc85, type: 3}
+    volume: 0.2
     materialKeywords:
     - grass
     - lawn
   - kind: 1
     clips:
-    - {fileID: 8300000, guid: ccb8f5f994d6426fa0d637221db7389a, type: 3}
-    - {fileID: 8300000, guid: 0cef953701f94e04872ac24267976ade, type: 3}
-    - {fileID: 8300000, guid: 34cfa73b8a3e4350bb9513b63743b6eb, type: 3}
-    - {fileID: 8300000, guid: f1c3d3bbc1aa42779c82d38e2fd80798, type: 3}
-    volume: 0.4
+    - {fileID: 8300000, guid: cd4b07a852bb7384cbb5db3455e18321, type: 3}
+    - {fileID: 8300000, guid: 294532d323356f94dafb64b3b31db185, type: 3}
+    - {fileID: 8300000, guid: 4cd31ae23e69746419ccf58473ff14a4, type: 3}
+    - {fileID: 8300000, guid: 6eb798ea26d0b06448bc63c83aeadc5c, type: 3}
+    volume: 0.3
     materialKeywords:
     - stone
     - endzone
@@ -184,6 +184,7 @@ MonoBehaviour:
     m_Bits: 4294967295
   output: {fileID: 0}
   pitchJitter: 0.08
+  head: {fileID: 0}
 --- !u!82 &104742044
 AudioSource:
   m_ObjectHideFlags: 0
