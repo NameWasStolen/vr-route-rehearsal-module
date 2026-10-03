@@ -300,6 +300,11 @@ public class RunSystemController : MonoBehaviour
 		if (completed && survey != null && survey.AppliesTo(runType))
 			yield return survey.Run(runType, participantId, runIndex);
 
+		// Reached the end zone (and answered the survey, where there is one): this module is done
+		// for this participant, and is ticked off on the Select Module menu.
+		if (completed)
+			ModuleProgress.MarkCompleted(participantId, runType);
+
 		Debug.Log($"Returning to main menu after a {elapsedTime:F2} second run.");
 
 		MenuController menuController =

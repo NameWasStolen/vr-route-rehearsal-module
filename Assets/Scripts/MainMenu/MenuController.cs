@@ -35,6 +35,9 @@ public class MenuController : MonoBehaviour
 
         // Researcher-only participant ID screen: hold both thumbsticks in for 3 s on this menu.
         ResearcherScreen.Attach(mainMenuRoot);
+
+        // Ticks off the Select Module buttons this participant has completed.
+        ModuleCompletionView.Attach(mainMenuRoot);
     }
 
     public void onRunSystemButtonClick()
@@ -76,7 +79,7 @@ public class MenuController : MonoBehaviour
     /// </summary>
     public void onMapButtonClick()
     {
-        if (isLoadingRunSystem)
+        if (isLoadingRunSystem || AlreadyDone(ModuleProgress.MapModule))
             return;
         Debug.Log("Map button clicked");
         StartCoroutine(LoadRouteMap());
@@ -138,7 +141,7 @@ public class MenuController : MonoBehaviour
 
     private void StartModule(string runType)
     {
-        if (isLoadingRunSystem || string.IsNullOrWhiteSpace(runType))
+        if (isLoadingRunSystem || string.IsNullOrWhiteSpace(runType) || AlreadyDone(runType.Trim()))
             return;
         Debug.Log($"Module button clicked: {runType}");
         isLoadingRunSystem = true;
@@ -153,6 +156,19 @@ public class MenuController : MonoBehaviour
         Debug.LogWarning("[MenuController] No SceneTransitionController in Bootstrap (or one already " +
                          "running) - loading the module without a fade.", this);
         StartCoroutine(LoadRunSystem(runType.Trim()));
+    }
+
+    /// <summary>
+    /// A completed module's button is ticked and switched off (ModuleCompletionView); this is the
+    /// same check for anything else that calls these methods.
+    /// </summary>
+    private bool AlreadyDone(string module)
+    {
+        if (!ModuleProgress.IsCompleted(StudySession.ParticipantId, module))
+            return false;
+        Debug.Log($"'{module}' is already completed for {StudySession.ParticipantId}. To repeat it, reset " +
+                  "progress on the researcher screen (hold both thumbsticks for 3 s on the main menu).", this);
+        return true;
     }
 
     public void ShowMainMenu()
