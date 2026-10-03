@@ -201,6 +201,10 @@ namespace VRTutorial.EditorTools
                                 Tactile, SignCrossing, SignChildren, Globe, FlagOrange, PoleDark,
                                 CarGlass, CarTrim, CarRim, CarHeadlight, CarTaillight, CarIndicator, CarPlate, CarPlateText;
                 public Material[] CarPaint;
+                // Shopping centre: the supermarket's brand colour, its fascia sign and the
+                // window posters (Fruit, Veg, Bakery, Dairy, Specials).
+                public Material BrandGreen, SignSupermarket;
+                public Material[] Posters;
             }
 
             /// <summary>A tutorial material, loaded as-is. Created with the tutorial's own values
@@ -356,6 +360,18 @@ namespace VRTutorial.EditorTools
                 m.SignShopWide  = SignMat("M_FR_Sign_ShoppingWide", "T_FR_Sign_Shopping_Wide.png");
                 m.SignShopTall  = SignMat("M_FR_Sign_ShoppingTall", "T_FR_Sign_Shopping_Tall.png");
                 m.SignSchool    = SignMat("M_FR_Sign_School",       "T_FR_Sign_School.png");
+                // An invented supermarket brand ("FreshWay", green) - an Australian high-street
+                // feel without copying any real chain's name or logo.
+                m.BrandGreen      = FRMat("M_FR_BrandGreen", new Color(0.13f, 0.55f, 0.20f), 0.30f);
+                m.SignSupermarket = SignMat("M_FR_Sign_Supermarket", "T_FR_Sign_Supermarket.png");
+                m.Posters = new[]
+                {
+                    SignMat("M_FR_Poster_Fruit",    "T_FR_Poster_Fruit.png"),
+                    SignMat("M_FR_Poster_Veg",      "T_FR_Poster_Veg.png"),
+                    SignMat("M_FR_Poster_Bakery",   "T_FR_Poster_Bakery.png"),
+                    SignMat("M_FR_Poster_Dairy",    "T_FR_Poster_Dairy.png"),
+                    SignMat("M_FR_Poster_Specials", "T_FR_Poster_Specials.png"),
+                };
                 m.SignBus       = SignMat("M_FR_Sign_Bus",          "T_FR_Sign_Bus.png");
                 m.SignCrossing  = SignMat("M_FR_Sign_Crossing",     "T_FR_Sign_Crossing.png");
                 m.SignChildren  = SignMat("M_FR_Sign_ChildrenCrossing", "T_FR_Sign_ChildrenCrossing.png");
@@ -2232,14 +2248,52 @@ namespace VRTutorial.EditorTools
                     AddTree(b.GetGO("School", "SchoolTrunks", m.Bark, tp), b.GetGO("School", "SchoolCanopy", m.Foliage[1], tp), tp, 7.5f, 2.4f);
                 }
 
-                // The sign, just inside the front fence near the gate, facing the street.
-                Vector2 sp2 = frontEdge - front * 1.1f - along * (halfFront * 0.35f);
-                Vector3 sp = W(sp2, 0f);
-                var posts = b.GetGO("School", "SignPosts", m.SchoolFence, sp);
+                BuildSchoolSignWall(b, group, plan, m, facing, side, rot);
+            }
+
+            /// <summary>
+            /// The school sign on a brick feature wall standing in the front fence line, as at
+            /// most Australian primary schools. The plan breaks the fence for it
+            /// (FullRoutePlan.SchoolSignPos, SchoolSignHalfGap), so there are no bars in front of
+            /// the sign. The wall is a little wider than the gap and its end piers swallow the
+            /// fence ends. Sign 3.4 x 1.7 m, centred at 1.45 m - about eye height.
+            /// </summary>
+            static void BuildSchoolSignWall(Batcher b, Transform group, FullRoutePlan plan, Mats m,
+                                            Vector3 facing, Vector3 side, Quaternion rot)
+            {
+                const float WallH = 2.4f, WallD = 0.35f, PierW = 0.45f, PierExtra = 0.25f;
+                const float SignW = 3.4f, SignH = 1.7f, SignY = 1.45f;
+                float wallW = FullRoutePlan.SchoolSignHalfGap * 2f + 0.6f;
+
+                // On the fence line, which runs 0.05 m inside the school's boundary.
+                Vector3 c = W(plan.SchoolSignPos - plan.SchoolFrontDir * 0.05f, 0f);
+
+                var brick = b.GetGO("School", "SignWall", m.Brick, c);
+                AddPrimitive(brick, PrimitiveType.Cube, c + Vector3.up * (WallH * 0.5f), new Vector3(wallW, WallH, WallD), rot);
                 for (int s = -1; s <= 1; s += 2)
-                    AddPrimitive(posts, PrimitiveType.Cube, sp + side * (s * 1.25f) + Vector3.up * 1.0f, new Vector3(0.12f, 2.0f, 0.12f), rot);
-                AddPrimitive(posts, PrimitiveType.Cube, sp + Vector3.up * 1.35f - facing * 0.03f, new Vector3(2.7f, 1.4f, 0.05f), rot);
-                SignFace(group, "SchoolSign", m.SignSchool, sp + Vector3.up * 1.35f, facing, 2.6f, 1.3f, false);
+                    AddPrimitive(brick, PrimitiveType.Cube, c + side * (s * (wallW * 0.5f - PierW * 0.5f)) + Vector3.up * ((WallH + PierExtra) * 0.5f),
+                                 new Vector3(PierW, WallH + PierExtra, WallD + 0.1f), rot);
+
+                // Concrete coping along the top and on the piers.
+                var cap = b.GetGO("School", "SignWallCap", m.Planter, c);
+                AddPrimitive(cap, PrimitiveType.Cube, c + Vector3.up * (WallH + 0.04f), new Vector3(wallW - PierW * 2f, 0.08f, WallD + 0.08f), rot);
+                for (int s = -1; s <= 1; s += 2)
+                    AddPrimitive(cap, PrimitiveType.Cube, c + side * (s * (wallW * 0.5f - PierW * 0.5f)) + Vector3.up * (WallH + PierExtra + 0.04f),
+                                 new Vector3(PierW + 0.1f, 0.08f, WallD + 0.18f), rot);
+
+                // Dark green frame, then the sign itself, on the street face.
+                Vector3 face = c + facing * (WallD * 0.5f);
+                AddPrimitive(b.GetGO("School", "SignFrame", m.SchoolFence, c), PrimitiveType.Cube, face + facing * 0.015f + Vector3.up * SignY,
+                             new Vector3(SignW + 0.16f, SignH + 0.16f, 0.03f), rot);
+                SignFace(group, "SchoolSign", m.SignSchool, face + Vector3.up * SignY, facing, SignW, SignH, false);
+
+                // The wall is part of the boundary: it must stop the participant like the fence.
+                var col = new GameObject("SchoolSignWallCollider");
+                col.transform.SetParent(group, false);
+                col.transform.localPosition = c + Vector3.up * ((WallH + PierExtra) * 0.5f);
+                col.transform.localRotation = rot;
+                col.AddComponent<BoxCollider>().size = new Vector3(wallW, WallH + PierExtra, WallD + 0.1f);
+                col.isStatic = true;
             }
 
             static void SchoolBlock(Batcher b, Mats m, Vector3 centre, Vector3 facing, float w, float d, float h)
@@ -2299,7 +2353,9 @@ namespace VRTutorial.EditorTools
                 var dark = b.GetGO("Shopping", "ShopGlassDark", m.ShopGlassDark, c);
 
                 AddPrimitive(wall, PrimitiveType.Cube, c + Vector3.up * (H * 0.5f), new Vector3(halfWidth * 2f, H, halfDepth * 2f), rot);
-                AddPrimitive(accent, PrimitiveType.Cube, c + Vector3.up * (H + 0.35f), new Vector3(halfWidth * 2f + 0.3f, 0.7f, halfDepth * 2f + 0.3f), rot);
+                // Parapet band in the supermarket's brand green, all the way round.
+                AddPrimitive(b.GetGO("Shopping", "BrandBand", m.BrandGreen, c), PrimitiveType.Cube, c + Vector3.up * (H + 0.35f),
+                             new Vector3(halfWidth * 2f + 0.3f, 0.7f, halfDepth * 2f + 0.3f), rot);
                 Vector3 frontFace = c + facing * (halfDepth + 0.03f);
                 AddPrimitive(glass, PrimitiveType.Cube, frontFace + Vector3.up * 1.6f, new Vector3(halfWidth * 2f - 4f, 3.0f, 0.06f), rot);
                 AddPrimitive(dark, PrimitiveType.Cube, frontFace + facing * 0.02f + Vector3.up * 1.25f, new Vector3(4.2f, 2.5f, 0.06f), rot);
@@ -2308,8 +2364,25 @@ namespace VRTutorial.EditorTools
                     AddPrimitive(accent, PrimitiveType.Cube, frontFace + facing * 3.5f + side * (s * 6.5f) + Vector3.up * 1.7f,
                                  new Vector3(0.22f, 3.4f, 0.22f), rot);
 
-                // Fascia sign over the canopy.
-                SignFace(group, "ShopFasciaSign", m.SignShopWide, frontFace + Vector3.up * 5.5f, facing, 7.2f, 3.6f, false);
+                // Supermarket fascia sign over the canopy (the pylon keeps "SHOPPING CENTRE"), on a
+                // green backing panel that sits proud of the wall.
+                AddPrimitive(b.GetGO("Shopping", "FasciaPanel", m.BrandGreen, c), PrimitiveType.Cube,
+                             frontFace + facing * 0.06f + Vector3.up * 5.45f, new Vector3(10.6f, 2.9f, 0.12f), rot);
+                SignFace(group, "ShopFasciaSign", m.SignSupermarket, frontFace + facing * 0.12f + Vector3.up * 5.45f, facing, 10f, 2.5f, false);
+
+                // Window posters: mostly pictures, so they read without much English. Either side
+                // of the doors, just in front of the glass, bottoms at 0.55 m.
+                if (m.Posters != null && m.Posters.Length >= 5)
+                {
+                    float[] px = { -12.5f, -8.0f, -3.8f, 3.8f, 8.0f, 12.5f };
+                    int[] which = { 4, 2, 0, 1, 3, 4 };   // Specials, Bakery, Fruit | Veg, Dairy, Specials
+                    for (int i = 0; i < px.Length; i++)
+                    {
+                        if (Mathf.Abs(px[i]) + 0.8f > halfWidth - 2f) continue;   // stay on the glass
+                        SignFace(group, "WindowPoster_" + i, m.Posters[which[i]],
+                                 frontFace + facing * 0.02f + side * px[i] + Vector3.up * 1.55f, facing, 1.5f, 2.0f, false);
+                    }
+                }
 
                 var col = new GameObject("ShopCollider");
                 col.transform.SetParent(group, false);

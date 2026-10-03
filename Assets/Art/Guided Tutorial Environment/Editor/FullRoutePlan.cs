@@ -513,6 +513,13 @@ namespace VRTutorial.EditorTools
         // Zones
         public Obb Park, School, SpecialLot, Forecourt, ShopBuilding, BusStop;
         public Vector2 SchoolFrontDir;   // from the school toward its street
+        /// <summary>
+        /// Centre of the school's sign wall, on the front fence line. The wall takes the place of
+        /// the fence there (the fence stops SchoolSignHalfGap either side of it), so nothing
+        /// stands between the sign and the street.
+        /// </summary>
+        public Vector2 SchoolSignPos;
+        public const float SchoolSignHalfGap = 2.0f;
         public Vector2 SpecialFacing;    // from the special house toward the route
         public Vector2 ShopFacing;       // from the building toward the route
 
@@ -1425,6 +1432,9 @@ namespace VRTutorial.EditorTools
             len = Vector2.Distance(n[11], n[12]) - 2f * HR;
             School = Quad(n[12] + (u + v) * HR, u, v, len, 34f);
             SchoolFrontDir = -v;
+            // Sign wall on the front boundary, a third of the way along from the centre (where
+            // the school zebra lands) toward N12.
+            SchoolSignPos = School.C + SchoolFrontDir * School.HV - u * (School.HU * 0.35f);
 
             // Special house: the corner lot north of the route, west of the cross street at N2.
             u = (n[3] - n[2]).normalized;
@@ -1958,7 +1968,9 @@ namespace VRTutorial.EditorTools
                 {
                     foreach (var style in styles)
                     {
-                        foreach (var r in Runs(st, side * off, (s, p) => !st.InOwnOtherSegment(s, p, HR) && Classify(st, p) == style, 0.1f, 1.0f))
+                        // The school's front fence breaks for the sign wall, which stands in the gap.
+                        foreach (var r in Runs(st, side * off, (s, p) => !st.InOwnOtherSegment(s, p, HR) && Classify(st, p) == style
+                                                                          && !(style == FenceStyle.School && InSchoolSignGap(p)), 0.1f, 1.0f))
                             Fences.Add(new FenceLine(st.Edge(r.x, r.y, side * off), style, st.Name));
                     }
                 }
@@ -1996,6 +2008,14 @@ namespace VRTutorial.EditorTools
             CloseCornerGaps();
         }
 
+        /// <summary>The stretch of the school's front fence that the sign wall replaces.</summary>
+        bool InSchoolSignGap(Vector2 p)
+        {
+            Vector2 d = p - SchoolSignPos;
+            return Mathf.Abs(Vector2.Dot(d, School.U)) < SchoolSignHalfGap &&
+                   Mathf.Abs(Vector2.Dot(d, SchoolFrontDir)) < 0.3f;
+        }
+
         void AddZoneOutline(Obb zone, FenceStyle style, string owner, bool isForecourt = false)
         {
             var c = zone.Corners();
@@ -2011,7 +2031,8 @@ namespace VRTutorial.EditorTools
                     float t = len * j / steps;
                     Vector2 p = a + d * t;
                     bool keep = !InAnyReserve(p, -1, 0.05f) && !ShopBuilding.Contains(p, 0.05f)
-                                && (isForecourt || !Forecourt.Contains(p, 0.3f));
+                                && (isForecourt || !Forecourt.Contains(p, 0.3f))
+                                && !(style == FenceStyle.School && InSchoolSignGap(p));
                     if (keep && runStart < 0f) runStart = t;
                     if ((!keep || j == steps) && runStart >= 0f)
                     {
