@@ -12,11 +12,15 @@ public class RunSystemController : MonoBehaviour
 	[FormerlySerializedAs("guidedSpawnPoint")]
 	[SerializeField] private Transform runStartPoint;
 
+	[Tooltip("Seconds to fade to black and back when the run hands back to the main menu.")]
+	[SerializeField] private float menuFadeSeconds = 0.5f;
+
 	private TimerController timerController;
 	private PlayerPositionTracker positionTracker;
 	private RouteProgressTracker routeTracker;
 	private RunGuidance guidance;
 	private AssistanceController assistanceController;
+	private PostRunSurvey survey;
 	private readonly List<WrongTurnController> wrongTurnControllers = new List<WrongTurnController>();
 	private XROrigin xrOrigin;
 	private bool isEndingRun;
@@ -55,6 +59,13 @@ public class RunSystemController : MonoBehaviour
 		// still work). Scene-scoped, so both controllers come back at the main menu.
 		if (FindInThisScene<SelectedControllerOnly>() == null)
 			gameObject.AddComponent<SelectedControllerOnly>();
+
+		// The stress and confidence questions shown at the end zone of some modules. Added here
+		// so it needs no scene setup; add a PostRunSurvey by hand to change which runs get it or
+		// its wording.
+		survey = FindInThisScene<PostRunSurvey>();
+		if (survey == null)
+			survey = gameObject.AddComponent<PostRunSurvey>();
 
 		// The help button for runs lives in this scene (added by Tools > VR Full Route > Add Help and
 		// Pause Menu to RunSystem). Prefer that one over any other that happens to be loaded.
@@ -281,13 +292,28 @@ public class RunSystemController : MonoBehaviour
 		string sampleFile = positionTracker?.StopTracking(completed);
 		if (wasTracking)
 			RunSummaryWriter.Write(positionTracker, routeTracker, runStartedAt, completed, elapsedTime, sampleFile);
+
+		// The post-run survey, for runs that reached the end zone in the modules that have one.
+		// Its answers go to survey_responses.csv, after the run's own data is already saved.
+		if (completed && survey != null && survey.AppliesTo(runType))
+			yield return survey.Run(runType, participantId, runIndex);
+
 		Debug.Log($"Returning to main menu after a {elapsedTime:F2} second run.");
+
+		// Fade out, move to the menu while it is dark, then fade back in. The fade in runs on
+		// the fader (Bootstrap), because this scene is unloaded underneath it.
+		ScreenFader fader = ScreenFader.Instance;
+		if (fader != null)
+			yield return fader.FadeTo(1f, menuFadeSeconds);
 
 		MenuController menuController =
 			FindFirstObjectByType<MenuController>(FindObjectsInactive.Include);
 
 		if (menuController != null)
 			menuController.ShowMainMenu();
+
+		if (fader != null)
+			fader.FadeIn(menuFadeSeconds);
 
 		Scene runSystemScene = gameObject.scene;
 
