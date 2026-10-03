@@ -626,11 +626,26 @@ namespace VRTutorial.EditorTools
             }
 
             // ================================================================== build
-            static GameObject BuildFR(string meshFolderName, bool forRunSystem)
+            /// <summary>
+            /// Builds the route into the active scene for the main menu's Map button (the
+            /// tabletop model). Used by Tools > VR Full Route > Build Route Map Scene
+            /// (RouteMapSetup.cs). Its meshes go to their own folder, so it never touches
+            /// RunSystem's. Built like RunSystem's copy - no light or spawn point of its own -
+            /// and with no run wiring. Pass the plan in to reuse it for the map's labels.
+            /// </summary>
+            public static GameObject BuildForRouteMap(FullRoutePlan plan)
+            {
+                return BuildFR("RouteMap", true, plan);
+            }
+
+            /// <summary>Options > Include Landmarks, for the map's labels.</summary>
+            public static bool LandmarksIncluded { get { return IncludeLandmarksFR; } }
+
+            static GameObject BuildFR(string meshFolderName, bool forRunSystem, FullRoutePlan planIn = null)
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 FRGenerated = FRGeneratedRoot + "/" + meshFolderName;
-                var plan = new FullRoutePlan();
+                var plan = planIn ?? new FullRoutePlan();
                 bool landmarks = IncludeLandmarksFR;
 
                 EnsureFolder(FRFolder);
@@ -683,13 +698,14 @@ namespace VRTutorial.EditorTools
 
                 Debug.Log(string.Format(
                     "[FullRoute] Built in {0:0.0} s: {1} meshes, {2} houses, {3} street lights, {4} landmark lamps, " +
-                    "{5} cul-de-sac dead ends, {6} planter closures, {7} zebra crossings, {8} kerb ramps. " +
+                    "{5} cul-de-sac dead ends, {12} T-intersection ends, {13} L-corner ends, {6} planter closures, " +
+                    "{7} zebra crossings, {8} kerb ramps. " +
                     "Route bus stop -> shopping centre is {9:0} m, about {10:0.0} min at 1.5 m/s. Landmarks {11}. " +
                     "Bake lighting for the intended look.",
                     sw.Elapsed.TotalSeconds, meshes, plan.Houses.Count, plan.Lamps.Count, plan.LandmarkLamps.Count,
                     plan.Courts.Count, plan.Closures.Count, plan.Zebras.Count, plan.Openings.Count,
                     FullRouteLayout.RouteLength, FullRouteLayout.RouteLength / 1.5f / 60f,
-                    landmarks ? "INCLUDED" : "OMITTED"));
+                    landmarks ? "INCLUDED" : "OMITTED", plan.TeeEnds.Count, plan.ElbowEnds.Count));
                 foreach (var w in plan.Warnings) Debug.LogWarning("[FullRoute] " + w);
                 return root;
             }
@@ -814,17 +830,28 @@ namespace VRTutorial.EditorTools
                             // Body: the walkable collider, marked as paving.
                             Ribbon(b.Get(G, "FootpathBody", m.Kerb, at, 1.2f, true, SurfPaving),
                                    st, band.S0, band.S1, band.Off0, band.Off1, FullRouteLayout.FootBodyTop, 0.10f);
-                            // Slabs laid on it with a joint every 1.6 m, drawn from the tutorial's
-                            // three greys. Visual only - the body underneath takes the footsteps.
+                            // Slabs laid on it with a joint about every 1.6 m, drawn from the
+                            // tutorial's three greys. Visual only - the body underneath takes the
+                            // footsteps.
+                            //
+                            // Laid along the band's own mitred edges, not by arc length along the
+                            // street (2 Oct 2026). Since v5.2 a footpath runs through its street's
+                            // bends as one band, and on the inside of a bend the last few metres of
+                            // arc length before the corner (and the first few after it) have no
+                            // footpath: the mitre has already turned. Slabs cut by arc length were
+                            // drawn there anyway, straight on past the corner, so near the school
+                            // (N10, N11) and at every other inside corner a run of slabs stuck out
+                            // across the nature strip and onto the road. The body was right; only
+                            // the slabs on top were wrong.
+                            //
+                            // The variants are still drawn from rng exactly as before, so the
+                            // shared stream - and everything built after this - is unchanged.
                             const float pitch = 1.6f, joint = 0.018f;
+                            var variants = new List<int>();
                             for (float s = band.S0; s < band.S1 - 0.05f; s += pitch)
-                            {
-                                float e = Mathf.Min(s + pitch, band.S1);
-                                int v = rng.Next(0, m.Stone.Length);
-                                Ribbon(b.Get(G, "FootpathSlabs_" + v, m.Stone[v], at, 1.2f),
-                                       st, s + joint * 0.5f, e - joint * 0.5f,
-                                       band.Off0 + joint, band.Off1 - joint, FullRouteLayout.FootSlabTop, 0.012f);
-                            }
+                                variants.Add(rng.Next(0, m.Stone.Length));
+                            if (variants.Count == 0) break;
+                            LaySlabs(b, G, m, at, st, band, pitch, joint, variants);
                             break;
                     }
                 }
@@ -843,6 +870,37 @@ namespace VRTutorial.EditorTools
                         Box(b.Get(G, "Kerb", m.Kerb, W(p, 0f), 1f),
                             W(p - d * 0.08f, FullRouteLayout.KerbTop - 0.1f),
                             new Vector3(FullRouteLayout.KerbEdge * 2f, 0.2f, 0.16f), W3(d));
+                    }
+                }
+            }
+
+            /// <summary>
+            /// Footpath slabs over one band, following its mitred edges: each straight piece of
+            /// the band (between two of its bends) is cut into slabs of about 'pitch' metres, so
+            /// a slab never reaches past the mitre on the inside of a bend. A bend is always a
+            /// slab joint.
+            /// </summary>
+            static void LaySlabs(Batcher b, string group, Mats m, Vector3 at, RouteStreet st, Band band,
+                                 float pitch, float joint, List<int> variants)
+            {
+                var e0 = st.Edge(band.S0, band.S1, band.Off0 + joint);
+                var e1 = st.Edge(band.S0, band.S1, band.Off1 - joint);
+                int k = 0;
+                for (int i = 0; i < e0.Count - 1; i++)
+                {
+                    Vector2 a0 = e0[i], a1 = e0[i + 1], b0 = e1[i], b1 = e1[i + 1];
+                    float len = (Vector2.Distance(a0, a1) + Vector2.Distance(b0, b1)) * 0.5f;
+                    if (len < 0.05f) continue;
+                    int n = Mathf.Max(1, Mathf.RoundToInt(len / pitch));
+                    float dt = Mathf.Min(0.45f / n, joint * 0.5f / len);
+                    for (int j = 0; j < n; j++)
+                    {
+                        float t0 = (float)j / n + dt, t1 = (float)(j + 1) / n - dt;
+                        var q = new Quad4(Vector2.Lerp(a0, a1, t0), Vector2.Lerp(a0, a1, t1),
+                                          Vector2.Lerp(b0, b1, t1), Vector2.Lerp(b0, b1, t0));
+                        int v = variants[k++ % variants.Count];
+                        Prism(b.Get(group, "FootpathSlabs_" + v, m.Stone[v], at, 1.2f), q, Vector2.zero,
+                              FullRouteLayout.FootSlabTop, FullRouteLayout.FootSlabTop, 0.012f);
                     }
                 }
             }
@@ -900,14 +958,17 @@ namespace VRTutorial.EditorTools
                             Ring(b.Get(G, "Kerb", m.Kerb, at, 1f), c, r.R0, r.R1, r.A0, r.A1, FullRouteLayout.KerbTop, 0.20f);
                             break;
                         case BandKind.Footpath:
-                            Ring(b.Get(G, "FootpathBody", m.Kerb, at, 1.2f, true, SurfPaving), c, r.R0, r.R1, r.A0, r.A1, FullRouteLayout.FootBodyTop, 0.10f);
+                            // A few millimetres below the street footpaths, which run on into the
+                            // ring at each entry: where they overlap, the street's slabs show.
+                            const float drop = FullRouteLayout.CourtFootDrop;
+                            Ring(b.Get(G, "FootpathBody", m.Kerb, at, 1.2f, true, SurfPaving), c, r.R0, r.R1, r.A0, r.A1, FullRouteLayout.FootBodyTop - drop, 0.10f);
                             float mid = (r.R0 + r.R1) * 0.5f;
                             float step = pitch / mid, gapA = joint / mid;
                             for (float a = r.A0; a < r.A1 - 0.01f; a += step)
                             {
                                 int v = rng.Next(0, m.Stone.Length);
                                 Ring(b.Get(G, "FootpathSlabs_" + v, m.Stone[v], at, 1.2f), c, r.R0 + joint, r.R1 - joint,
-                                     a + gapA * 0.5f, Mathf.Min(a + step, r.A1) - gapA * 0.5f, FullRouteLayout.FootSlabTop, 0.012f);
+                                     a + gapA * 0.5f, Mathf.Min(a + step, r.A1) - gapA * 0.5f, FullRouteLayout.FootSlabTop - drop, 0.012f);
                             }
                             break;
                     }

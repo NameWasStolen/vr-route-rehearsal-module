@@ -42,7 +42,22 @@ public class ScalableUIRoot : MonoBehaviour
              "makes every button a smaller target.")]
     [SerializeField] private bool allowShrink = false;
 
+    [Header("Floor")]
+    [Tooltip("Raise the panel if magnifying it would push its bottom edge into the floor. The " +
+             "panel grows about its pivot (usually the centre), so a large menu standing near the " +
+             "floor would otherwise sink into it at the biggest text sizes. Only the main menu " +
+             "turns this on; head-locked panels leave it off.")]
+    [SerializeField] private bool keepAboveFloor = false;
+
+    [Tooltip("World height of the floor, metres.")]
+    [SerializeField] private float floorY = 0f;
+
+    [Tooltip("Gap kept between the panel's bottom edge and the floor, metres.")]
+    [SerializeField] private float floorClearance = 0.2f;
+
     private Vector3 _authoredScale;
+    private Vector3 _authoredPosition;
+    private readonly Vector3[] _corners = new Vector3[4];
     private bool _captured;
 
     private void Awake()
@@ -55,6 +70,7 @@ public class ScalableUIRoot : MonoBehaviour
     {
         if (_captured) return;
         _authoredScale = transform.localScale;
+        _authoredPosition = transform.localPosition;
         _captured = true;
     }
 
@@ -78,6 +94,23 @@ public class ScalableUIRoot : MonoBehaviour
         if (!allowShrink) s = Mathf.Max(s, 1f);
 
         transform.localScale = _authoredScale * s;
+        if (keepAboveFloor) KeepAboveFloor();
+    }
+
+    /// <summary>
+    /// Back to the authored position, then up by however much the bottom edge would sit below
+    /// the floor plus clearance. Never moves the panel down or sideways.
+    /// </summary>
+    private void KeepAboveFloor()
+    {
+        transform.localPosition = _authoredPosition;
+        var rect = transform as RectTransform;
+        if (rect == null) return;
+
+        rect.GetWorldCorners(_corners);
+        float bottom = Mathf.Min(Mathf.Min(_corners[0].y, _corners[1].y), Mathf.Min(_corners[2].y, _corners[3].y));
+        float lift = floorY + floorClearance - bottom;
+        if (lift > 0f) transform.position += Vector3.up * lift;
     }
 
     private void WarnAboutDoubleScaling()

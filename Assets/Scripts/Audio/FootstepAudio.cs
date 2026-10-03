@@ -88,9 +88,17 @@ public class FootstepAudio : MonoBehaviour
     [Range(0f, 0.3f)]
     [SerializeField] private float pitchJitter = 0.08f;
 
+    [Header("Turning")]
+    [Tooltip("The participant's head (the XR camera). Snap and smooth turns rotate the rig " +
+             "about the head, which swings the rig root - and this component - sideways. That " +
+             "swing is not walking, so it is taken out of the measured travel. Found " +
+             "automatically under the rig if left empty.")]
+    [SerializeField] private Transform head;
+
     private AudioSource _source;
     private CharacterController _controller;
     private Vector3 _lastPosition;
+    private float _lastYaw;
     private float _accumulated;
     private float _lastStepTime = float.NegativeInfinity;
     private int _lastClipIndex = -1;
@@ -107,6 +115,14 @@ public class FootstepAudio : MonoBehaviour
         if (output != null) _source.outputAudioMixerGroup = output;
 
         _lastPosition = transform.position;
+        _lastYaw = transform.eulerAngles.y;
+
+        if (head == null)
+        {
+            var cam = transform.root.GetComponentInChildren<Camera>(true);
+            if (cam == null) cam = Camera.main;
+            if (cam != null) head = cam.transform;
+        }
 
         if (surfaces == null || surfaces.Length == 0)
             Debug.LogWarning("[FootstepAudio] No surfaces configured - no footsteps will play.", this);
@@ -132,6 +148,7 @@ public class FootstepAudio : MonoBehaviour
     public void ResetStride()
     {
         _lastPosition = transform.position;
+        _lastYaw = transform.eulerAngles.y;
         _accumulated = 0f;
         _lastStepTime = Time.time;
     }
@@ -139,10 +156,36 @@ public class FootstepAudio : MonoBehaviour
     private void Update()
     {
         Vector3 now = transform.position;
+        float yaw = transform.eulerAngles.y;
 
-        Vector3 delta = now - _lastPosition;
+        // Take turning out of the travel. XRI turns the rig about the head, so unless the head is
+        // exactly over the rig origin a turn swings this component sideways: a 30-degree snap
+        // with the head 30 cm off-centre moves it ~15 cm in one frame. Rotate last frame's
+        // position about the head by this frame's turn, and measure from there, so only real
+        // movement is left. (The head sits on the turn's pivot, so it does not move in a turn.)
+        Vector3 from = _lastPosition;
+        float turn = Mathf.DeltaAngle(_lastYaw, yaw);
+        bool turnedWithoutHead = false;
+        if (Mathf.Abs(turn) > 0.01f)
+        {
+            if (head != null)
+            {
+                Vector3 pivot = head.position;
+                from = pivot + Quaternion.Euler(0f, turn, 0f) * (from - pivot);
+            }
+            else
+            {
+                turnedWithoutHead = Mathf.Abs(turn) > 1f;
+            }
+        }
+
+        Vector3 delta = now - from;
         delta.y = 0f;
         _lastPosition = now;
+        _lastYaw = yaw;
+
+        // No head to turn about: skip a turning frame's distance rather than guess at it.
+        if (turnedWithoutHead) return;
 
         float dt = Time.deltaTime;
         if (dt <= 0f) return;
@@ -151,15 +194,13 @@ public class FootstepAudio : MonoBehaviour
         float speed = distance / dt;
         if (speed < minSpeed) return;
 
-        // Anything above a fast walk is not a stride. Discard the frame outright instead of
-        // banking it: a teleport or a hitch otherwise contributes metres that have to come back
-        // out as footsteps later. The position is already re-synced above, so the next frame
-        // measures from where the rig actually is.
-        if (maxSpeed > 0f && speed > maxSpeed)
-        {
-            _accumulated = 0f;
-            return;
-        }
+        // Anything above a fast walk is not a stride: a teleport, a recentre or a hitch. Drop
+        // this frame's distance, but keep the stride already walked. Zeroing it here (as this used
+        // to) threw away up to a whole stride on any such frame - a snap turn tripped it, which
+        // is what left a step missing straight after a turn. Keeping it cannot cause a burst:
+        // what is carried forward is always clamped below one stride (see below), and spawn
+        // placements call ResetStride, which does zero it.
+        if (maxSpeed > 0f && speed > maxSpeed) return;
 
         // Only count travel while actually on the ground, where there is a surface to hear.
         // Opt-in: see requireGrounded for why this is not the default.
