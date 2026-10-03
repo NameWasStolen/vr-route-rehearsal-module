@@ -16,7 +16,12 @@ using UnityEngine.UI;
 ///
 /// USE: the ID is a fixed prefix ("P") plus digits typed on a keypad, e.g. P01. Save stores it
 /// (StudySession, PlayerPrefs on the headset) until it is changed. Cancel leaves it as it was.
-/// The screen also shows the current ID and which run number that participant is on.
+/// The screen also shows the current ID, which run number that participant is on, and which
+/// Select Module options they have completed.
+///
+/// RESET PROGRESS: clears the current participant's ticks on the Select Module menu, so a
+/// module can be done again (headset slipped, wrong ID, test run). It needs two presses within a
+/// few seconds, and is recorded in module_progress.csv and the session log.
 ///
 /// BUILT AT RUNTIME, not in the scene: MenuController adds it. It is a separate world-space canvas
 /// placed exactly where the main menu is, reusing the menu's raycasters (so the controller
@@ -41,6 +46,12 @@ public class ResearcherScreen : MonoBehaviour
     private TMP_Text currentLabel;
     private TMP_Text entryLabel;
     private Button saveButton;
+    private Button resetButton;
+    private TMP_Text resetLabel;
+    private float resetArmedUntil = -1f;
+    private const string ResetText = "Reset progress";
+    private const string ResetConfirmText = "Press again to reset";
+    private const float ResetConfirmSeconds = 4f;
     private string digits = "";
 
     public bool IsOpen => screen != null && screen.activeSelf;
@@ -93,7 +104,18 @@ public class ResearcherScreen : MonoBehaviour
 
     private void Update()
     {
-        if (IsOpen || menuRoot == null || !menuRoot.activeInHierarchy)
+        if (IsOpen)
+        {
+            // The reset confirmation lapses if the second press does not come.
+            if (resetArmedUntil > 0f && Time.unscaledTime > resetArmedUntil)
+            {
+                resetArmedUntil = -1f;
+                Refresh();
+            }
+            heldFor = 0f;
+            return;
+        }
+        if (menuRoot == null || !menuRoot.activeInHierarchy)
         {
             heldFor = 0f;
             return;
@@ -123,6 +145,7 @@ public class ResearcherScreen : MonoBehaviour
             : "";
         if (digits.Length > maxDigits || !IsDigits(digits)) digits = "";
 
+        resetArmedUntil = -1f;
         PlaceOverMenu();
         menuRoot.SetActive(false);
         screen.SetActive(true);
@@ -146,6 +169,25 @@ public class ResearcherScreen : MonoBehaviour
         Close();
     }
 
+    /// <summary>First press arms it, a second press within a few seconds clears the ticks.</summary>
+    private void ResetProgress()
+    {
+        string id = StudySession.ParticipantId;
+        if (!StudySession.HasParticipant) return;
+
+        if (resetArmedUntil < 0f || Time.unscaledTime > resetArmedUntil)
+        {
+            resetArmedUntil = Time.unscaledTime + ResetConfirmSeconds;
+            Refresh();
+            return;
+        }
+
+        resetArmedUntil = -1f;
+        ModuleProgress.ResetParticipant(id);
+        Debug.Log($"[ResearcherScreen] Module progress reset for {id}.", this);
+        Refresh();
+    }
+
     private void Press(char c)
     {
         if (digits.Length >= maxDigits) return;
@@ -163,10 +205,28 @@ public class ResearcherScreen : MonoBehaviour
     {
         string current = StudySession.ParticipantId;
         currentLabel.text = StudySession.HasParticipant
-            ? $"Current: {current}   (next run: {StudySession.NextRunIndex(current)})"
+            ? $"Current: {current}   (next run: {StudySession.NextRunIndex(current)})   Done: {DoneSummary(current)}"
             : "Current: none set";
         entryLabel.text = prefix + (digits.Length > 0 ? digits : "_");
         saveButton.interactable = digits.Length > 0;
+
+        bool armed = resetArmedUntil > 0f && Time.unscaledTime <= resetArmedUntil;
+        if (resetButton != null)
+            resetButton.interactable = StudySession.HasParticipant && ModuleProgress.CompletedBy(current).Count > 0;
+        if (resetLabel != null)
+            resetLabel.text = armed ? ResetConfirmText : ResetText;
+    }
+
+    /// <summary>"Map, 1, 2" - the completed options in menu order, by their button numbers.</summary>
+    private static string DoneSummary(string participantId)
+    {
+        var names = new List<string>();
+        if (ModuleProgress.IsCompleted(participantId, ModuleProgress.MapModule)) names.Add("Map");
+        if (ModuleProgress.IsCompleted(participantId, MenuController.ModuleUnguided1)) names.Add("1");
+        if (ModuleProgress.IsCompleted(participantId, MenuController.ModuleGuided)) names.Add("2");
+        if (ModuleProgress.IsCompleted(participantId, MenuController.ModuleUnguided2a)) names.Add("3");
+        if (ModuleProgress.IsCompleted(participantId, MenuController.ModuleUnguided2b)) names.Add("4");
+        return names.Count > 0 ? string.Join(", ", names) : "none";
     }
 
     private static bool IsDigits(string s)
@@ -260,6 +320,10 @@ public class ResearcherScreen : MonoBehaviour
 
         MakeText("Title", root, "Researcher: participant ID", P(0, 165), S(560, 44), 30 * sy);
         currentLabel = MakeText("Current", root, "", P(0, 125), S(560, 32), 20 * sy);
+        // The line now also lists completed modules; shrink rather than overflow.
+        currentLabel.enableAutoSizing = true;
+        currentLabel.fontSizeMax = 20 * sy;
+        currentLabel.fontSizeMin = 12 * sy;
         entryLabel = MakeText("Entry", root, "", P(-90, 78), S(250, 56), 44 * sy);
 
         string keys = "123456789";
@@ -272,8 +336,10 @@ public class ResearcherScreen : MonoBehaviour
         MakeButton("KeyDelete", root, "Delete", P(-170, 18 - 3 * 62), S(70, 54), 18 * sy, DeleteLast);
         MakeButton("Key0", root, "0", P(-90, 18 - 3 * 62), S(70, 54), 30 * sy, () => Press('0'));
 
-        saveButton = MakeButton("Save", root, "Save", P(165, 0), S(190, 70), 28 * sy, Save);
-        MakeButton("Cancel", root, "Cancel", P(165, -100), S(190, 70), 28 * sy, Close);
+        saveButton = MakeButton("Save", root, "Save", P(165, 40), S(190, 64), 28 * sy, Save);
+        MakeButton("Cancel", root, "Cancel", P(165, -40), S(190, 64), 28 * sy, Close);
+        resetButton = MakeButton("ResetProgress", root, ResetText, P(165, -130), S(190, 64), 18 * sy, ResetProgress);
+        resetLabel = resetButton.GetComponentInChildren<TMP_Text>(true);
     }
 
     private void PlaceOverMenu()

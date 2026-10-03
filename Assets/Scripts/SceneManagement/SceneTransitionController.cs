@@ -191,6 +191,75 @@ public class SceneTransitionController : MonoBehaviour
     }
 
     /// <summary>
+    /// Runs <paramref name="work"/> with the view dark - the same fade out, held darkness, sound
+    /// dip and fade in as <see cref="SwitchTo"/>, around whatever loading or moving the caller
+    /// needs to do.
+    ///
+    /// For the module runs, which do not swap scenes the SwitchTo way: the main menu stays loaded
+    /// (hidden) and RunSystem is added on top, then later unloaded again. The work runs on this
+    /// controller, in Bootstrap, so it carries on even when it unloads the scene that asked for it
+    /// or hides the menu that started it.
+    ///
+    /// Walking and turning are stopped from the start (before the fade, not after it), so nobody
+    /// moves while the view is going dark. If the work throws, the error is logged and the view
+    /// still comes back - a participant is never left in the dark.
+    /// </summary>
+    /// <returns>False if a transition is already running; the caller should then do the work itself.</returns>
+    public bool RunInDark(IEnumerator work)
+    {
+        if (IsTransitioning || work == null) return false;
+        StartCoroutine(DarkRoutine(work));
+        return true;
+    }
+
+    private IEnumerator DarkRoutine(IEnumerator work)
+    {
+        IsTransitioning = true;
+        if (fader == null) ResolveReferences();
+
+        // 1. Movement off first, then hide the world.
+        SetLocomotionEnabled(false);
+        ControllerHandednessManager.Instance?.SuspendLocomotion(this);
+        if (fader != null) yield return fader.FadeTo(1f, fadeOutDuration);
+        float audioFrom = AudioListener.volume;
+        if (fadeAudio) AudioListener.volume = 0f;
+
+        // 2. The caller's loading, unloading and moving, stepped by hand so an exception in it
+        //    cannot end this routine with the view still black.
+        while (true)
+        {
+            object step;
+            try
+            {
+                if (!work.MoveNext()) break;
+                step = work.Current;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogException(e, this);
+                break;
+            }
+            yield return step;
+        }
+
+        // 3. The work usually moves the rig (to the run's start, or back to the menu); a jump
+        //    must not be heard as footsteps.
+        if (footstepAudio == null) ResolveReferences();
+        if (footstepAudio != null) footstepAudio.ResetStride();
+
+        // 4. Let the first heavy frames pass while still hidden, then reveal.
+        for (int i = 0; i < settleFrames; i++) yield return null;
+        if (holdDarkDuration > 0f) yield return new WaitForSecondsRealtime(holdDarkDuration);
+
+        if (fadeAudio) AudioListener.volume = audioFrom;
+        if (fader != null) yield return fader.FadeTo(0f, fadeInDuration);
+
+        ControllerHandednessManager.Instance?.ResumeLocomotion(this);
+        SetLocomotionEnabled(true);
+        IsTransitioning = false;
+    }
+
+    /// <summary>
     /// Unloads a content scene and loads a fresh copy of it, behind a fade - "start again".
     ///
     /// SwitchTo cannot do this: asked to load a scene that is already loaded, it keeps the

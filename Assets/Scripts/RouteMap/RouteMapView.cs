@@ -131,8 +131,65 @@ public class RouteMapView : MonoBehaviour
     {
         BuildCumulative();
         if (walker != null) walker.gameObject.SetActive(false);
+        EnsureRing();
         DrawRing(ringTrack, 1f);
         DrawRing(ringFill, 1f);
+    }
+
+    /// <summary>
+    /// RouteMap scenes built before 2 Oct drew the ring with LineRenderers. The ring fields are
+    /// now MeshFilters, so in such a scene they load empty: the ring stopped emptying and stayed
+    /// tilted into the table. Rather than depend on a rebuild, swap the old ring for the flat
+    /// mesh one here.
+    /// </summary>
+    private void EnsureRing()
+    {
+        if (ringTrack != null && ringFill != null) return;
+        Transform ring = FindChild(transform, "TimeRing");
+        if (ring == null)
+        {
+            Debug.LogWarning("[RouteMapView] No TimeRing in the scene, so there is no time ring. Rebuild the map scene.", this);
+            return;
+        }
+        ring.localRotation = Quaternion.identity;
+        Vector3 p = ring.localPosition;
+        ring.localPosition = new Vector3(p.x, Mathf.Max(p.y, 0.003f), p.z);
+        if (ringTrack == null) ringTrack = RingPart(ring, "Track", 0f);
+        if (ringFill == null) ringFill = RingPart(ring, "Fill", 0.0015f);
+    }
+
+    private static MeshFilter RingPart(Transform ring, string name, float raise)
+    {
+        Material mat = null;
+        Transform old = ring.Find(name);
+        if (old != null)
+        {
+            var existing = old.GetComponent<MeshFilter>();
+            if (existing != null) return existing;
+            var line = old.GetComponent<LineRenderer>();
+            if (line != null) mat = line.sharedMaterial;
+            Destroy(old.gameObject);
+        }
+        var go = new GameObject(name + "Mesh");
+        go.transform.SetParent(ring, false);
+        go.transform.localPosition = new Vector3(0f, raise, 0f);
+        var mf = go.AddComponent<MeshFilter>();
+        var mr = go.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = mat;
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        mr.receiveShadows = false;
+        return mf;
+    }
+
+    private static Transform FindChild(Transform t, string name)
+    {
+        if (t.name == name) return t;
+        for (int i = 0; i < t.childCount; i++)
+        {
+            Transform f = FindChild(t.GetChild(i), name);
+            if (f != null) return f;
+        }
+        return null;
     }
 
     private void OnDisable()
@@ -152,6 +209,32 @@ public class RouteMapView : MonoBehaviour
     {
         if (IsRunning || _finishing) return;
 
+        // The visit itself (timer, ring, figure) starts even if placing the participant or the
+        // log fails, so a problem there can never leave a frozen map. Any such failure is in
+        // the Console.
+        try
+        {
+            Prepare();
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogException(e, this);
+        }
+
+        _startTime = Time.unscaledTime;
+        IsRunning = true;
+        if (walker != null) walker.gameObject.SetActive(true);
+        StartCoroutine(RunTimer());
+
+        Debug.Log(string.Format("[RouteMapView] Visit started: route {0} points ({1:0} m), figure {2}, ring {3}.",
+            routePoints != null ? routePoints.Length : 0, _length,
+            walker != null ? "ok" : "MISSING", ringFill != null ? "ok" : "MISSING"), this);
+        if (walker == null || _length <= 0f)
+            Debug.LogWarning("[RouteMapView] The figure cannot walk: no figure or no route points. Rebuild the map scene.", this);
+    }
+
+    private void Prepare()
+    {
         XROrigin xrOrigin = FindFirstObjectByType<XROrigin>();
         if (xrOrigin != null && standingPoint != null)
             XRPlayerTeleport.MoveToStandingPoint(xrOrigin, standingPoint, this);
@@ -174,11 +257,6 @@ public class RouteMapView : MonoBehaviour
         if (cam != null) SessionLog.SetPositionSource(cam);
         SessionLog.Record("map_view_opened",
             $"participant {StudySession.ParticipantId}, {viewSeconds.ToString("0", CultureInfo.InvariantCulture)}s");
-
-        _startTime = Time.unscaledTime;
-        IsRunning = true;
-        if (walker != null) walker.gameObject.SetActive(true);
-        StartCoroutine(RunTimer());
     }
 
     /// <summary>Ends the visit now (same as the timer running out). For a researcher control.</summary>
@@ -236,6 +314,11 @@ public class RouteMapView : MonoBehaviour
         _finishing = true;
         float elapsed = Time.unscaledTime - _startTime;
         SessionLog.Record("map_view_closed", elapsed.ToString("F1", CultureInfo.InvariantCulture) + "s");
+
+        // The Map counts as done once its full time has run (not when ended early), and is then
+        // ticked off on the Select Module menu for this participant.
+        if (elapsed >= viewSeconds - 0.5f)
+            ModuleProgress.MarkCompleted(StudySession.ParticipantId, ModuleProgress.MapModule);
         IsRunning = false;
 
         ScreenFader fader = ScreenFader.Instance;

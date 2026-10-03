@@ -12,11 +12,17 @@ public class RunSystemController : MonoBehaviour
 	[FormerlySerializedAs("guidedSpawnPoint")]
 	[SerializeField] private Transform runStartPoint;
 
+	[Tooltip("Only used if Bootstrap has no SceneTransitionController: seconds to fade to black " +
+	         "and back when the run hands back to the main menu. Normally the transition " +
+	         "controller's own timings are used, the same as the tutorial's.")]
+	[SerializeField] private float menuFadeSeconds = 0.5f;
+
 	private TimerController timerController;
 	private PlayerPositionTracker positionTracker;
 	private RouteProgressTracker routeTracker;
 	private RunGuidance guidance;
 	private AssistanceController assistanceController;
+	private PostRunSurvey survey;
 	private readonly List<WrongTurnController> wrongTurnControllers = new List<WrongTurnController>();
 	private XROrigin xrOrigin;
 	private bool isEndingRun;
@@ -55,6 +61,13 @@ public class RunSystemController : MonoBehaviour
 		// still work). Scene-scoped, so both controllers come back at the main menu.
 		if (FindInThisScene<SelectedControllerOnly>() == null)
 			gameObject.AddComponent<SelectedControllerOnly>();
+
+		// The stress and confidence questions shown at the end zone of some modules. Added here
+		// so it needs no scene setup; add a PostRunSurvey by hand to change which runs get it or
+		// its wording.
+		survey = FindInThisScene<PostRunSurvey>();
+		if (survey == null)
+			survey = gameObject.AddComponent<PostRunSurvey>();
 
 		// The help button for runs lives in this scene (added by Tools > VR Full Route > Add Help and
 		// Pause Menu to RunSystem). Prefer that one over any other that happens to be loaded.
@@ -281,18 +294,62 @@ public class RunSystemController : MonoBehaviour
 		string sampleFile = positionTracker?.StopTracking(completed);
 		if (wasTracking)
 			RunSummaryWriter.Write(positionTracker, routeTracker, runStartedAt, completed, elapsedTime, sampleFile);
+
+		// The post-run survey, for runs that reached the end zone in the modules that have one.
+		// Its answers go to survey_responses.csv, after the run's own data is already saved.
+		if (completed && survey != null && survey.AppliesTo(runType))
+			yield return survey.Run(runType, participantId, runIndex);
+
+		// Reached the end zone (and answered the survey, where there is one): this module is done
+		// for this participant, and is ticked off on the Select Module menu.
+		if (completed)
+			ModuleProgress.MarkCompleted(participantId, runType);
+
 		Debug.Log($"Returning to main menu after a {elapsedTime:F2} second run.");
 
 		MenuController menuController =
 			FindFirstObjectByType<MenuController>(FindObjectsInactive.Include);
+		Scene runSystemScene = gameObject.scene;
+
+		// Back to the menu behind the same fade as the tutorial: dark, show the menu and move the
+		// participant to it, unload this scene, then fade in. Handed to SceneTransitionController
+		// (Bootstrap) because this scene is unloaded part-way through.
+		SceneTransitionController transition = SceneTransitionController.Instance;
+		if (transition != null && transition.RunInDark(BackToMenu(menuController, runSystemScene)))
+			yield break;
+
+		// Fallback with no transition controller: a plain fade on the fader.
+		ScreenFader fader = ScreenFader.Instance;
+		if (fader != null)
+			yield return fader.FadeTo(1f, menuFadeSeconds);
 
 		if (menuController != null)
 			menuController.ShowMainMenu();
 
-		Scene runSystemScene = gameObject.scene;
+		if (fader != null)
+			fader.FadeIn(menuFadeSeconds);
 
 		if (runSystemScene.IsValid() && runSystemScene.isLoaded)
 			yield return SceneManager.UnloadSceneAsync(runSystemScene);
+	}
+
+	/// <summary>
+	/// The return to the menu, run in the dark by SceneTransitionController. Static and given
+	/// everything it needs, because the object that started it is unloaded halfway through.
+	/// </summary>
+	private static IEnumerator BackToMenu(MenuController menuController, Scene runSystemScene)
+	{
+		if (menuController != null)
+			menuController.ShowMainMenu();
+		else
+			Debug.LogWarning("RunSystemController found no MenuController to return to.");
+
+		if (runSystemScene.IsValid() && runSystemScene.isLoaded)
+		{
+			AsyncOperation unload = SceneManager.UnloadSceneAsync(runSystemScene);
+			while (unload != null && !unload.isDone)
+				yield return null;
+		}
 	}
 }
 
