@@ -12,7 +12,9 @@ public class RunSystemController : MonoBehaviour
 	[FormerlySerializedAs("guidedSpawnPoint")]
 	[SerializeField] private Transform runStartPoint;
 
-	[Tooltip("Seconds to fade to black and back when the run hands back to the main menu.")]
+	[Tooltip("Only used if Bootstrap has no SceneTransitionController: seconds to fade to black " +
+	         "and back when the run hands back to the main menu. Normally the transition " +
+	         "controller's own timings are used, the same as the tutorial's.")]
 	[SerializeField] private float menuFadeSeconds = 0.5f;
 
 	private TimerController timerController;
@@ -300,14 +302,21 @@ public class RunSystemController : MonoBehaviour
 
 		Debug.Log($"Returning to main menu after a {elapsedTime:F2} second run.");
 
-		// Fade out, move to the menu while it is dark, then fade back in. The fade in runs on
-		// the fader (Bootstrap), because this scene is unloaded underneath it.
+		MenuController menuController =
+			FindFirstObjectByType<MenuController>(FindObjectsInactive.Include);
+		Scene runSystemScene = gameObject.scene;
+
+		// Back to the menu behind the same fade as the tutorial: dark, show the menu and move the
+		// participant to it, unload this scene, then fade in. Handed to SceneTransitionController
+		// (Bootstrap) because this scene is unloaded part-way through.
+		SceneTransitionController transition = SceneTransitionController.Instance;
+		if (transition != null && transition.RunInDark(BackToMenu(menuController, runSystemScene)))
+			yield break;
+
+		// Fallback with no transition controller: a plain fade on the fader.
 		ScreenFader fader = ScreenFader.Instance;
 		if (fader != null)
 			yield return fader.FadeTo(1f, menuFadeSeconds);
-
-		MenuController menuController =
-			FindFirstObjectByType<MenuController>(FindObjectsInactive.Include);
 
 		if (menuController != null)
 			menuController.ShowMainMenu();
@@ -315,10 +324,27 @@ public class RunSystemController : MonoBehaviour
 		if (fader != null)
 			fader.FadeIn(menuFadeSeconds);
 
-		Scene runSystemScene = gameObject.scene;
-
 		if (runSystemScene.IsValid() && runSystemScene.isLoaded)
 			yield return SceneManager.UnloadSceneAsync(runSystemScene);
+	}
+
+	/// <summary>
+	/// The return to the menu, run in the dark by SceneTransitionController. Static and given
+	/// everything it needs, because the object that started it is unloaded halfway through.
+	/// </summary>
+	private static IEnumerator BackToMenu(MenuController menuController, Scene runSystemScene)
+	{
+		if (menuController != null)
+			menuController.ShowMainMenu();
+		else
+			Debug.LogWarning("RunSystemController found no MenuController to return to.");
+
+		if (runSystemScene.IsValid() && runSystemScene.isLoaded)
+		{
+			AsyncOperation unload = SceneManager.UnloadSceneAsync(runSystemScene);
+			while (unload != null && !unload.isDone)
+				yield return null;
+		}
 	}
 }
 

@@ -10,7 +10,16 @@ using VRTutorial;
 
 /// <summary>
 /// The short questionnaire shown when a participant reaches the end zone, before they go back
-/// to the main menu. Two questions, each answered on five faces from red/sad (1) to green/happy
+/// to the main menu.
+///
+/// THE SEQUENCE, all on one panel so there is never more than one on screen:
+///   arrival   - a green tick and "You have arrived!" with the completion sound, so the
+///               participant knows why they have stopped (about 2.5 s);
+///   questions - the page cross-fades to each question in turn;
+///   thank you - then the panel fades away and the view fades to the menu.
+/// The panel eases in (fades while growing from 95%) rather than appearing at once.
+///
+/// Two questions, each answered on five faces from red/sad (1) to green/happy
 /// (5), picked with the controller ray and confirmed with Next.
 ///
 ///   1. "How calm did you feel on the walk?"         -> calm (1-5), and stress = 6 - calm
@@ -74,9 +83,9 @@ public class PostRunSurvey : MonoBehaviour
              "unguided_2a and unguided_2b.")]
     [SerializeField] private string[] runTypes = { MenuController.ModuleUnguided1, MenuController.ModuleGuided };
 
-    [Tooltip("Seconds between reaching the end zone and the survey appearing, so the arrival " +
-             "registers before something new appears.")]
-    [SerializeField] private float delayBeforeSurvey = 1f;
+    [Tooltip("Seconds between reaching the end zone and the arrival panel easing in. Short: the " +
+             "panel is what tells the participant why they have stopped.")]
+    [SerializeField] private float delayBeforeSurvey = 0.3f;
 
     [Header("Questions")]
     [SerializeField] private Question[] questions =
@@ -86,6 +95,10 @@ public class PostRunSurvey : MonoBehaviour
     };
 
     [Header("Words")]
+    [Tooltip("Shown with a green tick before the questions.")]
+    [SerializeField] private string arrivalText = "You have arrived!";
+    [Tooltip("Seconds the arrival message shows before the first question.")]
+    [SerializeField] private float arrivalSeconds = 2.5f;
     [SerializeField] private string nextLabel = "Next";
     [SerializeField] private string doneLabel = "Done";
     [SerializeField] private string thanksText = "Thank you!";
@@ -105,7 +118,10 @@ public class PostRunSurvey : MonoBehaviour
     [Tooltip("Clicks are ignored for this long after each question appears, so a click meant " +
              "for Next cannot also pick a face on the next question.")]
     [SerializeField] private float ignoreClicksSeconds = 0.4f;
-    [SerializeField] private float fadeSeconds = 0.25f;
+    [Tooltip("Seconds for the panel to ease in (fade while growing from 95%) and out.")]
+    [SerializeField] private float appearSeconds = 0.6f;
+    [Tooltip("Seconds for each half of the cross-fade between pages (out, then in).")]
+    [SerializeField] private float pageFadeSeconds = 0.25f;
 
     /// <summary>True from the moment the survey starts until the participant finishes it.</summary>
     public bool IsRunning { get; private set; }
@@ -115,11 +131,13 @@ public class PostRunSurvey : MonoBehaviour
     private Canvas _canvas;
     private CanvasGroup _group;
     private HeadLockedUI _headLocked;
-    private GameObject _questionPage;
+    private RectTransform _content;      // scaled for the ease-in; the root's scale belongs to ScalableUIRoot
+    private CanvasGroup _arrivalPage;
+    private CanvasGroup _questionPage;
+    private CanvasGroup _thanksPage;
     private TMP_Text _prompt;
     private TMP_Text _lowLabel;
     private TMP_Text _highLabel;
-    private TMP_Text _thanks;
     private Button _next;
     private CanvasGroup _nextGroup;
     private TMP_Text _nextText;
@@ -184,13 +202,19 @@ public class PostRunSurvey : MonoBehaviour
             _hiddenForHelp = AssistanceRequest.IsActive;
             _headLocked.SnapToTarget();
 
+            // Arrival: tells them why everything has stopped, before asking anything.
+            ShowOnly(_arrivalPage);
+            UiCuePlayer.Instance?.PlayStepComplete();
+            yield return Appear();
+            yield return WaitWhileVisible(arrivalSeconds);
+
             for (int q = 0; q < n; q++)
             {
-                ShowQuestion(q);
-                if (q == 0)
-                    yield return FadeTo(_hiddenForHelp ? 0f : 1f);
-                else
-                    UiCuePlayer.Instance?.PlayStepAdvance();
+                int index = q;
+                yield return SwitchPage(q == 0 ? _arrivalPage : _questionPage, _questionPage,
+                                        () => ShowQuestion(index));
+                if (q > 0) UiCuePlayer.Instance?.PlayStepAdvance();
+                _clickableFrom = Time.unscaledTime + ignoreClicksSeconds;
 
                 // Wait for Next. Time with the help panels up is not counted as answering time.
                 float answering = 0f;
@@ -212,11 +236,10 @@ public class PostRunSurvey : MonoBehaviour
             SurveyResponseWriter.Write(participantId, runType, runIndex, startedAt, questions, answers, seconds, changes);
             SessionLog.Record("survey_completed", runType);
 
-            _questionPage.SetActive(false);
-            _thanks.gameObject.SetActive(true);
+            yield return SwitchPage(_questionPage, _thanksPage, null);
             UiCuePlayer.Instance?.PlayFlowComplete();
-            yield return WaitUnscaled(thanksSeconds);
-            yield return FadeTo(0f);
+            yield return WaitWhileVisible(thanksSeconds);
+            yield return Disappear();
         }
         finally
         {
@@ -258,9 +281,6 @@ public class PostRunSurvey : MonoBehaviour
 
         for (int i = 0; i < _dots.Count; i++)
             _dots[i].color = new Color(1f, 1f, 1f, i == index ? 1f : 0.35f);
-
-        _questionPage.SetActive(true);
-        _thanks.gameObject.SetActive(false);
     }
 
     private void OnFaceClicked(int value)
@@ -358,18 +378,99 @@ public class PostRunSurvey : MonoBehaviour
         while (Time.unscaledTime < end) yield return null;
     }
 
-    private IEnumerator FadeTo(float target)
+    /// <summary>Counts down only while the survey is on screen (not while help is up).</summary>
+    private IEnumerator WaitWhileVisible(float seconds)
     {
-        float start = _group.alpha;
-        _group.interactable = target > 0f;
-        _group.blocksRaycasts = target > 0f;
-        for (float t = 0f; t < fadeSeconds; t += Time.unscaledDeltaTime)
+        float left = seconds;
+        while (left > 0f)
         {
-            float k = Mathf.Clamp01(t / fadeSeconds);
-            _group.alpha = Mathf.Lerp(start, target, k * k * (3f - 2f * k));
+            if (!_hiddenForHelp) left -= Time.unscaledDeltaTime;
             yield return null;
         }
-        _group.alpha = target;
+    }
+
+    private static float EaseOut(float k) => 1f - (1f - k) * (1f - k) * (1f - k);
+    private static float Smooth(float k) => k * k * (3f - 2f * k);
+
+    /// <summary>The panel eases in: fades up while growing from 95% to full size.</summary>
+    private IEnumerator Appear()
+    {
+        _group.interactable = false;
+        _group.blocksRaycasts = false;
+        for (float t = 0f; t < appearSeconds; t += Time.unscaledDeltaTime)
+        {
+            float k = Mathf.Clamp01(t / appearSeconds);
+            _content.localScale = Vector3.one * Mathf.Lerp(0.95f, 1f, EaseOut(k));
+            if (!_hiddenForHelp) _group.alpha = Smooth(k);
+            yield return null;
+        }
+        _content.localScale = Vector3.one;
+        if (!_hiddenForHelp)
+        {
+            _group.alpha = 1f;
+            _group.interactable = true;
+            _group.blocksRaycasts = true;
+        }
+    }
+
+    /// <summary>The reverse, a little quicker and smaller in movement.</summary>
+    private IEnumerator Disappear()
+    {
+        _group.interactable = false;
+        _group.blocksRaycasts = false;
+        float start = _group.alpha;
+        float duration = appearSeconds * 0.7f;
+        for (float t = 0f; t < duration; t += Time.unscaledDeltaTime)
+        {
+            float k = Mathf.Clamp01(t / duration);
+            _content.localScale = Vector3.one * Mathf.Lerp(1f, 0.97f, Smooth(k));
+            _group.alpha = Mathf.Lerp(start, 0f, Smooth(k));
+            yield return null;
+        }
+        _group.alpha = 0f;
+    }
+
+    /// <summary>
+    /// Cross-fades the panel's contents: the old page fades out, the content changes while it is
+    /// blank, then the new page fades in. The panel itself (background) stays put throughout.
+    /// </summary>
+    private IEnumerator SwitchPage(CanvasGroup from, CanvasGroup to, Action change)
+    {
+        if (from != null && from.gameObject.activeSelf)
+        {
+            from.interactable = false;
+            from.blocksRaycasts = false;
+            float start = from.alpha;
+            for (float t = 0f; t < pageFadeSeconds; t += Time.unscaledDeltaTime)
+            {
+                from.alpha = Mathf.Lerp(start, 0f, Smooth(Mathf.Clamp01(t / pageFadeSeconds)));
+                yield return null;
+            }
+            from.alpha = 0f;
+        }
+
+        change?.Invoke();
+        ShowOnly(to);
+        to.alpha = 0f;
+        to.interactable = false;
+        to.blocksRaycasts = false;
+        for (float t = 0f; t < pageFadeSeconds; t += Time.unscaledDeltaTime)
+        {
+            to.alpha = Smooth(Mathf.Clamp01(t / pageFadeSeconds));
+            yield return null;
+        }
+        to.alpha = 1f;
+        to.interactable = true;
+        to.blocksRaycasts = true;
+    }
+
+    private void ShowOnly(CanvasGroup page)
+    {
+        foreach (CanvasGroup p in new[] { _arrivalPage, _questionPage, _thanksPage })
+            if (p != null) p.gameObject.SetActive(p == page);
+        page.alpha = 1f;
+        page.interactable = true;
+        page.blocksRaycasts = true;
     }
 
     private T FindInScene<T>() where T : Component
@@ -525,16 +626,30 @@ public class PostRunSurvey : MonoBehaviour
         // Grows with the text-size setting, as the pause menu does.
         _root.AddComponent<ScalableUIRoot>();
 
+        // Everything sits in Content, which the ease-in scales. The root's own scale belongs to
+        // ScalableUIRoot (the text-size setting), so it is left alone.
+        _content = (RectTransform)NewChild("Content", _root.transform, style.layer).transform;
+        Stretch(_content);
+
         // Panel
-        Image bg = NewImage("Background", _root.transform, style.panelSprite, style.panelColor, style.layer);
+        Image bg = NewImage("Background", _content, style.panelSprite, style.panelColor, style.layer);
         bg.type = style.panelSprite != null ? style.panelType : Image.Type.Simple;
         Stretch(bg.rectTransform);
 
         float top = panelSize.y * 0.5f;
         float bottom = -panelSize.y * 0.5f;
 
-        _questionPage = NewChild("Question", _root.transform, style.layer);
-        Stretch((RectTransform)_questionPage.transform);
+        // Arrival: a green tick and "You have arrived!".
+        _arrivalPage = NewPage("Arrival", style.layer);
+        Image tick = NewImage("Tick", _arrivalPage.transform, LoadSprite("Survey/SurveyTick"), Color.white, style.layer);
+        tick.raycastTarget = false;
+        tick.preserveAspect = true;
+        Place(tick.rectTransform, new Vector2(0f, 90f), new Vector2(180f, 180f));
+        TMP_Text arrived = NewText("ArrivalText", _arrivalPage.transform, style, style.textColor, 76f, FontStyles.Bold);
+        arrived.text = arrivalText;
+        Place(arrived.rectTransform, new Vector2(0f, -110f), new Vector2(panelSize.x - 80f, 160f));
+
+        _questionPage = NewPage("Question", style.layer);
 
         // Which question this is: one dot per question, the current one bright. No words needed.
         _dots.Clear();
@@ -590,10 +705,20 @@ public class PostRunSurvey : MonoBehaviour
         Stretch(_nextText.rectTransform);
 
         // Thank you
-        _thanks = NewText("Thanks", _root.transform, style, style.textColor, 80f, FontStyles.Bold);
-        _thanks.text = thanksText;
-        Place(_thanks.rectTransform, Vector2.zero, new Vector2(panelSize.x - 80f, 300f));
-        _thanks.gameObject.SetActive(false);
+        _thanksPage = NewPage("Thanks", style.layer);
+        TMP_Text thanks = NewText("ThanksText", _thanksPage.transform, style, style.textColor, 80f, FontStyles.Bold);
+        thanks.text = thanksText;
+        Place(thanks.rectTransform, Vector2.zero, new Vector2(panelSize.x - 80f, 300f));
+
+        ShowOnly(_arrivalPage);
+    }
+
+    /// <summary>A full-panel page with its own CanvasGroup, for cross-fading.</summary>
+    private CanvasGroup NewPage(string name, int layer)
+    {
+        GameObject page = NewChild(name, _content, layer);
+        Stretch((RectTransform)page.transform);
+        return page.AddComponent<CanvasGroup>();
     }
 
     private SurveyFaceOption NewFace(int value, Vector2 position, Sprite face, Sprite ring, int layer)

@@ -141,6 +141,17 @@ public class MenuController : MonoBehaviour
         if (isLoadingRunSystem || string.IsNullOrWhiteSpace(runType))
             return;
         Debug.Log($"Module button clicked: {runType}");
+        isLoadingRunSystem = true;
+
+        // Loaded behind the same fade as the tutorial: dark, load, place the participant at the
+        // bus stop, then fade in. Runs on SceneTransitionController (Bootstrap), so hiding the
+        // menu - this controller's own object - does not cut it short.
+        SceneTransitionController transition = SceneTransitionController.Instance;
+        if (transition != null && transition.RunInDark(LoadRunSystem(runType.Trim())))
+            return;
+
+        Debug.LogWarning("[MenuController] No SceneTransitionController in Bootstrap (or one already " +
+                         "running) - loading the module without a fade.", this);
         StartCoroutine(LoadRunSystem(runType.Trim()));
     }
 
@@ -197,10 +208,11 @@ public class MenuController : MonoBehaviour
 
         runSystemController.StartRun(runType);
 
+        // Cleared before hiding the menu: on the fallback path this coroutine runs on the menu
+        // itself, and hiding it stops the coroutine.
+        isLoadingRunSystem = false;
         if (mainMenuRoot != null)
             mainMenuRoot.SetActive(false);
-
-        isLoadingRunSystem = false;
     }
 
     public void onTutorialButtonClick()
