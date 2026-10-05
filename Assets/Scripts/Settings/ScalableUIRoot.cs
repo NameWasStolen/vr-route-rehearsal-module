@@ -23,9 +23,7 @@ using UnityEngine;
 /// is read once at the start of a session that is the right call. For dense content you would
 /// want real layout groups instead.
 ///
-/// Do NOT combine with ScalableRect on the same panel - it would apply the same scale a second
-/// time, and this component warns if it finds one. A ScalableText beneath it is harmless: it
-/// notices this component and stands down.
+/// A ScalableText beneath it is harmless: it notices this component and stands down.
 /// </summary>
 [DisallowMultipleComponent]
 public class ScalableUIRoot : MonoBehaviour
@@ -63,7 +61,6 @@ public class ScalableUIRoot : MonoBehaviour
     private void Awake()
     {
         Capture();
-        WarnAboutDoubleScaling();
     }
 
     private void Capture()
@@ -111,18 +108,5 @@ public class ScalableUIRoot : MonoBehaviour
         float bottom = Mathf.Min(Mathf.Min(_corners[0].y, _corners[1].y), Mathf.Min(_corners[2].y, _corners[3].y));
         float lift = floorY + floorClearance - bottom;
         if (lift > 0f) transform.position += Vector3.up * lift;
-    }
-
-    private void WarnAboutDoubleScaling()
-    {
-        // ScalableText defers to this component automatically, so only ScalableRect can still
-        // double up.
-        var rects = GetComponentsInChildren<ScalableRect>(true);
-        if (rects.Length == 0) return;
-
-        Debug.LogWarning(
-            $"[ScalableUIRoot] '{name}' scales this whole panel, but found {rects.Length} " +
-            "ScalableRect beneath it. That applies the same scale a second time, so those rects " +
-            "will grow roughly twice as fast as the panel around them. Remove them from this panel.", this);
     }
 }
