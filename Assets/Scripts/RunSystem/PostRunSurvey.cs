@@ -19,14 +19,18 @@ using VRTutorial;
 ///   thank you - then the panel fades away and the view fades to the menu.
 /// The panel eases in (fades while growing from 95%) rather than appearing at once.
 ///
-/// Two questions, each answered on five faces from red/sad (1) to green/happy
+/// Three questions, each answered on five faces from red/sad (1) to green/happy
 /// (5), picked with the controller ray and confirmed with Next.
 ///
-///   1. "How calm did you feel on the walk?"         -> calm (1-5), and stress = 6 - calm
+///   1. "How calm did you feel on the walk?"          -> calm (1-5), and stress = 6 - calm
 ///   2. "How confident did you feel finding the way?" -> confidence (1-5)
+///   3. Unguided: "How easy was it to find your own way?" -> ease (1-5), and difficulty = 6 - ease
+///      Guided:   "How much did the blue line help you?"  -> guide_help (1-5); only asked if the
+///                guide appeared at least once, so a Guided run with no taps and no wrong turns
+///                gets two questions.
 ///
-/// Stress is asked as calm so that the happy green face is the good answer on both questions;
-/// the stress column is the calm answer reversed, so the data still reads as a stress score.
+/// Stress and difficulty are asked as calm and ease so that the happy green face is the good
+/// answer on every question; the reversed columns keep the data reading as the original measure.
 ///
 /// WHEN: only after a run that reached the end zone, and only for the run types listed in
 /// Run Types (Unguided 1 and Guided by default). Leaving a run from the pause menu skips it.
@@ -63,16 +67,39 @@ public class PostRunSurvey : MonoBehaviour
         public string highLabel;
 
         [Tooltip("Optional. Also saves 6 - answer under this column name. Used to turn the calm " +
-                 "answer into a stress score.")]
+                 "answer into a stress score, and ease into a difficulty score.")]
         public string reversedColumn;
 
-        public Question(string id, string prompt, string lowLabel, string highLabel, string reversedColumn = "")
+        [Tooltip("Only asked after these run types. Leave empty to ask after every run that has the survey.")]
+        public string[] askAfter = new string[0];
+
+        [Tooltip("Only asked if the guide (blue line, or the Turn around sign) appeared at least once " +
+                 "during the run. Otherwise it is skipped and its cells are left blank.")]
+        public bool onlyIfGuideShown;
+
+        public Question(string id, string prompt, string lowLabel, string highLabel, string reversedColumn = "",
+                        string[] askAfter = null, bool onlyIfGuideShown = false)
         {
             this.id = id;
             this.prompt = prompt;
             this.lowLabel = lowLabel;
             this.highLabel = highLabel;
             this.reversedColumn = reversedColumn;
+            this.askAfter = askAfter ?? new string[0];
+            this.onlyIfGuideShown = onlyIfGuideShown;
+        }
+
+        /// <summary>Whether this question is asked after a run of this type.</summary>
+        public bool AskedAfter(string runType, int guideShownCount)
+        {
+            if (onlyIfGuideShown && guideShownCount <= 0)
+                return false;
+            if (askAfter == null || askAfter.Length == 0)
+                return true;
+            foreach (string t in askAfter)
+                if (string.Equals(t?.Trim(), runType, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
         }
     }
 
@@ -88,10 +115,20 @@ public class PostRunSurvey : MonoBehaviour
     [SerializeField] private float delayBeforeSurvey = 0.3f;
 
     [Header("Questions")]
+    [Tooltip("Asked in this order. Each run type gets only the questions whose Ask After includes it " +
+             "(or is empty). survey_responses.csv has a column for every question here, left blank " +
+             "where a question was not asked.")]
     [SerializeField] private Question[] questions =
     {
         new Question("calm", "How calm did you feel on the walk?", "Not calm", "Very calm", "stress"),
         new Question("confidence", "How confident did you feel finding the way?", "Not confident", "Very confident"),
+        // Unguided: "how difficult" asked as "how easy", so the green face is the good answer.
+        new Question("ease", "How easy was it to find your own way?", "Very hard", "Very easy", "difficulty",
+                     new[] { MenuController.ModuleUnguided1, MenuController.ModuleUnguided2a, MenuController.ModuleUnguided2b }),
+        // Guided: only if the line (or Turn around sign) actually appeared - someone who never
+        // tapped and never went wrong has nothing to rate.
+        new Question("guide_help", "How much did the blue line help you?", "Not helpful", "Very helpful", "",
+                     new[] { MenuController.ModuleGuided }, onlyIfGuideShown: true),
     };
 
     [Header("Words")]
@@ -142,6 +179,7 @@ public class PostRunSurvey : MonoBehaviour
     private CanvasGroup _nextGroup;
     private TMP_Text _nextText;
     private readonly List<Image> _dots = new List<Image>();
+    private int _layer;
     private readonly SurveyFaceOption[] _faces = new SurveyFaceOption[ScaleSize];
 
     // ------------------------------------------------------------------ state
@@ -169,10 +207,25 @@ public class PostRunSurvey : MonoBehaviour
     /// Shows the survey and returns when the participant has answered every question and the
     /// thank-you has shown. Run it from the coroutine that ends the run.
     /// </summary>
-    public IEnumerator Run(string runType, string participantId, int runIndex)
+    /// <param name="guideShownCount">Times the guide appeared during the run (Guided), or -1 when
+    /// the run has no guide. Decides whether guide questions are asked, and is saved with the row.</param>
+    public IEnumerator Run(string runType, string participantId, int runIndex, int guideShownCount = -1)
     {
         if (IsRunning || questions == null || questions.Length == 0)
             yield break;
+
+        // The questions this run gets, in order.
+        var asked = new List<int>();
+        for (int i = 0; i < questions.Length; i++)
+        {
+            if (questions[i].AskedAfter(runType, guideShownCount))
+                asked.Add(i);
+            else if (questions[i].onlyIfGuideShown && questions[i].AskedAfter(runType, 1))
+                SessionLog.Record("survey_skipped", $"{questions[i].id} (guide never shown)");
+        }
+        if (asked.Count == 0)
+            yield break;
+
         IsRunning = true;
 
         // Hold everything still straight away (the participant is standing in the end zone),
@@ -187,12 +240,15 @@ public class PostRunSurvey : MonoBehaviour
             yield break;
         }
 
+        // Full-length arrays, one slot per question in the list; a question not asked keeps 0 and
+        // is written as blank cells.
         int n = questions.Length;
         var answers = new int[n];
         var seconds = new float[n];
         var changes = new int[n];
         DateTime startedAt = DateTime.Now;
         SessionLog.Record("survey_started", runType);
+        BuildDots(asked.Count);
 
         AssistanceRequest.Changed += HandleAssistanceChanged;
         try
@@ -208,12 +264,13 @@ public class PostRunSurvey : MonoBehaviour
             yield return Appear();
             yield return WaitWhileVisible(arrivalSeconds);
 
-            for (int q = 0; q < n; q++)
+            for (int step = 0; step < asked.Count; step++)
             {
-                int index = q;
-                yield return SwitchPage(q == 0 ? _arrivalPage : _questionPage, _questionPage,
-                                        () => ShowQuestion(index));
-                if (q > 0) UiCuePlayer.Instance?.PlayStepAdvance();
+                int q = asked[step];
+                int position = step;
+                yield return SwitchPage(step == 0 ? _arrivalPage : _questionPage, _questionPage,
+                                        () => ShowQuestion(q, position, asked.Count));
+                if (step > 0) UiCuePlayer.Instance?.PlayStepAdvance();
                 _clickableFrom = Time.unscaledTime + ignoreClicksSeconds;
 
                 // Wait for Next. Time with the help panels up is not counted as answering time.
@@ -233,7 +290,8 @@ public class PostRunSurvey : MonoBehaviour
 
             // Saved before the thank-you, so the answers are on disk even if the headset comes
             // off now.
-            SurveyResponseWriter.Write(participantId, runType, runIndex, startedAt, questions, answers, seconds, changes);
+            SurveyResponseWriter.Write(participantId, runType, runIndex, startedAt, questions, answers, seconds, changes,
+                                       guideShownCount);
             SessionLog.Record("survey_completed", runType);
 
             yield return SwitchPage(_questionPage, _thanksPage, null);
@@ -260,7 +318,9 @@ public class PostRunSurvey : MonoBehaviour
 
     // ------------------------------------------------------------------ flow
 
-    private void ShowQuestion(int index)
+    /// <param name="index">The question in the list.</param>
+    /// <param name="position">Its place among the questions this run gets (for Next/Done and the dots).</param>
+    private void ShowQuestion(int index, int position, int count)
     {
         Question q = questions[index];
         _prompt.text = q.prompt;
@@ -275,12 +335,12 @@ public class PostRunSurvey : MonoBehaviour
         foreach (SurveyFaceOption face in _faces)
             face.SetState(false, false, true);
 
-        bool last = index == questions.Length - 1;
+        bool last = position == count - 1;
         _nextText.text = last ? doneLabel : nextLabel;
         SetNextEnabled(false);
 
         for (int i = 0; i < _dots.Count; i++)
-            _dots[i].color = new Color(1f, 1f, 1f, i == index ? 1f : 0.35f);
+            _dots[i].color = new Color(1f, 1f, 1f, i == position ? 1f : 0.35f);
     }
 
     private void OnFaceClicked(int value)
@@ -651,21 +711,9 @@ public class PostRunSurvey : MonoBehaviour
 
         _questionPage = NewPage("Question", style.layer);
 
-        // Which question this is: one dot per question, the current one bright. No words needed.
-        _dots.Clear();
-        if (questions.Length > 1)
-        {
-            Sprite dot = LoadSprite("Survey/SurveyDot");
-            float pitch = 44f;
-            float x0 = -(questions.Length - 1) * pitch * 0.5f;
-            for (int i = 0; i < questions.Length; i++)
-            {
-                Image d = NewImage($"Dot_{i + 1}", _questionPage.transform, dot, Color.white, style.layer);
-                d.raycastTarget = false;
-                Place(d.rectTransform, new Vector2(x0 + i * pitch, top - 50f), new Vector2(24f, 24f));
-                _dots.Add(d);
-            }
-        }
+        // The position dots are made per survey (BuildDots), as the number of questions depends
+        // on the run type.
+        _layer = style.layer;
 
         _prompt = NewText("Prompt", _questionPage.transform, style, style.textColor, questionFontSize, FontStyles.Bold);
         Place(_prompt.rectTransform, new Vector2(0f, top - 160f), new Vector2(panelSize.x - 80f, 170f));
@@ -711,6 +759,30 @@ public class PostRunSurvey : MonoBehaviour
         Place(thanks.rectTransform, Vector2.zero, new Vector2(panelSize.x - 80f, 300f));
 
         ShowOnly(_arrivalPage);
+    }
+
+    /// <summary>
+    /// Which question this is: one dot per question this run gets, the current one bright. No
+    /// words needed. None for a single question.
+    /// </summary>
+    private void BuildDots(int count)
+    {
+        foreach (Image d in _dots)
+            if (d != null) Destroy(d.gameObject);
+        _dots.Clear();
+        if (count < 2) return;
+
+        Sprite dot = LoadSprite("Survey/SurveyDot");
+        float pitch = 44f;
+        float x0 = -(count - 1) * pitch * 0.5f;
+        float top = panelSize.y * 0.5f;
+        for (int i = 0; i < count; i++)
+        {
+            Image d = NewImage($"Dot_{i + 1}", _questionPage.transform, dot, Color.white, _layer);
+            d.raycastTarget = false;
+            Place(d.rectTransform, new Vector2(x0 + i * pitch, top - 50f), new Vector2(24f, 24f));
+            _dots.Add(d);
+        }
     }
 
     /// <summary>A full-panel page with its own CanvasGroup, for cross-fading.</summary>

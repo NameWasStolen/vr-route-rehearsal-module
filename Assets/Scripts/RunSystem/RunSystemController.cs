@@ -62,9 +62,14 @@ public class RunSystemController : MonoBehaviour
 		if (FindInThisScene<SelectedControllerOnly>() == null)
 			gameObject.AddComponent<SelectedControllerOnly>();
 
-		// The stress and confidence questions shown at the end zone of some modules. Added here
-		// so it needs no scene setup; add a PostRunSurvey by hand to change which runs get it or
-		// its wording.
+		// The suburban background sound (birds, a quiet morning suburb), the same in every module.
+		// Added here so it needs no scene setup; the clip comes from Resources/Ambience.
+		if (FindInThisScene<RunAmbience>() == null)
+			gameObject.AddComponent<RunAmbience>();
+
+		// The survey shown at the end zone of some modules (calm, confidence, then ease or
+		// blue-line help). Added here so it needs no scene setup; add a PostRunSurvey by hand to
+		// change which runs get it or its wording.
 		survey = FindInThisScene<PostRunSurvey>();
 		if (survey == null)
 			survey = gameObject.AddComponent<PostRunSurvey>();
@@ -297,8 +302,13 @@ public class RunSystemController : MonoBehaviour
 
 		// The post-run survey, for runs that reached the end zone in the modules that have one.
 		// Its answers go to survey_responses.csv, after the run's own data is already saved.
+		// Guided runs pass how often the guide appeared: the "how much did the blue line help"
+		// question is only asked if it appeared at all.
 		if (completed && survey != null && survey.AppliesTo(runType))
-			yield return survey.Run(runType, participantId, runIndex);
+		{
+			int guideShown = guidance != null && guidance.IsGuided ? guidance.TimesShown : -1;
+			yield return survey.Run(runType, participantId, runIndex, guideShown);
+		}
 
 		// Reached the end zone (and answered the survey, where there is one): this module is done
 		// for this participant, and is ticked off on the Select Module menu.

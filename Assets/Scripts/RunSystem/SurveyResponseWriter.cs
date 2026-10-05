@@ -12,9 +12,15 @@ using UnityEngine;
 ///
 /// With the default questions the columns are:
 ///   participant_id, run_type, run_index, date, time,
-///   calm, stress, confidence,                  answers 1-5 (stress = 6 - calm)
-///   calm_time_s, confidence_time_s,            seconds to answer (help panel time left out)
-///   calm_changes, confidence_changes           times the participant changed their pick
+///   calm, stress, confidence, ease, difficulty, guide_help,
+///                                   answers 1-5 (stress = 6 - calm, difficulty = 6 - ease)
+///   calm_time_s ... guide_help_time_s   seconds to answer (help panel time left out)
+///   calm_changes ... guide_help_changes times the participant changed their pick
+///   guide_shown                     times the guide appeared in the run (Guided only)
+///
+/// Every row has every column, so Unguided and Guided rows share one file: a question not asked
+/// in that run (ease in Guided; guide_help in Unguided, or in a Guided run where the guide never
+/// appeared) has blank cells. guide_shown is blank for runs with no guide.
 ///
 /// The header follows the questions in PostRunSurvey. If the file's header does not match (the
 /// questions were changed), rows go to survey_responses_2.csv, _3 ... so one file never mixes
@@ -35,12 +41,14 @@ public static class SurveyResponseWriter
         }
         foreach (PostRunSurvey.Question q in questions) cols.Add(q.id + "_time_s");
         foreach (PostRunSurvey.Question q in questions) cols.Add(q.id + "_changes");
+        cols.Add("guide_shown");
         return string.Join(",", cols);
     }
 
     /// <summary>Builds the row and appends it. Returns the file written to, or null.</summary>
     public static string Write(string participantId, string runType, int runIndex, DateTime startedAt,
-                               IList<PostRunSurvey.Question> questions, int[] answers, float[] seconds, int[] changes)
+                               IList<PostRunSurvey.Question> questions, int[] answers, float[] seconds, int[] changes,
+                               int guideShownCount = -1)
     {
         string header = BuildHeader(questions);
         var inv = CultureInfo.InvariantCulture;
@@ -59,8 +67,10 @@ public static class SurveyResponseWriter
             if (!string.IsNullOrWhiteSpace(questions[i].reversedColumn))
                 v.Add(a > 0 ? (PostRunSurvey.ScaleSize + 1 - a).ToString(inv) : "");
         }
-        for (int i = 0; i < questions.Count; i++) v.Add(seconds[i].ToString("F1", inv));
-        for (int i = 0; i < questions.Count; i++) v.Add(changes[i].ToString(inv));
+        // An answer of 0 means the question was not asked in this run: its time and changes are blank too.
+        for (int i = 0; i < questions.Count; i++) v.Add(answers[i] > 0 ? seconds[i].ToString("F1", inv) : "");
+        for (int i = 0; i < questions.Count; i++) v.Add(answers[i] > 0 ? changes[i].ToString(inv) : "");
+        v.Add(guideShownCount >= 0 ? guideShownCount.ToString(inv) : "");
         string row = string.Join(",", v);
 
         string path = CurrentFile(header);
