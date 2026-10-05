@@ -45,11 +45,18 @@ public class RunGuidance : MonoBehaviour
 
     public bool IsGuided => guided;
 
+    /// <summary>
+    /// Times the guide appeared this run (the line drawn on a tap or after a wrong turn). The
+    /// post-run survey asks how helpful the blue line was only if this is above 0.
+    /// </summary>
+    public int TimesShown { get; private set; }
+
     /// <summary>Called by RunSystemController as the run loads.</summary>
     public void Configure(string runType, AssistanceController help, RouteProgressTracker routeTracker,
                           PlayerPositionTracker positionTracker)
     {
         End();
+        TimesShown = 0;
         guided = string.Equals(runType, "guided", System.StringComparison.OrdinalIgnoreCase);
         assistance = help;
         tracker = routeTracker;
@@ -161,6 +168,7 @@ public class RunGuidance : MonoBehaviour
     {
         if (!guided) return;
         if (guide != null) guide.BeginCorrection(e.Branch);
+        else TimesShown++;      // no line in the scene: the Turn around sign is the guide
         if (signal != null) signal.Show();
     }
 
@@ -174,6 +182,7 @@ public class RunGuidance : MonoBehaviour
 
     private void OnGuideShown(string reason)
     {
+        TimesShown++;
         if (positions != null) positions.GuideVisible = true;
         SessionLog.Record("guide_shown", reason);
     }

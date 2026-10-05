@@ -27487,6 +27487,7 @@ GameObject:
   m_Component:
   - component: {fileID: 389607106}
   - component: {fileID: 389607107}
+  - component: {fileID: 389607108}
   m_Layer: 0
   m_Name: RunSystemController
   m_TagString: Untagged
@@ -27523,6 +27524,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RunSystemController
   runStartPoint: {fileID: 1651916056}
   menuFadeSeconds: 0.5
+--- !u!114 &389607108
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 389607105}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36980721ce787014584d1667345f2395, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RunAmbience
+  clip: {fileID: 8300000, guid: 144a07a5442ca894fb37e068330e4fa8, type: 3}
+  volume: 0.2
+  output: {fileID: 0}
+  crossfadeSeconds: 4
+  fadeInSeconds: 1.5
 --- !u!1 &390532607
 GameObject:
   m_ObjectHideFlags: 0
