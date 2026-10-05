@@ -14,7 +14,8 @@ namespace VRTutorial.EditorTools
     /// Creates (or reuses) the M_RouteGuide material, adds a RouteGuideLine to the scene that
     /// holds TutorialFlow, and wires:
     ///   StepGoToExit  TutorialStep.onStepEnter          -> RouteGuideLine.Show
-    ///   end zone      TutorialZoneTrigger.onPlayerEntered -> RouteGuideLine.Hide
+    ///   (the line hides itself within 2 m of the end-zone centre; the old end-zone
+    ///   TutorialZoneTrigger wiring was removed with that component in Oct 2026)
     ///   A/X tap       AssistanceController.onTapped       -> RouteGuideLine.RequestShow
     ///   wrong turn    RouteGuideLine.onWrongTurn          -> TutorialFlow.RevealStep("WrongWay")
     /// and creates StepWrongWay (a copy of StepGoToExit with the wrong-way wording) if missing.
@@ -74,7 +75,6 @@ namespace VRTutorial.EditorTools
             so.ApplyModifiedProperties();
 
             WireShow(guide);
-            WireHide(guide);
             WireTap(guide);
             WireWrongWay(guide, flow);
             CreateShowWayStep(guide, flow);
@@ -130,46 +130,6 @@ namespace VRTutorial.EditorTools
             Debug.LogWarning("[RouteGuide] No step named \"" + ExitStepName + "\". Build it first " +
                              "(see go-to-exit-step.md), or wire the step that tells them to walk to " +
                              "the finish: TutorialStep.onStepEnter -> RouteGuideLine.Show.");
-        }
-
-        private static void WireHide(RouteGuideLine guide)
-        {
-            foreach (TutorialZoneTrigger zone in Object.FindObjectsByType<TutorialZoneTrigger>(
-                         FindObjectsInactive.Include, FindObjectsSortMode.None))
-            {
-                if (!IsEndZone(zone)) continue;
-                if (HasListener(zone.onPlayerEntered, guide, nameof(RouteGuideLine.Hide)))
-                {
-                    Debug.Log("[RouteGuide] End zone already hides the line.", zone);
-                    return;
-                }
-                Undo.RecordObject(zone, "Wire Route Guide Hide");
-                UnityEventTools.AddPersistentListener(zone.onPlayerEntered, guide.Hide);
-                EditorUtility.SetDirty(zone);
-                Debug.Log("[RouteGuide] Wired " + zone.name + ".onPlayerEntered -> RouteGuideLine.Hide", zone);
-                return;
-            }
-            Debug.LogWarning("[RouteGuide] Could not identify the end-zone trigger. Wire it by hand: " +
-                             "TutorialZoneTrigger.onPlayerEntered -> RouteGuideLine.Hide. (The line " +
-                             "also hides itself within 2 m of the end-zone centre.)");
-        }
-
-        /// <summary>The end zone is the trigger that reveals the "End" step, or one named for it.</summary>
-        private static bool IsEndZone(TutorialZoneTrigger zone)
-        {
-            var calls = new SerializedObject(zone).FindProperty("onPlayerEntered.m_PersistentCalls.m_Calls");
-            if (calls != null)
-            {
-                for (int i = 0; i < calls.arraySize; i++)
-                {
-                    SerializedProperty call = calls.GetArrayElementAtIndex(i);
-                    string method = call.FindPropertyRelative("m_MethodName").stringValue;
-                    string arg = call.FindPropertyRelative("m_Arguments.m_StringArgument").stringValue;
-                    if (method == "RevealStep" && arg == "End") return true;
-                }
-            }
-            string n = zone.name.ToLowerInvariant();
-            return n.Contains("endzone") || n.Contains("end zone") || n.Contains("end_zone");
         }
 
         private static void WireTap(RouteGuideLine guide)
