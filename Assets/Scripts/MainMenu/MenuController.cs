@@ -36,7 +36,7 @@ public class MenuController : MonoBehaviour
         // Researcher-only participant ID screen: hold both thumbsticks in for 3 s on this menu.
         ResearcherScreen.Attach(mainMenuRoot);
 
-        // Ticks off the Select Module buttons this participant has completed.
+        // Ticks off completed modules, padlocks the ones not yet reached, highlights the next.
         ModuleCompletionView.Attach(mainMenuRoot);
     }
 
@@ -49,6 +49,7 @@ public class MenuController : MonoBehaviour
     // The intervention runs four modules in this order, each followed by its own survey, so
     // each records its own run type (the CSVs' run_type column and the session log). Only
     // "guided" shows the route line; the three unguided modules are the same run.
+    // With a participant ID set they open one at a time, after the Map (ModuleProgress.Sequence).
     public const string ModuleUnguided1 = "unguided_1";
     public const string ModuleGuided = "guided";
     public const string ModuleUnguided2a = "unguided_2a";
@@ -79,7 +80,7 @@ public class MenuController : MonoBehaviour
     /// </summary>
     public void onMapButtonClick()
     {
-        if (isLoadingRunSystem || AlreadyDone(ModuleProgress.MapModule))
+        if (isLoadingRunSystem || !CanStart(ModuleProgress.MapModule))
             return;
         Debug.Log("Map button clicked");
         StartCoroutine(LoadRouteMap());
@@ -141,7 +142,7 @@ public class MenuController : MonoBehaviour
 
     private void StartModule(string runType)
     {
-        if (isLoadingRunSystem || string.IsNullOrWhiteSpace(runType) || AlreadyDone(runType.Trim()))
+        if (isLoadingRunSystem || string.IsNullOrWhiteSpace(runType) || !CanStart(runType.Trim()))
             return;
         Debug.Log($"Module button clicked: {runType}");
         isLoadingRunSystem = true;
@@ -159,16 +160,26 @@ public class MenuController : MonoBehaviour
     }
 
     /// <summary>
-    /// A completed module's button is ticked and switched off (ModuleCompletionView); this is the
-    /// same check for anything else that calls these methods.
+    /// Only the next module in the order can be started (ModuleCompletionView also switches the
+    /// other buttons off); this is the same check for anything else that calls these methods.
+    /// Always true with no participant ID set.
     /// </summary>
-    private bool AlreadyDone(string module)
+    private bool CanStart(string module)
     {
-        if (!ModuleProgress.IsCompleted(StudySession.ParticipantId, module))
-            return false;
-        Debug.Log($"'{module}' is already completed for {StudySession.ParticipantId}. To repeat it, reset " +
-                  "progress on the researcher screen (hold both thumbsticks for 3 s on the main menu).", this);
-        return true;
+        string id = StudySession.ParticipantId;
+        if (ModuleProgress.IsUnlocked(id, module))
+            return true;
+
+        if (ModuleProgress.IsCompleted(id, module))
+            Debug.Log($"'{module}' is already completed for {id}. To repeat it, reset progress on the " +
+                      "researcher screen (hold both thumbsticks for 3 s on the main menu).", this);
+        else if (ModuleProgress.IsSkipped(id, module))
+            Debug.Log($"'{module}' was skipped for {id}. To do it after all, reset progress on the researcher screen.", this);
+        else
+            Debug.Log($"'{module}' is locked for {id}: next is '{ModuleProgress.NextModule(id) ?? "nothing (all done)"}'. " +
+                      "Modules open in order: Map, 1 Unguided, 2 Guided, 3 Unguided 2.a, 4 Unguided 2.b. " +
+                      "The researcher screen's Skip module moves past one that can't be finished.", this);
+        return false;
     }
 
     public void ShowMainMenu()

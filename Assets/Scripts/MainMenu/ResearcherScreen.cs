@@ -23,6 +23,11 @@ using UnityEngine.UI;
 /// module can be done again (headset slipped, wrong ID, test run). It needs two presses within a
 /// few seconds, and is recorded in module_progress.csv and the session log.
 ///
+/// SKIP MODULE: modules open one at a time in order (Map, 1, 2, 3, 4). If the next one can't be
+/// finished (a headset problem, say), Skip moves the participant past it so the following one
+/// opens. It is recorded as "skipped", not completed, so the menu shows no tick for it. Also two
+/// presses within a few seconds.
+///
 /// BUILT AT RUNTIME, not in the scene: MenuController adds it. It is a separate world-space canvas
 /// placed exactly where the main menu is, reusing the menu's raycasters (so the controller
 /// pointers work), font and button look. The main menu is hidden while it is open, so a
@@ -52,6 +57,10 @@ public class ResearcherScreen : MonoBehaviour
     private const string ResetText = "Reset progress";
     private const string ResetConfirmText = "Press again to reset";
     private const float ResetConfirmSeconds = 4f;
+    private Button skipButton;
+    private TMP_Text skipLabel;
+    private float skipArmedUntil = -1f;
+    private string skipArmedFor;                  // the module the armed press will skip
     private string digits = "";
 
     public bool IsOpen => screen != null && screen.activeSelf;
@@ -106,10 +115,15 @@ public class ResearcherScreen : MonoBehaviour
     {
         if (IsOpen)
         {
-            // The reset confirmation lapses if the second press does not come.
+            // The reset and skip confirmations lapse if the second press does not come.
             if (resetArmedUntil > 0f && Time.unscaledTime > resetArmedUntil)
             {
                 resetArmedUntil = -1f;
+                Refresh();
+            }
+            if (skipArmedUntil > 0f && Time.unscaledTime > skipArmedUntil)
+            {
+                skipArmedUntil = -1f;
                 Refresh();
             }
             heldFor = 0f;
@@ -146,6 +160,7 @@ public class ResearcherScreen : MonoBehaviour
         if (digits.Length > maxDigits || !IsDigits(digits)) digits = "";
 
         resetArmedUntil = -1f;
+        skipArmedUntil = -1f;
         PlaceOverMenu();
         menuRoot.SetActive(false);
         screen.SetActive(true);
@@ -178,13 +193,41 @@ public class ResearcherScreen : MonoBehaviour
         if (resetArmedUntil < 0f || Time.unscaledTime > resetArmedUntil)
         {
             resetArmedUntil = Time.unscaledTime + ResetConfirmSeconds;
+            skipArmedUntil = -1f;                 // only one control armed at a time
             Refresh();
             return;
         }
 
         resetArmedUntil = -1f;
+        skipArmedUntil = -1f;
         ModuleProgress.ResetParticipant(id);
         Debug.Log($"[ResearcherScreen] Module progress reset for {id}.", this);
+        Refresh();
+    }
+
+    /// <summary>
+    /// First press arms it, a second press within a few seconds skips the participant's next
+    /// module (recorded as skipped, not completed), so the one after it opens.
+    /// </summary>
+    private void SkipModule()
+    {
+        string id = StudySession.ParticipantId;
+        string next = ModuleProgress.NextModule(id);
+        if (!StudySession.HasParticipant || next == null) return;
+
+        if (skipArmedUntil < 0f || Time.unscaledTime > skipArmedUntil || skipArmedFor != next)
+        {
+            skipArmedUntil = Time.unscaledTime + ResetConfirmSeconds;
+            skipArmedFor = next;
+            resetArmedUntil = -1f;
+            Refresh();
+            return;
+        }
+
+        skipArmedUntil = -1f;
+        ModuleProgress.MarkSkipped(id, next);
+        Debug.Log($"[ResearcherScreen] Skipped '{next}' for {id}; next is now " +
+                  $"'{ModuleProgress.NextModule(id) ?? "nothing (all done)"}'.", this);
         Refresh();
     }
 
@@ -204,28 +247,45 @@ public class ResearcherScreen : MonoBehaviour
     private void Refresh()
     {
         string current = StudySession.ParticipantId;
+        string nextModule = StudySession.HasParticipant ? ModuleProgress.NextModule(current) : null;
         currentLabel.text = StudySession.HasParticipant
-            ? $"Current: {current}   (next run: {StudySession.NextRunIndex(current)})   Done: {DoneSummary(current)}"
-            : "Current: none set";
+            ? $"Current: {current}   (next run: {StudySession.NextRunIndex(current)})   Done: {DoneSummary(current)}   " +
+              $"Next: {(nextModule != null ? ShortName(nextModule) : "all done")}"
+            : "Current: none set (all modules open)";
         entryLabel.text = prefix + (digits.Length > 0 ? digits : "_");
         saveButton.interactable = digits.Length > 0;
 
         bool armed = resetArmedUntil > 0f && Time.unscaledTime <= resetArmedUntil;
         if (resetButton != null)
-            resetButton.interactable = StudySession.HasParticipant && ModuleProgress.CompletedBy(current).Count > 0;
+            resetButton.interactable = StudySession.HasParticipant && ModuleProgress.HasProgress(current);
         if (resetLabel != null)
             resetLabel.text = armed ? ResetConfirmText : ResetText;
+
+        bool skipArmed = skipArmedUntil > 0f && Time.unscaledTime <= skipArmedUntil && skipArmedFor == nextModule;
+        if (skipButton != null)
+            skipButton.interactable = StudySession.HasParticipant && nextModule != null;
+        if (skipLabel != null)
+            skipLabel.text = nextModule == null ? "Skip module"
+                : skipArmed ? $"Press again to skip {ShortName(nextModule)}"
+                : $"Skip module {ShortName(nextModule)}";
     }
 
-    /// <summary>"Map, 1, 2" - the completed options in menu order, by their button numbers.</summary>
+    /// <summary>The module's name on its menu button: Map, 1, 2, 3 or 4.</summary>
+    private static string ShortName(string module)
+    {
+        int i = Array.IndexOf(ModuleProgress.Sequence, module);
+        return i == 0 ? "Map" : i > 0 ? i.ToString() : module;
+    }
+
+    /// <summary>"Map, 1, 2 (skipped)" - the done options in menu order, by their button numbers.</summary>
     private static string DoneSummary(string participantId)
     {
         var names = new List<string>();
-        if (ModuleProgress.IsCompleted(participantId, ModuleProgress.MapModule)) names.Add("Map");
-        if (ModuleProgress.IsCompleted(participantId, MenuController.ModuleUnguided1)) names.Add("1");
-        if (ModuleProgress.IsCompleted(participantId, MenuController.ModuleGuided)) names.Add("2");
-        if (ModuleProgress.IsCompleted(participantId, MenuController.ModuleUnguided2a)) names.Add("3");
-        if (ModuleProgress.IsCompleted(participantId, MenuController.ModuleUnguided2b)) names.Add("4");
+        foreach (string m in ModuleProgress.Sequence)
+        {
+            if (ModuleProgress.IsCompleted(participantId, m)) names.Add(ShortName(m));
+            else if (ModuleProgress.IsSkipped(participantId, m)) names.Add(ShortName(m) + " (skipped)");
+        }
         return names.Count > 0 ? string.Join(", ", names) : "none";
     }
 
@@ -336,9 +396,16 @@ public class ResearcherScreen : MonoBehaviour
         MakeButton("KeyDelete", root, "Delete", P(-170, 18 - 3 * 62), S(70, 54), 18 * sy, DeleteLast);
         MakeButton("Key0", root, "0", P(-90, 18 - 3 * 62), S(70, 54), 30 * sy, () => Press('0'));
 
-        saveButton = MakeButton("Save", root, "Save", P(165, 40), S(190, 64), 28 * sy, Save);
-        MakeButton("Cancel", root, "Cancel", P(165, -40), S(190, 64), 28 * sy, Close);
-        resetButton = MakeButton("ResetProgress", root, ResetText, P(165, -130), S(190, 64), 18 * sy, ResetProgress);
+        // Right column: Save, Cancel, then the two progress controls (each needs two presses).
+        saveButton = MakeButton("Save", root, "Save", P(165, 75), S(190, 60), 28 * sy, Save);
+        MakeButton("Cancel", root, "Cancel", P(165, 5), S(190, 60), 28 * sy, Close);
+        skipButton = MakeButton("SkipModule", root, "Skip module", P(165, -65), S(190, 60), 18 * sy, SkipModule);
+        skipLabel = skipButton.GetComponentInChildren<TMP_Text>(true);
+        // "Press again to skip Map" is the longest label; shrink rather than overflow.
+        skipLabel.enableAutoSizing = true;
+        skipLabel.fontSizeMax = 18 * sy;
+        skipLabel.fontSizeMin = 11 * sy;
+        resetButton = MakeButton("ResetProgress", root, ResetText, P(165, -135), S(190, 60), 18 * sy, ResetProgress);
         resetLabel = resetButton.GetComponentInChildren<TMP_Text>(true);
     }
 
