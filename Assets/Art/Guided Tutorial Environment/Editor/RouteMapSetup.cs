@@ -242,17 +242,185 @@ namespace VRTutorial.EditorTools
         }
 
         // ================================================================== end-zone picture
+        //
+        // The picture on the Finish card: the end zone as a participant sees it arriving - eye
+        // height, on the footpath PhotoBackOff metres before the end trigger, looking at the
+        // shopping centre's front.
+        //
+        // HISTORY. The first version came out sky only (2 Oct); waiting a few Editor frames before
+        // the shot did not fix it - the 3 Oct build saved the plain default sky and ground, with
+        // not even the footpath under the camera drawn. The old empty check missed it (it only
+        // looked at the lower half, where the bright horizon band read as detail), so the build
+        // reported success.
+        //
+        // NOW (5 Oct):
+        //  - Retake End-Zone Picture takes it in RunSystem, where the route is known to draw, and
+        //    overwrites the PNG in place - the Map card uses the new one without rebuilding.
+        //  - Each shot is compared with a sky-only shot from the same camera: no difference means
+        //    nothing was drawn. A render request is tried first, then Camera.Render.
+        //  - An empty shot is never saved: the existing picture is kept.
+        //  - The Console reports the camera position and how many objects were in view.
+
+        const string RunSystemScenePath = "Assets/Scenes/RunSystem.unity";
+        const string FullRouteRootName = "FullRouteEnvironment";
+        const int RetakeFramesBeforePhoto = 8;
+
+        static int s_retakeFrames = -1;                 // -1 = no retake in progress
+        static UnityEngine.SceneManagement.Scene s_retakeScene;
+        static UnityEngine.SceneManagement.Scene s_retakePreviousActive;
+        static bool s_retakeOpened;
+
         /// <summary>
-        /// Renders the end zone as a participant sees it arriving: eye height, on the footpath
-        /// PhotoBackOff metres before the end trigger, looking at the shopping centre's front.
+        /// Tools > VR Full Route > Retake End-Zone Picture (Map button). Takes the Finish card's
+        /// picture in RunSystem and overwrites T_Map_EndZonePhoto.png, so the Map shows it with no
+        /// rebuild. RunSystem is opened alongside the current scene if it is not open, and closed
+        /// again afterwards.
+        /// </summary>
+        [MenuItem("Tools/VR Full Route/Retake End-Zone Picture (Map button)", false, 5)]
+        public static void RetakePhoto()
+        {
+            if (s_pending != null || s_retakeFrames >= 0)
+            {
+                Debug.LogWarning("[RouteMap] A picture is already being taken. Wait a moment and try again.");
+                return;
+            }
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                EditorUtility.DisplayDialog("Retake End-Zone Picture", "Leave Play mode first.", "OK");
+                return;
+            }
+            if (!File.Exists(RunSystemScenePath))
+            {
+                EditorUtility.DisplayDialog("Retake End-Zone Picture", RunSystemScenePath + " was not found.", "OK");
+                return;
+            }
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+
+            s_retakePreviousActive = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            s_retakeScene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(RunSystemScenePath);
+            s_retakeOpened = !s_retakeScene.isLoaded;
+            if (s_retakeOpened)
+                s_retakeScene = EditorSceneManager.OpenScene(RunSystemScenePath, OpenSceneMode.Additive);
+            // RunSystem's own sky and fog, as in the run.
+            UnityEngine.SceneManagement.SceneManager.SetActiveScene(s_retakeScene);
+
+            // A few frames first, so everything just loaded has been drawn once.
+            EditorUtility.DisplayProgressBar("End-zone picture", "Opening RunSystem...", 0.3f);
+            s_retakeFrames = 0;
+            EditorApplication.update += RetakeContinue;
+        }
+
+        static void RetakeContinue()
+        {
+            s_retakeFrames++;
+            if (s_retakeFrames < RetakeFramesBeforePhoto)
+            {
+                EditorApplication.QueuePlayerLoopUpdate();
+                SceneView.RepaintAll();
+                return;
+            }
+            EditorApplication.update -= RetakeContinue;
+
+            try
+            {
+                EditorUtility.DisplayProgressBar("End-zone picture", "Taking the picture...", 0.7f);
+                RouteDefinition def = null;
+                foreach (var d in Object.FindObjectsByType<RouteDefinition>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                {
+                    if (d.gameObject.scene != s_retakeScene) continue;
+                    if (def == null || d.gameObject.name == FullRouteRootName) def = d;
+                }
+                if (def == null || def.PointCount < 2)
+                {
+                    EditorUtility.DisplayDialog("Retake End-Zone Picture",
+                        "RunSystem has no route (no RouteDefinition on " + FullRouteRootName + "). " +
+                        "Run Tools > VR Full Route > Install Route in RunSystem first.", "OK");
+                    return;
+                }
+
+                string report;
+                Texture2D tex = TakeEndZonePicture(new FullRoutePlan(), def, s_retakeScene, out report);
+                if (tex == null)
+                {
+                    Debug.LogError("[RouteMap] Retake: the picture still came out empty, so the existing one was kept. " +
+                                   report + " Please send this line to Claude.");
+                    EditorUtility.DisplayDialog("Retake End-Zone Picture",
+                        "The picture came out empty, so the existing one was kept. The Console has the details.", "OK");
+                    return;
+                }
+                SavePhoto(tex);
+                Debug.Log("[RouteMap] Retake: new end-zone picture saved to " + PhotoPath + ". " + report +
+                          " The Map's Finish card uses it straight away - no need to rebuild the map.");
+                EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<Texture2D>(PhotoPath));
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError("[RouteMap] Retake failed: " + e);
+            }
+            finally
+            {
+                if (s_retakePreviousActive.IsValid() && s_retakePreviousActive.isLoaded && s_retakePreviousActive != s_retakeScene)
+                    UnityEngine.SceneManagement.SceneManager.SetActiveScene(s_retakePreviousActive);
+                if (s_retakeOpened && s_retakeScene.IsValid() && s_retakeScene.isLoaded)
+                    EditorSceneManager.CloseScene(s_retakeScene, true);
+                s_retakeFrames = -1;
+                EditorUtility.ClearProgressBar();
+            }
+        }
+
+        /// <summary>
+        /// For the map build: takes the picture in the freshly built scene. If it comes out empty
+        /// the existing picture is kept (and the Console says to use Retake End-Zone Picture).
         /// </summary>
         static Sprite CapturePhoto(FullRoutePlan plan, RouteDefinition def)
         {
+            try
+            {
+                string report;
+                Texture2D tex = TakeEndZonePicture(plan, def, def.gameObject.scene, out report);
+                if (tex != null)
+                {
+                    SavePhoto(tex);
+                    Debug.Log("[RouteMap] End-zone picture taken. " + report);
+                }
+                else
+                {
+                    Debug.LogWarning("[RouteMap] The end-zone picture came out empty, so the existing " + PhotoPath +
+                                     " was kept. Run Tools > VR Full Route > Retake End-Zone Picture (Map button) to take it " +
+                                     "in RunSystem instead. " + report);
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[RouteMap] Could not take the end-zone picture (" + e.Message + "). The existing " +
+                                 PhotoPath + " was kept. Try Tools > VR Full Route > Retake End-Zone Picture (Map button).");
+            }
+
+            return AssetDatabase.LoadAssetAtPath<Sprite>(PhotoPath);
+        }
+
+        static void SavePhoto(Texture2D tex)
+        {
+            File.WriteAllBytes(Path.GetFullPath(PhotoPath), tex.EncodeToPNG());
+            Object.DestroyImmediate(tex);
+            AssetDatabase.ImportAsset(PhotoPath, ImportAssetOptions.ForceUpdate);
+            ImportSprite(PhotoPath, 100f, Vector4.zero, 2048);
+        }
+
+        /// <summary>
+        /// Renders the end zone. Returns null if nothing but sky was drawn. The report gives the
+        /// camera position, how many objects were in view, and which render method worked.
+        /// </summary>
+        static Texture2D TakeEndZonePicture(FullRoutePlan plan, RouteDefinition def,
+                                            UnityEngine.SceneManagement.Scene scene, out string report)
+        {
             Vector3 eye = def.PointAt(Mathf.Max(0f, def.EndDistance - PhotoBackOff)) + Vector3.up * PhotoEye;
+            // The plan is in the route's own space: RunSystem's route sits at z = -500.
             Vector2 front = plan.ShopBuilding.C + plan.ShopFacing * plan.ShopBuilding.HU;
-            Vector3 target = new Vector3(front.x, 3.2f, front.y);
+            Vector3 target = def.transform.TransformPoint(new Vector3(front.x, 3.2f, front.y));
 
             var lightGo = new GameObject("PhotoSun");
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(lightGo, scene);
             var light = lightGo.AddComponent<Light>();
             light.type = LightType.Directional;
             light.intensity = 1.05f;
@@ -261,63 +429,49 @@ namespace VRTutorial.EditorTools
             lightGo.transform.rotation = Quaternion.Euler(46f, -38f, 0f);
 
             var camGo = new GameObject("PhotoCamera");
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(camGo, scene);
             var cam = camGo.AddComponent<Camera>();
             cam.fieldOfView = PhotoFov;
             cam.nearClipPlane = 0.1f;
             cam.farClipPlane = 600f;
             cam.clearFlags = CameraClearFlags.Skybox;
+            cam.stereoTargetEye = StereoTargetEyeMask.None;
+            cam.useOcclusionCulling = false;
             camGo.transform.position = eye;
             camGo.transform.LookAt(target);
 
+            // How many drawable things the camera should see - tells "wrong place" from "not drawn".
+            Plane[] planes = GeometryUtility.CalculateFrustumPlanes(cam);
+            int inView = 0;
+            foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                if (r.enabled && r.gameObject.scene == scene && GeometryUtility.TestPlanesAABB(planes, r.bounds))
+                    inView++;
+
+            string where = string.Format("Camera at {0} looking at {1}, {2} objects in view", eye, target, inView);
             var rt = new RenderTexture(PhotoPixelsW, PhotoPixelsH, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
             rt.Create();
-            Sprite sprite = null;
             try
             {
-                // Shaders compiled now rather than drawn as placeholders, and one render to warm
-                // up before the one that is kept.
-                bool async = ShaderUtil.allowAsyncCompilation;
-                ShaderUtil.allowAsyncCompilation = false;
-                try
+                foreach (bool useRequest in new[] { true, false })
                 {
-                    for (int pass = 0; pass < 2; pass++)
+                    cam.cullingMask = 0;
+                    Texture2D sky = Render(cam, rt, useRequest);
+                    if (sky == null) continue;          // this method is not available
+                    cam.cullingMask = ~0;
+                    Texture2D shot = Render(cam, rt, useRequest);
+                    float drawn = DrawnFraction(sky, shot);
+                    Object.DestroyImmediate(sky);
+                    string method = useRequest ? "render request" : "Camera.Render";
+                    if (drawn > 0.05f)
                     {
-                        var request = new RenderPipeline.StandardRequest { destination = rt };
-                        if (RenderPipeline.SupportsRenderRequest(cam, request))
-                            RenderPipeline.SubmitRenderRequest(cam, request);
-                        else
-                        {
-                            cam.targetTexture = rt;
-                            cam.Render();
-                        }
+                        report = string.Format("{0}; {1} drew {2:0}% of the picture.", where, method, drawn * 100f);
+                        return shot;
                     }
+                    Object.DestroyImmediate(shot);
+                    where += string.Format("; {0} drew {1:0.0}%", method, drawn * 100f);
                 }
-                finally
-                {
-                    ShaderUtil.allowAsyncCompilation = async;
-                }
-
-                var previous = RenderTexture.active;
-                RenderTexture.active = rt;
-                var tex = new Texture2D(PhotoPixelsW, PhotoPixelsH, TextureFormat.RGBA32, false);
-                tex.ReadPixels(new Rect(0, 0, PhotoPixelsW, PhotoPixelsH), 0, 0);
-                tex.Apply();
-                RenderTexture.active = previous;
-
-                if (LooksEmpty(tex))
-                    Debug.LogWarning("[RouteMap] The end-zone picture looks like sky only - the route may not have been drawn. " +
-                                     "Run Build Route Map Scene again; if it repeats, tell Claude (camera at " + eye + ").");
-
-                File.WriteAllBytes(Path.GetFullPath(PhotoPath), tex.EncodeToPNG());
-                Object.DestroyImmediate(tex);
-                AssetDatabase.ImportAsset(PhotoPath, ImportAssetOptions.ForceUpdate);
-                sprite = ImportSprite(PhotoPath, 100f, Vector4.zero, 2048);
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogWarning("[RouteMap] Could not take the end-zone picture (" + e.Message + "). " +
-                                 "The map is built without it; the existing " + PhotoPath + " is used if there is one.");
-                sprite = AssetDatabase.LoadAssetAtPath<Sprite>(PhotoPath);
+                report = where + ".";
+                return null;
             }
             finally
             {
@@ -327,25 +481,62 @@ namespace VRTutorial.EditorTools
                 Object.DestroyImmediate(camGo);
                 Object.DestroyImmediate(lightGo);
             }
-            return sprite;
+        }
+
+        /// <summary>One shot with the given method, read back to a texture. Null if the method is not available.</summary>
+        static Texture2D Render(Camera cam, RenderTexture rt, bool useRequest)
+        {
+            // Shaders compiled now rather than drawn as placeholders, and one render to warm up
+            // before the one that is kept.
+            bool async = ShaderUtil.allowAsyncCompilation;
+            ShaderUtil.allowAsyncCompilation = false;
+            try
+            {
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    if (useRequest)
+                    {
+                        var request = new RenderPipeline.StandardRequest { destination = rt };
+                        if (!RenderPipeline.SupportsRenderRequest(cam, request)) return null;
+                        RenderPipeline.SubmitRenderRequest(cam, request);
+                    }
+                    else
+                    {
+                        cam.targetTexture = rt;
+                        cam.Render();
+                        cam.targetTexture = null;
+                    }
+                }
+            }
+            finally
+            {
+                ShaderUtil.allowAsyncCompilation = async;
+            }
+
+            var previous = RenderTexture.active;
+            RenderTexture.active = rt;
+            var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+            tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+            tex.Apply();
+            RenderTexture.active = previous;
+            return tex;
         }
 
         /// <summary>
-        /// True if the lower half of the picture is nearly one colour - what an empty scene
-        /// (sky above, plain ground colour below) gives, where a street never does.
+        /// Share of the picture that differs from the sky-only shot from the same camera. An empty
+        /// scene gives about 0; a street view gives most of the picture.
         /// </summary>
-        static bool LooksEmpty(Texture2D tex)
+        static float DrawnFraction(Texture2D sky, Texture2D shot)
         {
-            Color[] px = tex.GetPixels(0, 0, tex.width, tex.height / 2);
-            double sum = 0, sum2 = 0;
-            int n = 0;
-            for (int i = 0; i < px.Length; i += 37)
+            Color32[] a = sky.GetPixels32(), b = shot.GetPixels32();
+            int differ = 0, n = 0;
+            for (int i = 0; i < a.Length && i < b.Length; i += 53)
             {
-                float l = px[i].r * 0.3f + px[i].g * 0.59f + px[i].b * 0.11f;
-                sum += l; sum2 += l * l; n++;
+                int d = Mathf.Abs(a[i].r - b[i].r) + Mathf.Abs(a[i].g - b[i].g) + Mathf.Abs(a[i].b - b[i].b);
+                if (d > 24) differ++;
+                n++;
             }
-            double mean = sum / n;
-            return sum2 / n - mean * mean < 0.0004;   // standard deviation under 0.02
+            return n == 0 ? 0f : (float)differ / n;
         }
 
         // ================================================================== strip and clip

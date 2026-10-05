@@ -2,14 +2,16 @@ using UnityEngine;
 using UnityEngine.Audio;
 
 /// <summary>
-/// The suburban background sound for the full-route runs: birds and the quiet hum of a suburb
-/// in the morning. Plays for as long as the RunSystem scene is loaded, in every module, and
+/// The suburban background sound for the full-route runs and the tutorial: birds and the quiet
+/// hum of a suburb in the morning. Plays for as long as its scene is loaded (RunSystem in every
+/// module; Tutorial on EnvironmentAudio, where it replaced the wind-and-leaves loop), and
 /// carries on under the pause menu, the help panels and the post-run survey.
 ///
-/// NO SETUP: RunSystemController adds one of these if RunSystem has none. The clip is loaded from
-///   Assets/Resources/Ambience/Ambience_Suburb_Morning   (.mp3, .ogg or .wav)
-/// unless one is assigned to Clip below. Add a RunAmbience to RunSystem by hand only to change
-/// the clip, volume or output.
+/// SETUP: a RunAmbience on the RunSystem object, with the clip in its Clip slot. In the Editor an
+/// empty slot fills itself with Assets/Audio/Ambience/Ambience_Suburb_Morning.mp3 - save the
+/// scene afterwards so the build has it too. If RunSystem has no RunAmbience at all,
+/// RunSystemController adds one, which can then only find the clip in
+/// Resources/Ambience/Ambience_Suburb_Morning.
 ///
 /// SEAMLESS LOOP: the recording is a field recording, not a made loop, so its end does not match
 /// its start. Two sources take turns: a few seconds before one reaches the end, the other starts
@@ -26,8 +28,10 @@ using UnityEngine.Audio;
 public class RunAmbience : MonoBehaviour
 {
     public const string ResourcePath = "Ambience/Ambience_Suburb_Morning";
+    public const string DefaultClipAssetPath = "Assets/Audio/Ambience/Ambience_Suburb_Morning.mp3";
 
-    [Tooltip("Leave empty to use Resources/Ambience/Ambience_Suburb_Morning.")]
+    [Tooltip("The recording. Fills itself in the Editor with Assets/Audio/Ambience/Ambience_Suburb_Morning.mp3 " +
+             "if left empty.")]
     [SerializeField] private AudioClip clip;
 
     [Tooltip("Kept low: it is background. Tune by ear against the footsteps in the headset.")]
@@ -59,8 +63,9 @@ public class RunAmbience : MonoBehaviour
             clip = Resources.Load<AudioClip>(ResourcePath);
         if (clip == null)
         {
-            Debug.LogWarning($"[RunAmbience] No ambience clip. Put the recording in Assets/Resources/{ResourcePath}.mp3 " +
-                             "(or assign one on RunAmbience). The run works without it.", this);
+            Debug.LogWarning("[RunAmbience] No ambience clip, so the run is silent apart from footsteps. Drag " +
+                             $"{DefaultClipAssetPath} into the Clip slot of Run Ambience on the RunSystem object " +
+                             "and save the scene.", this);
             enabled = false;
             return;
         }
@@ -140,6 +145,25 @@ public class RunAmbience : MonoBehaviour
         if (fadeInSeconds <= 0f) return 1f;
         return Mathf.Clamp01((float)((now - _firstStart) / fadeInSeconds));
     }
+
+#if UNITY_EDITOR
+    // Fill an empty Clip slot with the default recording, so it cannot be left empty by accident.
+    // Marks the scene changed, so the next save stores it for the build.
+    private void Reset() => FillDefaultClip();
+
+    private void OnValidate()
+    {
+        if (clip == null) FillDefaultClip();
+    }
+
+    private void FillDefaultClip()
+    {
+        AudioClip found = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(DefaultClipAssetPath);
+        if (found == null) return;
+        clip = found;
+        UnityEditor.EditorUtility.SetDirty(this);
+    }
+#endif
 
     private void OnDisable()
     {
