@@ -171,7 +171,7 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 294532d323356f94dafb64b3b31db185, type: 3}
     - {fileID: 8300000, guid: 4cd31ae23e69746419ccf58473ff14a4, type: 3}
     - {fileID: 8300000, guid: 6eb798ea26d0b06448bc63c83aeadc5c, type: 3}
-    volume: 0.3
+    volume: 0.2
     materialKeywords:
     - stone
     - endzone

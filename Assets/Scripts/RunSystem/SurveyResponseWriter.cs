@@ -12,15 +12,16 @@ using UnityEngine;
 ///
 /// With the default questions the columns are:
 ///   participant_id, run_type, run_index, date, time,
-///   calm, stress, confidence, ease, difficulty, guide_help,
+///   calm, stress, confidence, ease, difficulty, guide_help, guidance_help,
 ///                                   answers 1-5 (stress = 6 - calm, difficulty = 6 - ease)
-///   calm_time_s ... guide_help_time_s   seconds to answer (help panel time left out)
-///   calm_changes ... guide_help_changes times the participant changed their pick
+///   calm_time_s ... guidance_help_time_s   seconds to answer (help panel time left out)
+///   calm_changes ... guidance_help_changes times the participant changed their pick
 ///   guide_shown                     times the guide appeared in the run (Guided only)
 ///
-/// Every row has every column, so Unguided and Guided rows share one file: a question not asked
-/// in that run (ease in Guided; guide_help in Unguided, or in a Guided run where the guide never
-/// appeared) has blank cells. guide_shown is blank for runs with no guide.
+/// Every row has every column, so all four modules share one file: a question not asked in that
+/// run has blank cells. ease is Unguided 1 only; guide_help is Guided only (and blank there if the
+/// guide never appeared); guidance_help is Unguided 2.a only. guide_shown is blank for runs with
+/// no guide.
 ///
 /// The header follows the questions in PostRunSurvey. If the file's header does not match (the
 /// questions were changed), rows go to survey_responses_2.csv, _3 ... so one file never mixes
