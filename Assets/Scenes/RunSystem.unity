@@ -27537,7 +27537,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RunAmbience
   clip: {fileID: 8300000, guid: 144a07a5442ca894fb37e068330e4fa8, type: 3}
-  volume: 0.2
+  volume: 0.12
   output: {fileID: 0}
   crossfadeSeconds: 4
   fadeInSeconds: 1.5

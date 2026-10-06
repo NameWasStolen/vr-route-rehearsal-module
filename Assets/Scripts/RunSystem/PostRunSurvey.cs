@@ -19,21 +19,26 @@ using VRTutorial;
 ///   thank you - then the panel fades away and the view fades to the menu.
 /// The panel eases in (fades while growing from 95%) rather than appearing at once.
 ///
-/// Three questions, each answered on five faces from red/sad (1) to green/happy
+/// Up to three questions, each answered on five faces from red/sad (1) to green/happy
 /// (5), picked with the controller ray and confirmed with Next.
 ///
-///   1. "How calm did you feel on the walk?"          -> calm (1-5), and stress = 6 - calm
-///   2. "How confident did you feel finding the way?" -> confidence (1-5)
-///   3. Unguided: "How easy was it to find your own way?" -> ease (1-5), and difficulty = 6 - ease
-///      Guided:   "How much did the blue line help you?"  -> guide_help (1-5); only asked if the
-///                guide appeared at least once, so a Guided run with no taps and no wrong turns
-///                gets two questions.
+///   1. "How calm did you feel on the walk?"          -> calm (1-5), and stress = 6 - calm      (every module)
+///   2. "How confident did you feel finding the way?" -> confidence (1-5)                       (every module)
+///   3. Depends on the module:
+///      Unguided 1:   "How easy was it to find your own way?" -> ease (1-5), and difficulty = 6 - ease
+///      Guided:       "How much did the blue line help you navigate?" -> guide_help (1-5); only asked
+///                    if the guide appeared at least once, so a Guided run with no taps and no wrong
+///                    turns gets two questions.
+///      Unguided 2.a: "How much did the guidance help you find the way?" -> guidance_help (1-5). No
+///                    line in this run: it asks how much the earlier Guided module helped. Asked of
+///                    everyone, whether or not the line appeared in their Guided run.
+///      Unguided 2.b: none (two questions).
 ///
 /// Stress and difficulty are asked as calm and ease so that the happy green face is the good
 /// answer on every question; the reversed columns keep the data reading as the original measure.
 ///
 /// WHEN: only after a run that reached the end zone, and only for the run types listed in
-/// Run Types (Unguided 1 and Guided by default). Leaving a run from the pause menu skips it.
+/// Run Types (all four modules by default). Leaving a run from the pause menu skips it.
 ///
 /// NO SETUP: RunSystemController adds one of these if RunSystem has none, and the panel is built
 /// when it is first needed, styled from the run's pause menu (RunHelp > PauseMenuPanel) so it
@@ -108,7 +113,11 @@ public class PostRunSurvey : MonoBehaviour
     [Header("When")]
     [Tooltip("Run types that end with the survey. The module run types are unguided_1, guided, " +
              "unguided_2a and unguided_2b.")]
-    [SerializeField] private string[] runTypes = { MenuController.ModuleUnguided1, MenuController.ModuleGuided };
+    [SerializeField] private string[] runTypes =
+    {
+        MenuController.ModuleUnguided1, MenuController.ModuleGuided,
+        MenuController.ModuleUnguided2a, MenuController.ModuleUnguided2b,
+    };
 
     [Tooltip("Seconds between reaching the end zone and the arrival panel easing in. Short: the " +
              "panel is what tells the participant why they have stopped.")]
@@ -122,13 +131,17 @@ public class PostRunSurvey : MonoBehaviour
     {
         new Question("calm", "How calm did you feel on the walk?", "Not calm", "Very calm", "stress"),
         new Question("confidence", "How confident did you feel finding the way?", "Not confident", "Very confident"),
-        // Unguided: "how difficult" asked as "how easy", so the green face is the good answer.
+        // Unguided 1 only: "how difficult" asked as "how easy", so the green face is the good answer.
         new Question("ease", "How easy was it to find your own way?", "Very hard", "Very easy", "difficulty",
-                     new[] { MenuController.ModuleUnguided1, MenuController.ModuleUnguided2a, MenuController.ModuleUnguided2b }),
+                     new[] { MenuController.ModuleUnguided1 }),
         // Guided: only if the line (or Turn around sign) actually appeared - someone who never
         // tapped and never went wrong has nothing to rate.
-        new Question("guide_help", "How much did the blue line help you?", "Not helpful", "Very helpful", "",
+        new Question("guide_help", "How much did the blue line help you navigate?", "Not helpful", "Very helpful", "",
                      new[] { MenuController.ModuleGuided }, onlyIfGuideShown: true),
+        // Unguided 2.a, the first walk after Guided: how much the earlier guidance helped. There is
+        // no line in this run, so it is asked of everyone.
+        new Question("guidance_help", "How much did the guidance help you find the way?", "Not helpful", "Very helpful", "",
+                     new[] { MenuController.ModuleUnguided2a }),
     };
 
     [Header("Words")]

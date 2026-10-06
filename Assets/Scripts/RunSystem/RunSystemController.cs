@@ -67,9 +67,9 @@ public class RunSystemController : MonoBehaviour
 		if (FindInThisScene<RunAmbience>() == null)
 			gameObject.AddComponent<RunAmbience>();
 
-		// The survey shown at the end zone of some modules (calm, confidence, then ease or
-		// blue-line help). Added here so it needs no scene setup; add a PostRunSurvey by hand to
-		// change which runs get it or its wording.
+		// The survey shown at the end zone of every module (calm, confidence, then a third question
+		// that depends on the module). Added here so it needs no scene setup; add a PostRunSurvey by
+		// hand to change which runs get it or its wording.
 		survey = FindInThisScene<PostRunSurvey>();
 		if (survey == null)
 			survey = gameObject.AddComponent<PostRunSurvey>();
@@ -300,10 +300,10 @@ public class RunSystemController : MonoBehaviour
 		if (wasTracking)
 			RunSummaryWriter.Write(positionTracker, routeTracker, runStartedAt, completed, elapsedTime, sampleFile);
 
-		// The post-run survey, for runs that reached the end zone in the modules that have one.
+		// The post-run survey, for runs that reached the end zone (every module by default).
 		// Its answers go to survey_responses.csv, after the run's own data is already saved.
-		// Guided runs pass how often the guide appeared: the "how much did the blue line help"
-		// question is only asked if it appeared at all.
+		// Guided runs pass how often the guide appeared: the "how much did the blue line help you
+		// navigate" question is only asked if it appeared at all.
 		if (completed && survey != null && survey.AppliesTo(runType))
 		{
 			int guideShown = guidance != null && guidance.IsGuided ? guidance.TimesShown : -1;
