@@ -29,33 +29,68 @@ public class MenuController : MonoBehaviour
     [Tooltip("Seconds to fade out of the menu and into the map.")]
     [SerializeField] private float mapFadeSeconds = 0.5f;
 
-    // ------------------------------------------------------------------ no walking in the menu
-    // This component sits on the menu root itself, so it is enabled exactly while the menu is
-    // showing: hidden for a run or the Map, shown again on return, and gone when the tutorial
-    // replaces this scene. Walking is held off for that whole time; snap turning and head look
-    // still work, and the pointer can still press buttons.
+    // ------------------------------------------------------------------ the menu area
+    // "In the menu" is the participant standing in the menu park, whichever page is up -
+    // including the researcher screen, which hides the menu panel itself. It ends when a run or
+    // the Map takes over (both hide the menu but leave this scene loaded) or when the tutorial
+    // unloads this scene, and starts again when the menu is shown on the way back.
+    //
+    // Tracked explicitly rather than by this component's OnEnable/OnDisable: it sits on the menu
+    // panel, so the researcher screen hiding that panel would otherwise count as leaving.
+    //
+    // While in the menu:
+    //   - walking is held off (snap turning, head look and the pointer still work);
+    //   - the play-area guide is held off - there is nothing to walk to, and the participant may
+    //     still be being handed the headset;
+    //   - the park around the menu (MenuEnvironment, built by Tools > VR Full Route > Build Main
+    //     Menu Park) is shown. It is hidden otherwise: the Map and the runs are built 500 m away
+    //     in the same world, so it would otherwise stand on their horizon.
+    public const string EnvironmentRootName = "MenuEnvironment";
+
     private bool _holdingWalking;
+    private GameObject _environment;
 
-    private void OnEnable() => HoldWalking();
-
-    private void OnDisable()
+    private void SetInMenu(bool inMenu)
     {
-        if (!_holdingWalking) return;
-        _holdingWalking = false;
-        ControllerHandednessManager.Instance?.ResumeWalking(this);
+        ControllerHandednessManager hands = ControllerHandednessManager.Instance;
+        if (inMenu && !_holdingWalking && hands != null)
+        {
+            hands.SuspendWalking(this);
+            _holdingWalking = true;
+        }
+        else if (!inMenu && _holdingWalking)
+        {
+            hands?.ResumeWalking(this);
+            _holdingWalking = false;
+        }
+
+        if (inMenu) PlayAreaGuide.Suppress(this);
+        else PlayAreaGuide.Release(this);
+
+        if (_environment == null) _environment = FindEnvironment();
+        if (_environment != null && _environment.activeSelf != inMenu) _environment.SetActive(inMenu);
     }
 
-    private void HoldWalking()
+    /// <summary>The park's root object in this scene, if it has been built. Found active or not.</summary>
+    private GameObject FindEnvironment()
     {
-        if (_holdingWalking || ControllerHandednessManager.Instance == null) return;
-        ControllerHandednessManager.Instance.SuspendWalking(this);
-        _holdingWalking = true;
+        foreach (GameObject root in gameObject.scene.GetRootGameObjects())
+            if (root.name == EnvironmentRootName) return root;
+        return null;
+    }
+
+    private void OnDestroy()
+    {
+        // The tutorial unloads this scene: hand walking and the guide back (each comes back once
+        // the transition's own hold ends, not while the view is still dark).
+        if (_holdingWalking) ControllerHandednessManager.Instance?.ResumeWalking(this);
+        _holdingWalking = false;
+        PlayAreaGuide.Release(this);
     }
 
     private void Start()
     {
-        // In case the rig's manager was not up yet when this first enabled.
-        HoldWalking();
+        SetInMenu(true);
 
         TeleportPlayerToMenu();
 
@@ -162,6 +197,7 @@ public class MenuController : MonoBehaviour
         // The fade back in runs on the fader (Bootstrap), and the menu is hidden last: this
         // controller sits inside the menu, so hiding it ends this coroutine.
         if (fader != null) fader.FadeIn(mapFadeSeconds);
+        SetInMenu(false);
         if (mainMenuRoot != null)
             mainMenuRoot.SetActive(false);
     }
@@ -210,6 +246,7 @@ public class MenuController : MonoBehaviour
 
     public void ShowMainMenu()
     {
+        SetInMenu(true);
         TeleportPlayerToMenu();
 
         if (mainMenuRoot != null)
@@ -264,6 +301,7 @@ public class MenuController : MonoBehaviour
         // Cleared before hiding the menu: on the fallback path this coroutine runs on the menu
         // itself, and hiding it stops the coroutine.
         isLoadingRunSystem = false;
+        SetInMenu(false);
         if (mainMenuRoot != null)
             mainMenuRoot.SetActive(false);
     }

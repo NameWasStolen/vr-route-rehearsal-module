@@ -442,6 +442,10 @@ public static class XRPlayerTeleport
 
 		if (hadController)
 			characterController.enabled = true;
+
+		// Wherever they are standing in the real room now is the spot the play-area guide keeps
+		// them near - so a headset handed over across the room starts afresh at each module.
+		PlayAreaGuide.Recentre("placed");
 	}
 
 	/// <summary>
