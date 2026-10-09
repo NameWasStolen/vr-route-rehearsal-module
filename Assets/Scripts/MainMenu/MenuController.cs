@@ -29,8 +29,34 @@ public class MenuController : MonoBehaviour
     [Tooltip("Seconds to fade out of the menu and into the map.")]
     [SerializeField] private float mapFadeSeconds = 0.5f;
 
+    // ------------------------------------------------------------------ no walking in the menu
+    // This component sits on the menu root itself, so it is enabled exactly while the menu is
+    // showing: hidden for a run or the Map, shown again on return, and gone when the tutorial
+    // replaces this scene. Walking is held off for that whole time; snap turning and head look
+    // still work, and the pointer can still press buttons.
+    private bool _holdingWalking;
+
+    private void OnEnable() => HoldWalking();
+
+    private void OnDisable()
+    {
+        if (!_holdingWalking) return;
+        _holdingWalking = false;
+        ControllerHandednessManager.Instance?.ResumeWalking(this);
+    }
+
+    private void HoldWalking()
+    {
+        if (_holdingWalking || ControllerHandednessManager.Instance == null) return;
+        ControllerHandednessManager.Instance.SuspendWalking(this);
+        _holdingWalking = true;
+    }
+
     private void Start()
     {
+        // In case the rig's manager was not up yet when this first enabled.
+        HoldWalking();
+
         TeleportPlayerToMenu();
 
         // Researcher-only participant ID screen: hold both thumbsticks in for 3 s on this menu.

@@ -157,6 +157,11 @@ public class ControllerHandednessManager : MonoBehaviour
         if (IsLocomotionSuspended) return;
 
         SetProvidersEnabled(true);
+
+        // Walking stays off if something still holds it (the main menu), and comes back here if
+        // its hold was released while everything was suspended.
+        if (!IsWalkingSuspended) RestoreWalking();
+
         SelectHand(ActiveHand);
     }
 
@@ -175,8 +180,108 @@ public class ControllerHandednessManager : MonoBehaviour
         }
 
         foreach (Behaviour provider in _providersWeDisabled)
-            if (provider != null) provider.enabled = true;
+        {
+            if (provider == null) continue;
+
+            // Walking is still held off: hand the move provider to that hold instead, so it comes
+            // back when the hold is released rather than now.
+            if (IsWalkingSuspended && IsMoveProvider(provider))
+            {
+                if (!_walkersWeDisabled.Contains(provider)) _walkersWeDisabled.Add(provider);
+                continue;
+            }
+
+            provider.enabled = true;
+        }
         _providersWeDisabled.Clear();
+    }
+
+    // ------------------------------------------------------------------ walking only
+
+    /// <summary>True while anything holds walking off, e.g. the main menu is showing.</summary>
+    public bool IsWalkingSuspended => _walkingSuspenders.Count > 0;
+
+    private readonly HashSet<object> _walkingSuspenders = new HashSet<object>();
+
+    // Move providers switched off by the walking hold, so releasing it turns back on only those.
+    private readonly List<Behaviour> _walkersWeDisabled = new List<Behaviour>();
+
+    /// <summary>
+    /// Turns walking off but leaves snap turning (and head look) alone. Used by the main menu,
+    /// where there is nothing to walk to and a stray grip only carries the participant away
+    /// from the menu they are meant to be reading.
+    ///
+    /// Only the move provider is switched off; the action maps stay on, so turning and every
+    /// button keep working. Held per owner like SuspendLocomotion, and the two stack: while
+    /// either holds, the participant cannot walk.
+    ///
+    /// Other code switches the move provider back on after a fade (SceneTransitionController's
+    /// own locomotion list, for one). Rather than teach each of them about this hold, LateUpdate
+    /// switches it straight back off while the hold is on - coroutines run before LateUpdate, so
+    /// the provider never gets an Update in which to move the rig.
+    /// </summary>
+    public void SuspendWalking(object owner = null)
+    {
+        bool was = IsWalkingSuspended;
+        _walkingSuspenders.Add(owner ?? this);
+        if (!was) DisableWalking();
+    }
+
+    /// <summary>
+    /// Releases an owner's walking hold. Walking returns once nobody holds it - unless
+    /// locomotion as a whole is suspended (a fade, the pause menu), in which case it returns
+    /// when that ends.
+    /// </summary>
+    public void ResumeWalking(object owner = null)
+    {
+        if (!_walkingSuspenders.Remove(owner ?? this)) return;
+        if (IsWalkingSuspended) return;
+        if (IsLocomotionSuspended) return;   // ResumeLocomotion hands it back
+
+        RestoreWalking();
+    }
+
+    private void DisableWalking()
+    {
+        foreach (Behaviour provider in MoveProviders())
+        {
+            if (provider == null || !provider.enabled) continue;
+            provider.enabled = false;
+            if (!_walkersWeDisabled.Contains(provider)) _walkersWeDisabled.Add(provider);
+        }
+    }
+
+    // The rig persists for the whole session, so its move providers are looked up once rather
+    // than searched for every frame the menu is open.
+    private List<Behaviour> _moveProviders;
+
+    private List<Behaviour> MoveProviders()
+    {
+        // Unity's == (not List.Contains) is what notices a destroyed component.
+        bool stale = _moveProviders == null;
+        if (!stale)
+            foreach (Behaviour provider in _moveProviders)
+                if (provider == null) { stale = true; break; }
+
+        if (stale)
+        {
+            _moveProviders = new List<Behaviour>();
+            foreach (Behaviour provider in FindLocomotionProviders())
+                if (IsMoveProvider(provider)) _moveProviders.Add(provider);
+        }
+        return _moveProviders;
+    }
+
+    private void RestoreWalking()
+    {
+        foreach (Behaviour provider in _walkersWeDisabled)
+            if (provider != null) provider.enabled = true;
+        _walkersWeDisabled.Clear();
+    }
+
+    private void LateUpdate()
+    {
+        if (IsWalkingSuspended) DisableWalking();
     }
 
     /// <summary>
@@ -199,6 +304,19 @@ public class ControllerHandednessManager : MonoBehaviour
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// The walking provider (XRI's ContinuousMoveProvider, or anything derived from it), matched
+    /// by name for the same reason as above. Turn providers are left out on purpose.
+    /// </summary>
+    private static bool IsMoveProvider(Behaviour provider)
+    {
+        for (Type t = provider.GetType(); t != null && t != typeof(MonoBehaviour); t = t.BaseType)
+        {
+            if (t.Name == "ContinuousMoveProvider") return true;
+        }
+        return false;
     }
 
     /// <summary>

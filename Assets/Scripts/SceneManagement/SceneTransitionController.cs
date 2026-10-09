@@ -130,8 +130,11 @@ public class SceneTransitionController : MonoBehaviour
         float audioFrom = AudioListener.volume;
         if (fadeAudio) AudioListener.volume = 0f;
 
-        // 2. Stop the player moving while they cannot see.
+        // 2. Stop the player moving while they cannot see. Held under this controller's own name
+        //    as well, as the other two routines do: the main menu releases its walking hold as it
+        //    unloads, and without this, walking would come back while the view is still dark.
         SetLocomotionEnabled(false);
+        ControllerHandednessManager.Instance?.SuspendLocomotion(this);
 
         // 3. Preload with activation held, so the expensive frame lands inside the darkness
         //    instead of halfway through the fade.
@@ -143,6 +146,7 @@ public class SceneTransitionController : MonoBehaviour
             {
                 Debug.LogError($"[SceneTransitionController] '{loadSceneName}' could not be loaded. " +
                                "Is it in File > Build Settings?", this);
+                ControllerHandednessManager.Instance?.ResumeLocomotion(this);
                 SetLocomotionEnabled(true);
                 if (fadeAudio) AudioListener.volume = audioFrom;
                 if (fader != null) yield return fader.FadeTo(0f, fadeInDuration);
@@ -186,6 +190,7 @@ public class SceneTransitionController : MonoBehaviour
         if (fadeAudio) AudioListener.volume = audioFrom;
         if (fader != null) yield return fader.FadeTo(0f, fadeInDuration);
 
+        ControllerHandednessManager.Instance?.ResumeLocomotion(this);
         SetLocomotionEnabled(true);
         IsTransitioning = false;
     }
@@ -337,26 +342,24 @@ public class SceneTransitionController : MonoBehaviour
     private void MoveToSpawnPoint()
     {
         SceneSpawnPoint spawn = SceneSpawnPoint.Active;
-        if (spawn == null || rigRoot == null || head == null) return;
+        if (spawn == null) return;
 
-        bool hadController = characterController != null && characterController.enabled;
-        if (hadController) characterController.enabled = false;
-
-        // Yaw first, pivoting about the head so the player's own position does not shift.
-        Vector3 currentForward = Vector3.ProjectOnPlane(head.forward, Vector3.up);
-        Vector3 desiredForward = Vector3.ProjectOnPlane(spawn.transform.forward, Vector3.up);
-        if (currentForward.sqrMagnitude > 0.0001f && desiredForward.sqrMagnitude > 0.0001f)
+        // Head and rigRoot are not wired in the Inspector; they are found from Camera.main in
+        // Awake, and the rig's camera is not guaranteed to be enabled by then. Without this retry
+        // the move below would be skipped silently, and the participant would arrive facing
+        // whichever way they happened to be facing.
+        if (rigRoot == null || head == null || characterController == null) ResolveReferences();
+        if (rigRoot == null || head == null)
         {
-            float yaw = Vector3.SignedAngle(currentForward, desiredForward, Vector3.up);
-            rigRoot.RotateAround(head.position, Vector3.up, yaw);
+            Debug.LogWarning("[SceneTransitionController] Could not find the XR rig or camera, so the " +
+                             "player was not placed at the spawn point.", this);
+            return;
         }
 
-        // Then translate: head over the spawn in XZ, rig floor at the spawn's height.
-        Vector3 delta = spawn.transform.position - head.position;
-        delta.y = spawn.transform.position.y - rigRoot.position.y;
-        rigRoot.position += delta;
-
-        if (hadController) characterController.enabled = true;
+        // Same placement as the runs, the Map and the main menu: the head is turned to face the
+        // spawn's forward and stood on it, whichever way the participant is turned in the room.
+        XRPlayerTeleport.AlignHeadTo(rigRoot, head, characterController,
+                                     spawn.transform.position, spawn.transform.eulerAngles.y);
 
         // The rig persists across scene loads, so FootstepAudio is never disabled and never
         // re-syncs itself. Left alone it measures this jump as travel and spends it as a burst
