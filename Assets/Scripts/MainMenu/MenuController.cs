@@ -40,8 +40,6 @@ public class MenuController : MonoBehaviour
     //
     // While in the menu:
     //   - walking is held off (snap turning, head look and the pointer still work);
-    //   - the play-area guide is held off - there is nothing to walk to, and the participant may
-    //     still be being handed the headset;
     //   - the park around the menu (MenuEnvironment, built by Tools > VR Full Route > Build Main
     //     Menu Park) is shown. It is hidden otherwise: the Map and the runs are built 500 m away
     //     in the same world, so it would otherwise stand on their horizon.
@@ -64,9 +62,6 @@ public class MenuController : MonoBehaviour
             _holdingWalking = false;
         }
 
-        if (inMenu) PlayAreaGuide.Suppress(this);
-        else PlayAreaGuide.Release(this);
-
         if (_environment == null) _environment = FindEnvironment();
         if (_environment != null && _environment.activeSelf != inMenu) _environment.SetActive(inMenu);
     }
@@ -81,11 +76,10 @@ public class MenuController : MonoBehaviour
 
     private void OnDestroy()
     {
-        // The tutorial unloads this scene: hand walking and the guide back (each comes back once
-        // the transition's own hold ends, not while the view is still dark).
+        // The tutorial unloads this scene: hand walking back (it returns once the transition's own
+        // hold ends, not while the view is still dark).
         if (_holdingWalking) ControllerHandednessManager.Instance?.ResumeWalking(this);
         _holdingWalking = false;
-        PlayAreaGuide.Release(this);
     }
 
     private void Start()
