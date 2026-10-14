@@ -363,6 +363,18 @@ public class RunSystemController : MonoBehaviour
 	}
 }
 
+/// <summary>
+/// Places the player at a standing point, facing the way the point faces - every time.
+///
+/// The HEAD is what gets lined up, not the rig. In a headset the rig's forward is wherever the
+/// Quest's room setup says forward is, and the participant can be physically turned any way
+/// relative to that. Setting only the rig's rotation (what this used to do) meant they arrived
+/// facing the point's direction plus however far they happened to be turned in the real room,
+/// so the same run could start facing the bus stop one time and a fence the next.
+///
+/// Shared by the main menu, the Map, every module run, and SceneTransitionController's spawn
+/// points (the tutorial), so all of them place the participant the same way.
+/// </summary>
 public static class XRPlayerTeleport
 {
 	public static bool MoveToStandingPoint(
@@ -382,30 +394,76 @@ public static class XRPlayerTeleport
 			return false;
 		}
 
-		CharacterController characterController =
-			xrOrigin.GetComponent<CharacterController>();
+		if (xrOrigin.Camera == null)
+		{
+			Debug.LogError("The XR Origin has no camera assigned.", context);
+			return false;
+		}
 
-		if (characterController != null)
-			characterController.enabled = false;
-
-		xrOrigin.transform.rotation = Quaternion.Euler(
-			0f,
-			standingPoint.eulerAngles.y,
-			0f
-		);
-
-		Transform cameraTransform = xrOrigin.Camera.transform;
-		float cameraHeight = cameraTransform.position.y - xrOrigin.transform.position.y;
-		Vector3 desiredCameraPosition =
-			standingPoint.position + Vector3.up * cameraHeight;
-		Vector3 cameraCorrection =
-			desiredCameraPosition - cameraTransform.position;
-
-		xrOrigin.transform.position += cameraCorrection;
-
-		if (characterController != null)
-			characterController.enabled = true;
+		AlignHeadTo(
+			xrOrigin.transform,
+			xrOrigin.Camera.transform,
+			xrOrigin.GetComponent<CharacterController>(),
+			standingPoint.position,
+			standingPoint.eulerAngles.y);
 
 		return true;
+	}
+
+	/// <summary>
+	/// Turns the rig so the head faces <paramref name="yaw"/>, then moves it so the head stands
+	/// over <paramref name="floorPosition"/> with the rig's floor at that height.
+	///
+	/// The turn pivots about the head, so it does not shift where they are standing; the move
+	/// then puts the head (not the rig root) on the point, because the participant's own position
+	/// inside their play area offsets the head from the root.
+	/// </summary>
+	public static void AlignHeadTo(
+		Transform rigRoot,
+		Transform head,
+		CharacterController characterController,
+		Vector3 floorPosition,
+		float yaw)
+	{
+		if (rigRoot == null || head == null)
+			return;
+
+		// A CharacterController fights a teleport and drags the player back.
+		bool hadController = characterController != null && characterController.enabled;
+		if (hadController)
+			characterController.enabled = false;
+
+		float turn = Mathf.DeltaAngle(HeadingYaw(head), yaw);
+		rigRoot.RotateAround(head.position, Vector3.up, turn);
+
+		Vector3 delta = floorPosition - head.position;
+		delta.y = floorPosition.y - rigRoot.position.y;
+		rigRoot.position += delta;
+
+		if (hadController)
+			characterController.enabled = true;
+	}
+
+	/// <summary>
+	/// Which way the head is facing on the ground plane, in degrees.
+	///
+	/// Usually just the flattened forward. Looking almost straight down (at the controller, or
+	/// the floor while the view is dark) leaves the flattened forward too short to trust, so the
+	/// top of the head is used instead - it points the way they are facing when looking down,
+	/// and the opposite way when looking up.
+	/// </summary>
+	public static float HeadingYaw(Transform head)
+	{
+		Vector3 forward = Vector3.ProjectOnPlane(head.forward, Vector3.up);
+		if (forward.sqrMagnitude < 0.04f)
+		{
+			Vector3 up = head.forward.y < 0f ? head.up : -head.up;
+			forward = Vector3.ProjectOnPlane(up, Vector3.up);
+		}
+
+		if (forward.sqrMagnitude < 1e-6f)
+			return head.eulerAngles.y;
+
+		return Quaternion.LookRotation(forward.normalized, Vector3.up).eulerAngles.y;
 	}
 }

@@ -73,6 +73,15 @@ namespace VRTutorial
                  "The panel background stays visible throughout, so this must never be a jump.")]
         [SerializeField] private float placementMoveDuration = -1f;
 
+        [Tooltip("Metres the lesson panel sits BELOW every step's own placement (each step's Local " +
+                 "Offset, or the panel's authored offset for steps that do not override it). One " +
+                 "number for the whole panel, so it can be retuned after testing without editing " +
+                 "every step.\n\n" +
+                 "Added after UX testing (Oct 2026): participants found the panel hard to read at " +
+                 "eye level. 0.15 m moves it roughly 5 degrees further below the line of sight. " +
+                 "Only this panel moves - the pause menu and help panels keep their own offsets.")]
+        [SerializeField] private float panelDrop = 0.15f;
+
         [Header("Pulling forward")]
         [Tooltip("Distance from the head, in metres, that the panel moves to while PullPanelForward " +
                  "is active. This is an ABSOLUTE distance, not a nudge, so the result does not " +
@@ -249,6 +258,11 @@ namespace VRTutorial
             // the same reason it is applied here: every path that positions the panel goes
             // through this method, so none of them can disagree about whether it is in effect.
             if (_pulledForward) offset.z = pulledDistance;
+
+            // Lower the whole panel by one shared amount, on top of whatever the step asked for.
+            // Here for the same reason as the two adjustments either side: every path that
+            // places the panel comes through this method.
+            offset.y -= panelDrop;
 
             // Accessibility scale magnifies whatever the step asked for. Applied here rather
             // than at the call sites so that ApplyPlacementImmediate and MovePanel cannot
