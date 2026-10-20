@@ -1,0 +1,16 @@
+# Unity SmartMerge (UnityYAMLMerge) is TEMPORARILY DISABLED.
+#
+# Why: git hands merge drivers extensionless temp files, so UnityYAMLMerge cannot
+# match its own extension rules in mergespecfile.txt. It therefore falls through to
+# the "*" fallback tool list, and if none of those third-party tools is installed it
+# aborts the ENTIRE merge with an opaque error naming only a temp filename - it never
+# says which repo file it choked on. That makes conflicts impossible to diagnose.
+#
+# With these lines commented out, git uses its built-in text merge and writes normal
+# conflict markers. Messier to read, but it names the files and shows the hunks.
+#
+# To re-enable once a fallback merge tool is configured in mergespecfile.txt,
+# uncomment the two lines below. Do NOT widen beyond scenes and prefabs.
+#
+# *.unity   merge=unityyamlmerge
+# *.prefab  merge=unityyamlmerge
